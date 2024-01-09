@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @homepage     https://greasyfork.org/zh-CN/scripts/484381
+// @version      1.0.0
 // @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，不用登录，多种主题切换，多种抓取速度切换（有关闭状态），自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        https://live.bilibili.com/*?*

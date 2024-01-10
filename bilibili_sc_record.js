@@ -2,8 +2,8 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      1.0.1
-// @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，不用登录，多种主题切换，多种抓取速度切换（有停止状态），自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
+// @version      1.0.2
+// @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        *://live.bilibili.com/*
 // @icon         https://www.bilibili.com/favicon.ico
@@ -16,17 +16,17 @@
     'use strict';
     // 抓取SC ：https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=
     // 进入直播间的时候开始记录SC
-    // 开始固定在屏幕右侧，可以缩小为圆点，可以拖拽移动
-    // 进入直播间时候判断，如果保留的大于12小时就清除
+    // 开始固定在屏幕左上方一侧，为圆点，可以展开，可以拖拽移动，在屏幕顶层
+    // 进入直播间时候判断，如果保留的SC大于12小时就清除
     // 每个直播间隔离保留，用localstorage
     // 每10秒（高速）/30秒（中速）/55秒（低速/一般）（默认）抓取一次，还有停止状态
-    // SC标明日期
-    // 下播后10分钟自动停止抓取
+    // SC标明日期和距离前期时间差
+    // 下播后10分钟自动停止抓取（非实时直播10分钟即停止，即可以提前10钟进入直播间）
 
     if (window.top !== window.self) { return; }
 
     let sc_catch_interval = 30; // 中速模式，每30秒抓取一次（固定）
-    let sc_catch_interval_fast = 10; // 高速模式，每10秒抓取一次（比如：如果主播念的快，最低可以设置为5）（不建议改的太小，毕竟请求太频繁会被ban）
+    let sc_catch_interval_fast = 10; // 高速模式，每10秒抓取一次（比如：如果主播念的快时，可以切换到高速模式。最低可以设置为5）（不建议改的太小，毕竟请求太频繁会被ban）
     let sc_catch_interval_low = 55; // 默认低速(一般)模式，每55秒抓取一次（最低300电池的存活的时间是60秒，错开点时间）（固定）
     let room_id = parseInt(window.location.pathname.substring(1)); // 获取直播间id
 
@@ -90,7 +90,7 @@
         sc_circleContainer.classList.add('sc_circle', 'sc_drag_div');
         sc_circleContainer.style.width = '30px';
         sc_circleContainer.style.height = '30px';
-        sc_circleContainer.style.backgroundColor = 'rgb(167,201,211,0.5)'; //#A7C9D3
+        sc_circleContainer.style.backgroundColor = 'rgb(167,201,211,0.5)'; //#A7C9D3 （恬豆应援色）
         sc_circleContainer.style.borderRadius = '50%';
         sc_circleContainer.style.border = '2px solid #ffffff';
         sc_circleContainer.style.position = 'fixed';
@@ -118,7 +118,7 @@
         sc_rectangleContainer.style.cursor = 'grab';
         sc_rectangleContainer.style.userSelect = 'none';
         sc_rectangleContainer.style.zIndex = '2233';
-        sc_rectangleContainer.style.scrollbarGutter = 'stable';
+        sc_rectangleContainer.style.scrollbarGutter = 'stable'; // 滚动条不占位置
 
         // Add a button to the page to trigger minimize function
         const sc_minimizeButton = document.createElement('button');
@@ -291,6 +291,7 @@
         $(document).on('mousemove', sc_drag);
         $(document).on('mouseup', sc_stopDragging);
 
+        // 让全屏直播的情况下也显示
         live_player_div.addEventListener('fullscreenchange', sc_handleFullscreenChange);
         live_player_div.addEventListener('webkitfullscreenchange', sc_handleFullscreenChange);
         live_player_div.addEventListener('mozfullscreenchange', sc_handleFullscreenChange);
@@ -421,12 +422,14 @@
 
         });
 
+        // 折叠
         function sc_minimize() {
             $(document).find('.sc_circle').show();
             $(document).find('.sc_rectangle').hide();
             $(document).find('.sc_buttons').hide(); // 优化回弹问题
         }
 
+        // 切换主题
         function sc_switch_css() {
             sc_switch++;
             let sc_rectangle = $(document).find('.sc_rectangle');
@@ -584,6 +587,7 @@
             }
         }
 
+        // 导出
         function sc_export() {
             let sc_localstorage_json_export = unsafeWindow.localStorage.getItem(sc_localstorage_key);
             if (sc_localstorage_json_export === null || sc_localstorage_json_export === 'null' || sc_localstorage_json_export === '[]' || sc_localstorage_json_export === '') {
@@ -632,6 +636,7 @@
             }
         }
 
+        // 切换抓取速度
         function sc_model_change() {
             let sc_button_model = $(document).find('.sc_button_model');
             // 删除定时器
@@ -790,6 +795,7 @@
             return resultStr;
         }
 
+        // 更新每条SC距离当前时间
         function updateTimestampDiff() {
             let sc_timestamp_item = $(document).find('.sc_start_timestamp');
             sc_timestamp_item.each(function() {

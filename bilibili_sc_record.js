@@ -280,7 +280,6 @@
         let sc_isClickAllowed = true;
         let sc_offsetX = 0;
         let sc_offsetY = 0;
-        let sc_isFullScreen = false;
         let sc_isListEmpty = true;
         let sc_switch = 0;
 
@@ -306,10 +305,8 @@
                 let sc_rectangle_clone = $(sc_rectangleContainer).clone(true);
                 $(live_player_div).append(sc_circle_clone);
                 $(live_player_div).append(sc_rectangle_clone);
-                sc_isFullScreen = true;
             } else {
                 $(live_player_div).find('.sc_drag_div').remove();
-                sc_isFullScreen = false;
             }
         }
 

@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      1.0.5
+// @version      1.0.6
 // @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        *://live.bilibili.com/*
@@ -871,11 +871,6 @@
 
                     if (sc_add_arr.length > 0) {
                         for (let i = 0; i < sc_add_arr.length; i++){
-                            if (diff_arr_new_sc.length > 0) {
-                                sc_localstorage.push(sc_add_arr[i]);
-                                sc_sid_localstorage.push(String(sc_add_arr[i]["id"]) + '_' + String(sc_add_arr[i]["uid"]) + '_' + String(sc_add_arr[i]["price"]));
-                            }
-
                             // 追加到SC显示板
                             let sc_background_bottom_color = sc_add_arr[i]["background_bottom_color"];
                             let sc_background_image = sc_add_arr[i]["background_image"];
@@ -935,6 +930,11 @@
                                     live_sc_rooms.push(room_id);
                                     unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify(live_sc_rooms));
                                 }
+                            }
+
+                            for (let d = 0; d < diff_arr_new_sc.length; d++) {
+                                sc_localstorage.push(diff_arr_new_sc[d]);
+                                sc_sid_localstorage.push(String(diff_arr_new_sc[d]["id"]) + '_' + String(diff_arr_new_sc[d]["uid"]) + '_' + String(diff_arr_new_sc[d]["price"]));
                             }
 
                             // 保存/更新sc_keep_time （最后sc的时间戳）

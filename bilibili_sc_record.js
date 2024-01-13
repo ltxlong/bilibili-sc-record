@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      1.0.3
+// @version      1.0.4
 // @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        *://live.bilibili.com/*
@@ -107,7 +107,7 @@
         // Create a container for the rectangle
         const sc_rectangleContainer = document.createElement('div');
         sc_rectangleContainer.classList.add('sc_rectangle', 'sc_drag_div');
-        sc_rectangleContainer.style.width = '300px';
+        sc_rectangleContainer.style.width = '302px';
         sc_rectangleContainer.style.height = sc_panel_high + 'px';
         sc_rectangleContainer.style.backgroundColor = 'rgba(255,255,255,1)';
         sc_rectangleContainer.style.position = 'fixed';
@@ -419,7 +419,27 @@
 
         });
 
-        // 折叠
+        $(document).on('click', '.sc_item', sc_toggle_msg_body);
+
+        // 折叠/展开单个消息
+        function sc_toggle_msg_body() {
+            let this_sc_msg_body = $(this).find('.sc_msg_body');
+            let this_sc_item_bg_color = $(this).css('background-color');
+
+            if (this_sc_msg_body.is(":visible")) {
+                this_sc_msg_body.slideUp(200);
+                $(this).css('border-radius', '8px');
+                this_sc_msg_body.prev().css('border-radius', '6px');
+                $(this).find('.sc_value_font').css('color', this_sc_item_bg_color);
+            } else {
+                $(this).css('border-radius', '8px 8px 6px 6px');
+                this_sc_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
+                this_sc_msg_body.slideDown(200);
+                $(this).find('.sc_value_font').css('color', '');
+            }
+        }
+
+        // 折叠显示板
         function sc_minimize() {
             $(document).find('.sc_circle').show();
             $(document).find('.sc_rectangle').hide();
@@ -879,8 +899,8 @@
                             if (sc_switch === 0 || sc_switch === 2 || sc_switch === 3) {
                                 box_shadow_css = 'box-shadow: rgba(0, 0, 0, 0.5) 2px 2px 2px;';
                             }
-                            let sc_item_html = '<div class="sc_item" style="background-color: '+ sc_background_bottom_color +';min-height: 70px;margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
-                                '<div style="background-image: url('+ sc_background_image +');height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-top-left-radius: 6px; border-top-right-radius: 6px;">'+
+                            let sc_item_html = '<div class="sc_item" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
+                                '<div class="sc_msg_head" style="background-image: url('+ sc_background_image +');height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-radius: 6px 6px 0px 0px;">'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
                                 '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">'+ sc_user_info_face_frame_div +'</a></div>'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;">'+
@@ -888,11 +908,11 @@
                                 '<div style="height: 20px; padding-left: 5px;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank" style="color: '+ sc_font_color +';font-size: 15px;text-decoration: none;">'+ sc_user_info_uname +'</a></div>'+
                                 '</div>'+
                                 '<div style="float: right; box-sizing: border-box; height: 40px;">'+
-                                '<div style="height: 20px;"><span style="font-size: 15px;">CN￥'+ sc_price +'</span></div>'+
+                                '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right;">CN￥'+ sc_price +'</span></div>'+
                                 '<div style="height: 20px; color: #666666"><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span></div>'+
                                 '</div>'+
                                 '</div>'+
-                                '<div style="padding: 10px;overflow-wrap: break-word;"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+
+                                '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+
                                 '</div>';
 
                             $(document).find('.live-room-app .sc_list').prepend(sc_item_html);

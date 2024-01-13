@@ -2,8 +2,8 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      1.0.4
-// @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
+// @version      1.0.5
+// @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        *://live.bilibili.com/*
 // @icon         https://www.bilibili.com/favicon.ico
@@ -423,19 +423,20 @@
 
         // 折叠/展开单个消息
         function sc_toggle_msg_body() {
-            let this_sc_msg_body = $(this).find('.sc_msg_body');
-            let this_sc_item_bg_color = $(this).css('background-color');
-
+            let this_sc_item_class_arr = $(this).attr('class').split(' ');
+            let this_sc_item_dynamic_className = this_sc_item_class_arr.find(function(scClassName) { return scClassName !== 'sc_item'});
+            let this_sc_msg_body = $('.' + this_sc_item_dynamic_className).find('.sc_msg_body');
+            let this_sc_item_bg_color = $('.' + this_sc_item_dynamic_className).css('background-color');
             if (this_sc_msg_body.is(":visible")) {
                 this_sc_msg_body.slideUp(200);
-                $(this).css('border-radius', '8px');
+                $('.' + this_sc_item_dynamic_className).css('border-radius', '8px');
                 this_sc_msg_body.prev().css('border-radius', '6px');
-                $(this).find('.sc_value_font').css('color', this_sc_item_bg_color);
+                $('.' + this_sc_item_dynamic_className).find('.sc_value_font').css('color', this_sc_item_bg_color);
             } else {
-                $(this).css('border-radius', '8px 8px 6px 6px');
+                $('.' + this_sc_item_dynamic_className).css('border-radius', '8px 8px 6px 6px');
                 this_sc_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
                 this_sc_msg_body.slideDown(200);
-                $(this).find('.sc_value_font').css('color', '');
+                $('.' + this_sc_item_dynamic_className).find('.sc_value_font').css('color', '');
             }
         }
 
@@ -899,7 +900,7 @@
                             if (sc_switch === 0 || sc_switch === 2 || sc_switch === 3) {
                                 box_shadow_css = 'box-shadow: rgba(0, 0, 0, 0.5) 2px 2px 2px;';
                             }
-                            let sc_item_html = '<div class="sc_item" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
+                            let sc_item_html = '<div class="sc_item sc_' + sc_uid + '_' + sc_start_timestamp + '" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
                                 '<div class="sc_msg_head" style="background-image: url('+ sc_background_image +');height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-radius: 6px 6px 0px 0px;">'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
                                 '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">'+ sc_user_info_face_frame_div +'</a></div>'+

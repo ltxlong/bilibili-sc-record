@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      1.0.6
+// @version      1.1.0
 // @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        *://live.bilibili.com/*
@@ -34,7 +34,7 @@
 
     let sc_url = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=' + room_id; // 请求sc的url
 
-    let sc_panel_high = '400'; // 显示面板的高度（单位是px，后面会拼接）
+    let sc_panel_high = 400; // 显示面板的最大高度（单位是px，后面会拼接）
 
     let sc_catch = [];
     let sc_localstorage_key = 'live_' + room_id + '_sc';
@@ -104,21 +104,19 @@
         sc_circleContainer.style.userSelect = 'none';
         sc_circleContainer.style.zIndex = '2233';
 
+        let sc_rectangle_width = 302;
         // Create a container for the rectangle
         const sc_rectangleContainer = document.createElement('div');
         sc_rectangleContainer.classList.add('sc_rectangle', 'sc_drag_div');
-        sc_rectangleContainer.style.width = '302px';
-        sc_rectangleContainer.style.height = sc_panel_high + 'px';
+        sc_rectangleContainer.style.width = sc_rectangle_width + 'px';
+        sc_rectangleContainer.style.height = 'auto';
         sc_rectangleContainer.style.backgroundColor = 'rgba(255,255,255,1)';
         sc_rectangleContainer.style.position = 'fixed';
         sc_rectangleContainer.style.display = 'none';
-        sc_rectangleContainer.style.overflowY = 'scroll';
-        sc_rectangleContainer.style.overflowX = 'hidden';
         sc_rectangleContainer.style.borderBottom = '10px solid transparent';
         sc_rectangleContainer.style.cursor = 'grab';
         sc_rectangleContainer.style.userSelect = 'none';
         sc_rectangleContainer.style.zIndex = '2233';
-        sc_rectangleContainer.style.scrollbarGutter = 'stable'; // 滚动条不占位置
 
         // Add a button to the page to trigger minimize function
         const sc_minimizeButton = document.createElement('button');
@@ -168,7 +166,6 @@
         sc_dataShowContainer.style.backgroundColor = 'rgba(255,255,255,0)';
         sc_dataShowContainer.style.textAlign = 'center';
         sc_dataShowContainer.style.position = 'sticky';
-        sc_dataShowContainer.style.top = '65px';
         sc_dataShowContainer.style.zIndex = '3';
         sc_dataShowContainer.style.height = '20px';
         sc_dataShowContainer.style.fontSize = '15px';
@@ -213,14 +210,21 @@
         sc_dataShowContainer.appendChild(sc_label_captain_num_left);
         sc_rectangleContainer.appendChild(sc_dataShowContainer);
 
+        if (sc_panel_high < 200) { sc_panel_high = 200; }
+
         // Create a container for sc list
         const sc_listContainer = document.createElement('div');
         sc_listContainer.className = 'sc_list';
+        sc_listContainer.style.minHeight = '200px';
+        sc_listContainer.style.maxHeight = sc_panel_high + 'px';
+        sc_listContainer.style.overflowY = 'scroll';
+        sc_listContainer.style.overflowX = 'hidden';
+        sc_listContainer.style.scrollbarGutter = 'stable'; // 滚动条不占位置
         sc_listContainer.style.paddingLeft = '10px';
         sc_listContainer.style.paddingTop = '10px';
         sc_listContainer.style.paddingBottom = '10px';
-        sc_listContainer.style.paddingRight = '12px';
-        sc_listContainer.style.marginRight = '-6px'; // 可能scrollbarGutter不是所有浏览器都支持，加多这个和设置'scroll'兼容下
+        sc_listContainer.style.paddingRight = '13px';
+        sc_listContainer.style.marginRight = '-7px'; // 可能scrollbarGutter不是所有浏览器都支持，加多这个和设置'scroll'兼容下
 
         // Append the container to the rectangle
         sc_rectangleContainer.appendChild(sc_listContainer);
@@ -229,14 +233,14 @@
         let sc_scrollbar_style = document.createElement('style');
         sc_scrollbar_style.id = 'sc_scrollbar_style';
         sc_scrollbar_style.textContent = `
-            .sc_rectangle::-webkit-scrollbar {
+            .sc_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_rectangle:hover::-webkit-scrollbar-thumb {
-                    background: rgba(204,204,204,0.7);
+            .sc_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(204,204,204,0.5);
                     border-radius: 6px;
             }
-            .sc_rectangle::-webkit-scrollbar-thumb {
+            .sc_list::-webkit-scrollbar-thumb {
                 background: rgba(204,204,204,0);
             }
         `;
@@ -253,9 +257,8 @@
                 width: 60px;
                 padding: 5px;
                 margin-top: 15px;
-                margin-bottom: 5px;
-                margin-left: 5px;
-                margin-right: 5px;
+                margin-bottom: 15px;
+                margin-right: 10px;
                 background: linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3);
                 background-size: 350%;
                 color: #ffffff;
@@ -354,12 +357,12 @@
                     $(this).hide();
                 });
 
-                if (innerWidth - xPos < 300) {
-                    xPos = innerWidth - 305;
+                if (innerWidth - xPos < sc_rectangle_width) {
+                    xPos = innerWidth - 315;
                 }
 
                 if (innerHeight - yPos < sc_panel_high) {
-                    yPos = innerHeight - sc_panel_high - 5;
+                    yPos = innerHeight - sc_panel_high - 150;
                 }
 
                 let sc_rectangles = $(document).find('.sc_rectangle');
@@ -424,7 +427,7 @@
         // 折叠/展开单个消息
         function sc_toggle_msg_body() {
             let this_sc_item_class_arr = $(this).attr('class').split(' ');
-            let this_sc_item_dynamic_className = this_sc_item_class_arr.find(function(scClassName) { return scClassName !== 'sc_item'});
+            let this_sc_item_dynamic_className = this_sc_item_class_arr.find(function(scClassName) { return scClassName !== 'sc_item'; });
             let this_sc_msg_body = $('.' + this_sc_item_dynamic_className).find('.sc_msg_body');
             let this_sc_item_bg_color = $('.' + this_sc_item_dynamic_className).css('background-color');
             if (this_sc_msg_body.is(":visible")) {
@@ -461,20 +464,19 @@
                 sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
                 sc_rectangle.css('box-shadow', '2px 2px 5px black');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                sc_list.css('padding-right', '12px');
                 sc_data_show.css('color', '');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
                 sc_button_item.css('border', 0);
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_rectangle::-webkit-scrollbar {
+            .sc_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_rectangle:hover::-webkit-scrollbar-thumb {
-                    background: rgba(204,204,204,0.7);
+            .sc_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(204,204,204,0.5);
                     border-radius: 6px;
             }
-            .sc_rectangle::-webkit-scrollbar-thumb {
+            .sc_list::-webkit-scrollbar-thumb {
                 background: rgba(204,204,204,0);
             }
             `);
@@ -487,14 +489,14 @@
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_rectangle::-webkit-scrollbar {
+            .sc_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_rectangle:hover::-webkit-scrollbar-thumb {
-                    background: rgba(255,255,255,0.3);
+            .sc_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(255,255,255,0.1);
                     border-radius: 6px;
             }
-            .sc_rectangle::-webkit-scrollbar-thumb {
+            .sc_list::-webkit-scrollbar-thumb {
                 background: rgba(255,255,255,0);
             }
             `);
@@ -502,20 +504,19 @@
                 // 半透明（白0.1）
                 sc_rectangle.css('background-color', 'rgba(255,255,255,0.1)');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                sc_list.css('padding-right', '12px');
                 sc_data_show.css('color', '#ffffff');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
                 sc_button_item.css('border', 0);
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_rectangle::-webkit-scrollbar {
+            .sc_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_rectangle:hover::-webkit-scrollbar-thumb {
-                    background: rgba(204,204,204,0.7);
+            .sc_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(204,204,204,0.2);
                     border-radius: 6px;
             }
-            .sc_rectangle::-webkit-scrollbar-thumb {
+            .sc_list::-webkit-scrollbar-thumb {
                 background: rgba(204,204,204,0);
             }
             `);
@@ -523,20 +524,19 @@
                 // 半透明（白0.5）
                 sc_rectangle.css('background-color', 'rgba(255,255,255,0.5)');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                sc_list.css('padding-right', '12px');
                 sc_data_show.css('color', '');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
                 sc_button_item.css('border', 0);
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_rectangle::-webkit-scrollbar {
+            .sc_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_rectangle:hover::-webkit-scrollbar-thumb {
-                    background: rgba(204,204,204,0.7);
+            .sc_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(204,204,204,0.5);
                     border-radius: 6px;
             }
-            .sc_rectangle::-webkit-scrollbar-thumb {
+            .sc_list::-webkit-scrollbar-thumb {
                 background: rgba(204,204,204,0);
             }
             `);
@@ -549,14 +549,14 @@
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_rectangle::-webkit-scrollbar {
+            .sc_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_rectangle:hover::-webkit-scrollbar-thumb {
-                    background: rgba(255,255,255,0.3);
+            .sc_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(255,255,255,0.2);
                     border-radius: 6px;
             }
-            .sc_rectangle::-webkit-scrollbar-thumb {
+            .sc_list::-webkit-scrollbar-thumb {
                 background: rgba(255,255,255,0);
             }
             `);
@@ -569,14 +569,14 @@
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_rectangle::-webkit-scrollbar {
+            .sc_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_rectangle:hover::-webkit-scrollbar-thumb {
-                    background: rgba(255,255,255,0.3);
+            .sc_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(255,255,255,0.2);
                     border-radius: 6px;
             }
-            .sc_rectangle::-webkit-scrollbar-thumb {
+            .sc_list::-webkit-scrollbar-thumb {
                 background: rgba(255,255,255,0);
             }
             `);
@@ -585,20 +585,19 @@
                 sc_switch = 0;
                 sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                sc_list.css('padding-right', '12px');
                 sc_data_show.css('color', '');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
                 sc_button_item.css('border', 0);
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_rectangle::-webkit-scrollbar {
+            .sc_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_rectangle:hover::-webkit-scrollbar-thumb {
-                    background: rgba(204,204,204,0.7);
+            .sc_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(204,204,204,0.5);
                     border-radius: 6px;
             }
-            .sc_rectangle::-webkit-scrollbar-thumb {
+            .sc_list::-webkit-scrollbar-thumb {
                 background: rgba(204,204,204,0);
             }
             `);
@@ -901,7 +900,7 @@
                                 '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">'+ sc_user_info_face_frame_div +'</a></div>'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;">'+
                                 '<div style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>'+
-                                '<div style="height: 20px; padding-left: 5px;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank" style="color: '+ sc_font_color +';font-size: 15px;text-decoration: none;">'+ sc_user_info_uname +'</a></div>'+
+                                '<div style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + sc_rectangle_width / 2 + 'px; overflow: hidden; text-overflow: ellipsis;"><span style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;">' + sc_user_info_uname + '</span></div>'+
                                 '</div>'+
                                 '<div style="float: right; box-sizing: border-box; height: 40px;">'+
                                 '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right;">CN￥'+ sc_price +'</span></div>'+

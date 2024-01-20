@@ -874,7 +874,6 @@
             e = e || window.event;
             e.preventDefault();
 
-            $(this).css('background-color', '#A7C9D3');
             $(document).find('.sc_rectangle').css('cursor', 'progress');
 
             function capture_gen_canvas(tmp_sc_item_div, current_sc_div) {
@@ -1068,7 +1067,7 @@
 
                             let sc_user_info_face_frame_div = '';
                             if (sc_user_info_face_frame !== '') {
-                                sc_user_info_face_frame_div = '<img class="sc_user_face" src="'+ sc_user_info_face_frame +'" height="40" width="40" style="float: left; position: absolute; z-index:2;">';
+                                sc_user_info_face_frame_div = '<img src="'+ sc_user_info_face_frame +'" height="40" width="40" style="float: left; position: absolute; z-index:2;">';
                             }
 
                             let box_shadow_css = '';
@@ -1078,7 +1077,7 @@
                             let sc_item_html = '<div class="sc_item sc_' + sc_uid + '_' + sc_start_timestamp + '" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
                                 '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-radius: 6px 6px 0px 0px;">'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
-                                '<img class="sc_user_frame" src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">'+ sc_user_info_face_frame_div +'</a></div>'+
+                                '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">'+ sc_user_info_face_frame_div +'</a></div>'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;">'+
                                 '<div style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>'+
                                 '<div style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + sc_rectangle_width / 2 + 'px; overflow: hidden; text-overflow: ellipsis;"><span style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;">' + sc_user_info_uname + '</span></div>'+

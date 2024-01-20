@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      2.0.0
+// @version      2.0.1
 // @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        *://live.bilibili.com/*
@@ -254,6 +254,10 @@
                 0%{opacity: 0;}
                 100%{opacity: 1;}
             }
+            @keyframes sc_sun {
+                100%{ background-position: -350% 0; }
+            }
+
             .sc_button_item {
                 text-decoration: none;
                 width: 60px;
@@ -269,8 +273,19 @@
             .sc_button_item:hover {
                 animation: sc_sun 7s infinite;
             }
-            @keyframes sc_sun {
-                100%{ background-position: -350% 0; }
+
+            .sc_copy_btn {
+                text-decoration: none;
+                width: 'auto';
+                padding: 5px;
+                background: linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3);
+                background-size: 350%;
+                color: #ffffff;
+                border: none;
+                box-shadow: '0 0 3px rgba(0, 0, 0, 0.3)';
+            }
+            .sc_copy_btn:hover {
+                animation: sc_sun 7s infinite;
             }
         `;
         document.head.appendChild(sc_other_style);
@@ -837,11 +852,8 @@
 
         // 创建一个自定义右键菜单
         let sc_copy_button = document.createElement('button');
-        sc_copy_button.classList.add('sc_copy_btn', 'sc_button_item');
+        sc_copy_button.className = 'sc_copy_btn';
         sc_copy_button.innerHTML = '点击复制为图片';
-        sc_copy_button.style.width = 'auto';
-        sc_copy_button.style.margin = 0;
-        sc_copy_button.style.boxShadow = '0 0 3px rgba(0, 0, 0, 0.3)';
 
         let sc_context_menu = document.createElement('div');
         sc_context_menu.id = 'sc_context_menu_body';

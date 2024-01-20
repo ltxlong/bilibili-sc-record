@@ -2,12 +2,13 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      1.1.0
-// @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
+// @version      2.0.0
+// @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        *://live.bilibili.com/*
 // @icon         https://www.bilibili.com/favicon.ico
 // @require      https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js
+// @require      https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
 // @grant        unsafeWindow
 // @license      GPL-3.0-or-later
 // ==/UserScript==
@@ -21,6 +22,7 @@
     // 每个直播间隔离保留，用localstorage
     // 每10秒（高速）/30秒（中速）/55秒（低速/一般）（默认）抓取一次，还有停止状态
     // SC标明日期和距离前期时间差
+    // SC可折叠，可生成图片（折叠和展开都可以）
     // 下播后10分钟自动停止抓取（非实时直播10分钟即停止，即可以提前10钟进入直播间）
 
     if (window.top !== window.self) { return; }
@@ -285,6 +287,7 @@
         let sc_offsetY = 0;
         let sc_isListEmpty = true;
         let sc_switch = 0;
+        let sc_isFullscreen = false;
 
         // Set initial position
         sc_circleContainer.style.top = `${innerHeight / 4}px`;
@@ -308,12 +311,15 @@
                 let sc_rectangle_clone = $(sc_rectangleContainer).clone(true);
                 $(live_player_div).append(sc_circle_clone);
                 $(live_player_div).append(sc_rectangle_clone);
+                sc_isFullscreen = true;
             } else {
                 $(live_player_div).find('.sc_drag_div').remove();
+                sc_isFullscreen = false;
             }
         }
 
         function sc_startDragging(e) {
+            e = e || window.event;
             sc_isDragging = true;
             sc_isClickAllowed = true;
             const rect = e.target.getBoundingClientRect();
@@ -322,9 +328,10 @@
         }
 
         function sc_drag(e) {
+            e = e || window.event;
             if (sc_isDragging) {
                 let sc_elements = $(document).find('.sc_drag_div');
-                sc_elements.each(function(){
+                sc_elements.each(function() {
                     const rect = this.getBoundingClientRect();
 
                     const maxX = innerWidth - rect.width;
@@ -345,7 +352,7 @@
             sc_isDragging = false;
         }
 
-        $(document).on('click', '.sc_circle', (e) => {
+        $(document).on('click', '.sc_circle', () => {
             if (sc_isClickAllowed) {
                 let xPos = 0;
                 let yPos = 0;
@@ -370,7 +377,7 @@
                     $(this).css('left', xPos + 'px');
                     $(this).css('top', yPos + 'px');
 
-                    $(this).slideDown(500, function () {
+                    $(this).slideDown(500, () => {
                         $(document).find('.sc_buttons').slideDown(500);
                     });
                 });
@@ -379,27 +386,27 @@
         });
 
 
-        $(document).on('mouseenter', '.sc_circle', (e) => {
+        $(document).on('mouseenter', '.sc_circle', () => {
             $(document).find('.sc_circle').css('border', '3px solid rgba(255,255,255,0.5)');
         });
 
-        $(document).on('mouseleave', '.sc_circle', (e) => {
+        $(document).on('mouseleave', '.sc_circle', () => {
             $(document).find('.sc_circle').css('border', '2px solid #ffffff');
         });
 
         let sc_rectangle_is_slide_down = false;
         let sc_rectangle_is_slide_up = false;
         // 优化回弹问题
-        $(document).on('mouseenter', '.sc_rectangle', (e) => {
+        $(document).on('mouseenter', '.sc_rectangle', () => {
             if (sc_rectangle_is_slide_down) {
                 return;
             }
             sc_rectangle_is_slide_down = true;
 
-            $(document).find('.sc_buttons').slideDown(500, function() {
+            $(document).find('.sc_buttons').slideDown(500, () => {
                 sc_rectangle_is_slide_down = false;
             });
-            $(document).find('.sc_data_show').slideDown(500, function() {
+            $(document).find('.sc_data_show').slideDown(500, () => {
                 sc_rectangle_is_slide_down = false;
             });
             $(document).find('.sc_data_show label').animate({opacity: 1}, 1000);
@@ -410,13 +417,20 @@
             if (sc_rectangle_is_slide_up) {
                 return;
             }
+
+            e = e || window.event;
+            let sc_mouseleave_next_class_name = (e.relatedTarget && e.relatedTarget.className) || '';
+            if (sc_mouseleave_next_class_name === 'sc_ctx_menu') {
+                return;
+            }
+
             sc_rectangle_is_slide_up = true;
 
-            $(document).find('.sc_buttons').slideUp(500, function() {
+            $(document).find('.sc_buttons').slideUp(500, () => {
                 sc_rectangle_is_slide_up = false;
             });
             $(document).find('.sc_data_show label').animate({opacity: 0}, 200);
-            $(document).find('.sc_data_show').slideUp(500, function() {
+            $(document).find('.sc_data_show').slideUp(500, () => {
                 sc_rectangle_is_slide_up = false;
             });
 
@@ -427,7 +441,7 @@
         // 折叠/展开单个消息
         function sc_toggle_msg_body() {
             let this_sc_item_class_arr = $(this).attr('class').split(' ');
-            let this_sc_item_dynamic_className = this_sc_item_class_arr.find(function(scClassName) { return scClassName !== 'sc_item'; });
+            let this_sc_item_dynamic_className = this_sc_item_class_arr.find((scClassName) => { return scClassName !== 'sc_item'; });
             let this_sc_msg_body = $('.' + this_sc_item_dynamic_className).find('.sc_msg_body');
             let this_sc_item_bg_color = $('.' + this_sc_item_dynamic_className).css('background-color');
             if (this_sc_msg_body.is(":visible")) {
@@ -821,6 +835,169 @@
             });
         }
 
+        // 创建一个自定义右键菜单
+        let sc_copy_button = document.createElement('button');
+        sc_copy_button.classList.add('sc_copy_btn', 'sc_button_item');
+        sc_copy_button.innerHTML = '点击复制为图片';
+        sc_copy_button.style.width = 'auto';
+        sc_copy_button.style.margin = 0;
+        sc_copy_button.style.boxShadow = '0 0 3px rgba(0, 0, 0, 0.3)';
+
+        let sc_context_menu = document.createElement('div');
+        sc_context_menu.id = 'sc_context_menu_body';
+        sc_context_menu.className = 'sc_ctx_menu';
+        sc_context_menu.style.position = 'absolute';
+        sc_context_menu.style.display = 'none';
+        sc_context_menu.style.backgroundColor = '#ffffff';
+        sc_context_menu.style.border = 0;
+        sc_context_menu.style.padding = '5px';
+        sc_context_menu.style.zIndex = 3333;
+
+        sc_context_menu.appendChild(sc_copy_button);
+
+        // 将右键菜单添加到body中
+        document.body.appendChild(sc_context_menu);
+
+        let sc_context_menu_fullscrenn = sc_context_menu.cloneNode(true);
+        sc_context_menu_fullscrenn.id = 'sc_context_menu_fullscreen';
+        $(live_player_div).append(sc_context_menu_fullscrenn);
+
+        $(document).on('mouseover', '.sc_copy_btn', function() {
+            $(this).css('transform', 'translateX(-2px)');
+            setTimeout(function() {
+                $(document).find('.sc_copy_btn').css('transform', 'translateY(0)');
+            }, 200);
+
+        })
+
+        $(document).on('click', '.sc_copy_btn', function(e) {
+            e = e || window.event;
+            e.preventDefault();
+
+            $(this).css('background-color', '#A7C9D3');
+            $(document).find('.sc_rectangle').css('cursor', 'progress');
+
+            function capture_gen_canvas(tmp_sc_item_div, current_sc_div) {
+
+                return new Promise((resolve, reject) => {
+                    html2canvas(tmp_sc_item_div, {
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: null,
+                        logging: false,
+                        width: current_sc_div.clientWidth,
+                        height: current_sc_div.clientHeight,
+                        scale: 8 // 数值越大，分辨率越大，越清晰，至少4倍才比较清晰
+                    }).then(canvas => {
+
+                        resolve(canvas);
+                    }).catch(error => {
+
+                        reject(error);
+                    });
+                });
+            }
+
+            $(this).parent().fadeOut(function() {
+                let current_sc_div = $(sc_context_menu).data('current_sc_div');
+
+                let tmp_sc_item = $(current_sc_div).clone(); // 为了去掉animation的影响
+                tmp_sc_item.width(current_sc_div.clientWidth);
+                tmp_sc_item.height(current_sc_div.clientHeight);
+                tmp_sc_item.css('animation', '');
+                document.body.appendChild(tmp_sc_item[0]);
+
+                capture_gen_canvas(tmp_sc_item[0], current_sc_div).then(canvas => {
+                    canvas.toBlob(blob => {
+                        navigator.clipboard.write([
+                            new ClipboardItem({'image/png': blob})
+                        ]).then(() => {
+                            open_and_close_sc_modal('✓', '#A7C9D3', e);
+                        }).catch(err => {
+                            open_and_close_sc_modal('✗', 'red');
+                            console.error('复制SC图片失败', err);
+                        });
+                    });
+                }).catch(error => {
+                    console.error('处理html2canvas方法错误', error);
+                });
+
+                document.body.removeChild(tmp_sc_item[0]);
+            });
+        });
+
+        let sc_context_menu_timeout_id;
+
+        $(document).on('mouseleave', '.sc_ctx_menu', function() {
+            sc_context_menu_timeout_id = setTimeout(() => {
+                $(this).hide();
+            }, 1000);
+        });
+
+        $(document).on('mouseover', '.sc_ctx_menu', function() {
+            clearTimeout(sc_context_menu_timeout_id);
+        });
+
+        $(document).on('contextmenu', '.sc_item', function(e) {
+            e = e || window.event;
+            e.preventDefault();
+
+            // 存储当前右键的div
+            $(document).find('.sc_ctx_menu').data('current_sc_div', this);
+            let the_sc_ctx_menu_id = 'sc_context_menu_body';
+            if (sc_isFullscreen) {
+                the_sc_ctx_menu_id = 'sc_context_menu_fullscreen';
+            }
+            $(document).find('#' + the_sc_ctx_menu_id).css('left', e.pageX + 'px');
+            $(document).find('#' + the_sc_ctx_menu_id).css('top', e.pageY + 'px');
+            $(document).find('#' + the_sc_ctx_menu_id).show();
+
+            clearTimeout(sc_context_menu_timeout_id);
+        });
+
+        function open_and_close_sc_modal(show_str, show_color, e) {
+            $(document).find('.sc_rectangle').css('cursor', 'grab');
+            let sc_copy_modal = document.createElement('div');
+            sc_copy_modal.className = 'sc_cp_mod';
+            sc_copy_modal.style.position = 'fixed';
+            sc_copy_modal.style.display = 'none';
+            sc_copy_modal.style.color = show_color;
+            sc_copy_modal.style.width = '30px';
+            sc_copy_modal.style.height = '30px';
+            sc_copy_modal.style.lineHeight = '30px';
+            sc_copy_modal.style.textAlign = 'center';
+            sc_copy_modal.style.backgroundColor = '#ffffff';
+            sc_copy_modal.style.border = 0;
+            sc_copy_modal.style.borderRadius = '50%';
+            sc_copy_modal.style.boxShadow = '0 0 3px rgba(0, 0, 0, 0.3)';
+            sc_copy_modal.innerHTML = show_str;
+            sc_copy_modal.style.left = e.pageX + 10 + 'px';
+            sc_copy_modal.style.top = e.pageY - 10 + 'px';
+            sc_copy_modal.style.zIndex = 3333;
+
+            if (sc_isFullscreen) {
+                $(live_player_div).append(sc_copy_modal);
+            } else {
+                document.body.appendChild(sc_copy_modal);
+            }
+
+            // 显示模态框
+            sc_copy_modal.style.display = 'block';
+
+            // 在一定时间后关闭并删除模态框
+            setTimeout(() => {
+                close_and_remove_sc_modal();
+            }, 1000);
+        }
+
+        function close_and_remove_sc_modal() {
+            // 关闭模态框
+            $(document).find('.sc_cp_mod').hide();
+
+            // 从 body 中移除模态框
+            $(document).find('.sc_cp_mod').remove();
+        }
+
         function sc_fetch_and_show() {
             // 抓取SC
             fetch(sc_url).then(response => {
@@ -873,6 +1050,10 @@
                             // 追加到SC显示板
                             let sc_background_bottom_color = sc_add_arr[i]["background_bottom_color"];
                             let sc_background_image = sc_add_arr[i]["background_image"];
+                            let sc_background_image_html = '';
+                            if (sc_background_image !== '') {
+                                sc_background_image_html = 'background-image: url('+ sc_background_image +');';
+                            }
                             let sc_background_color = sc_add_arr[i]["background_color"];
                             let sc_uid = sc_add_arr[i]["uid"];
                             let sc_user_info_face = sc_add_arr[i]["user_info"]["face"];
@@ -887,7 +1068,7 @@
 
                             let sc_user_info_face_frame_div = '';
                             if (sc_user_info_face_frame !== '') {
-                                sc_user_info_face_frame_div = '<img src="'+ sc_user_info_face_frame +'" height="40" width="40" style="float: left; position: absolute; z-index:2;">';
+                                sc_user_info_face_frame_div = '<img class="sc_user_face" src="'+ sc_user_info_face_frame +'" height="40" width="40" style="float: left; position: absolute; z-index:2;">';
                             }
 
                             let box_shadow_css = '';
@@ -895,16 +1076,16 @@
                                 box_shadow_css = 'box-shadow: rgba(0, 0, 0, 0.5) 2px 2px 2px;';
                             }
                             let sc_item_html = '<div class="sc_item sc_' + sc_uid + '_' + sc_start_timestamp + '" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
-                                '<div class="sc_msg_head" style="background-image: url('+ sc_background_image +');height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-radius: 6px 6px 0px 0px;">'+
+                                '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-radius: 6px 6px 0px 0px;">'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
-                                '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">'+ sc_user_info_face_frame_div +'</a></div>'+
+                                '<img class="sc_user_frame" src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">'+ sc_user_info_face_frame_div +'</a></div>'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;">'+
                                 '<div style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>'+
                                 '<div style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + sc_rectangle_width / 2 + 'px; overflow: hidden; text-overflow: ellipsis;"><span style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;">' + sc_user_info_uname + '</span></div>'+
                                 '</div>'+
                                 '<div style="float: right; box-sizing: border-box; height: 40px;">'+
                                 '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right;">CN￥'+ sc_price +'</span></div>'+
-                                '<div style="height: 20px; color: #666666"><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span></div>'+
+                                '<div style="height: 20px; color: #666666" data-html2canvas-ignore><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span></div>'+
                                 '</div>'+
                                 '</div>'+
                                 '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+

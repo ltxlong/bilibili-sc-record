@@ -362,7 +362,7 @@
                     xPos = rect.left;
                     yPos = rect.top;
                 });
-                if (innerWidth - xPos < sc_rectangles_width) {
+                if (innerWidth - xPos < sc_rectangles_width + 15) {
                     xPos = innerWidth - sc_rectangles_width - 15;
                     sc_rectangles.css('left', xPos + 'px');
                 }

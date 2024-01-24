@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      2.1.0
+// @version      2.2.0
 // @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        *://live.bilibili.com/*
@@ -330,6 +330,47 @@
             } else {
                 $(live_player_div).find('.sc_drag_div').remove();
                 sc_isFullscreen = false;
+
+                // 判断sc_circle界限
+                let xPos = 0;
+                let yPos = 0;
+                let sc_circles = $(document).find('.sc_circle');
+                let sc_circles_width = sc_circles.width();
+                let sc_circles_height = sc_circles.height();
+                sc_circles.each(function() {
+                    let rect = this.getBoundingClientRect();
+                    xPos = rect.left;
+                    yPos = rect.top;
+                });
+
+                if (innerWidth - xPos < sc_circles_width + 10) {
+                    xPos = innerWidth - sc_circles_width - 10;
+                    sc_circles.css('left', xPos + 'px');
+                }
+
+                if (innerHeight - yPos < sc_circles_height) {
+                    yPos = innerHeight - sc_circles_height - 5;
+                    sc_circles.css('top', yPos + 'px');
+                }
+
+                // 判断sc_rectangle界限
+                let sc_rectangles = $(document).find('.sc_rectangle');
+                let sc_rectangles_width = sc_rectangles.width();
+                let sc_rectangles_height = sc_rectangles.height();
+                sc_rectangles.each(function() {
+                    let rect = this.getBoundingClientRect();
+                    xPos = rect.left;
+                    yPos = rect.top;
+                });
+                if (innerWidth - xPos < sc_rectangles_width) {
+                    xPos = innerWidth - sc_rectangles_width - 15;
+                    sc_rectangles.css('left', xPos + 'px');
+                }
+
+                if (innerHeight - yPos < sc_rectangles_height) {
+                    yPos = innerHeight - sc_rectangles_height - 10;
+                    sc_rectangles.css('top', yPos + 'px');
+                }
             }
         }
 
@@ -380,7 +421,7 @@
                 });
 
                 if (innerWidth - xPos < sc_rectangle_width) {
-                    xPos = innerWidth - 315;
+                    xPos = innerWidth - sc_rectangle_width - 15;
                 }
 
                 if (innerHeight - yPos < sc_panel_high) {
@@ -916,6 +957,7 @@
                 tmp_sc_item.width(current_sc_div.clientWidth);
                 tmp_sc_item.height(current_sc_div.clientHeight);
                 tmp_sc_item.css('animation', '');
+                tmp_sc_item.find('.sc_font_color').css('color', '#000000');
                 document.body.appendChild(tmp_sc_item[0]);
 
                 capture_gen_canvas(tmp_sc_item[0], current_sc_div).then(canvas => {
@@ -1070,7 +1112,7 @@
                             let sc_user_info_face = sc_add_arr[i]["user_info"]["face"];
                             let sc_user_info_face_frame = sc_add_arr[i]["user_info"]["face_frame"];
                             let sc_user_info_uname = sc_add_arr[i]["user_info"]["uname"];
-                            let sc_font_color = sc_add_arr[i]["font_color"]?sc_add_arr[i]["font_color"]:'#666666';
+                            let sc_font_color = '#666666';
                             let sc_price = sc_add_arr[i]["price"];
                             let sc_message = sc_add_arr[i]["message"];
                             let sc_start_timestamp = sc_add_arr[i]["start_time"];
@@ -1092,7 +1134,7 @@
                                 '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">'+ sc_user_info_face_frame_div +'</a></div>'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;">'+
                                 '<div style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>'+
-                                '<div style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + sc_rectangle_width / 2 + 'px; overflow: hidden; text-overflow: ellipsis;"><span style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;">' + sc_user_info_uname + '</span></div>'+
+                                '<div style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + sc_rectangle_width / 2 + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;">' + sc_user_info_uname + '</span></div>'+
                                 '</div>'+
                                 '<div style="float: right; box-sizing: border-box; height: 40px;">'+
                                 '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right;">CN￥'+ sc_price +'</span></div>'+

@@ -27,7 +27,6 @@
 // @require      https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js
 // @require      https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
 // @grant        unsafeWindow
-// @grant        GM_xmlhttpRequest
 // @license      GPL-3.0-or-later
 // ==/UserScript==
 
@@ -415,7 +414,7 @@
                     const maxX = unsafeWindow.innerWidth - rect.width;
                     const maxY = unsafeWindow.innerHeight - rect.height;
 
-                    let x = Math.min(maxX, Math.max(0, e.clientX - sc_offsetX)) + 0.5;
+                    let x = Math.min(maxX, Math.max(0, e.clientX - sc_offsetX)) + 0.5; // 这个0.5交给浏览器吧，至少chrome上是完美的
                     let y = Math.min(maxY, Math.max(0, e.clientY - sc_offsetY));
 
                     $(this).css('left', x + 'px');

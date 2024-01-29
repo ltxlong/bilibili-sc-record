@@ -2,19 +2,39 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      2.2.0
-// @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
+// @version      3.0.0
+// @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
-// @match        *://live.bilibili.com/*
+// @match        *://live.bilibili.com/1*
+// @match        *://live.bilibili.com/2*
+// @match        *://live.bilibili.com/3*
+// @match        *://live.bilibili.com/4*
+// @match        *://live.bilibili.com/5*
+// @match        *://live.bilibili.com/6*
+// @match        *://live.bilibili.com/7*
+// @match        *://live.bilibili.com/8*
+// @match        *://live.bilibili.com/9*
+// @match        *://live.bilibili.com/blanc/1*
+// @match        *://live.bilibili.com/blanc/2*
+// @match        *://live.bilibili.com/blanc/3*
+// @match        *://live.bilibili.com/blanc/4*
+// @match        *://live.bilibili.com/blanc/5*
+// @match        *://live.bilibili.com/blanc/6*
+// @match        *://live.bilibili.com/blanc/7*
+// @match        *://live.bilibili.com/blanc/8*
+// @match        *://live.bilibili.com/blanc/9*
 // @icon         https://www.bilibili.com/favicon.ico
 // @require      https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js
 // @require      https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
 // @grant        unsafeWindow
+// @grant        GM_xmlhttpRequest
 // @license      GPL-3.0-or-later
 // ==/UserScript==
 
-(function() {
+(async function() {
     'use strict';
+    await getBiliLive();
+
     // 抓取SC ：https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=
     // 进入直播间的时候开始记录SC
     // 开始固定在屏幕左上方一侧，为圆点，可以展开，可以拖拽移动，在屏幕顶层
@@ -25,16 +45,19 @@
     // SC可折叠，可生成图片（折叠和展开都可以）
     // 下播后10分钟自动停止抓取（非实时直播10分钟即停止，即可以提前10钟进入直播间）
 
-    if (window.top !== window.self) { return; }
-
     let sc_catch_interval = 30; // 中速模式，每30秒抓取一次（固定）
     let sc_catch_interval_fast = 10; // 高速模式，每10秒抓取一次（比如：如果主播念的快时，可以切换到高速模式。最低可以设置为5）（不建议改的太小，毕竟请求太频繁会被ban）
     let sc_catch_interval_low = 55; // 默认低速(一般)模式，每55秒抓取一次（最低300电池的存活的时间是60秒，错开点时间）（固定）
-    let room_id = parseInt(window.location.pathname.substring(1)); // 获取直播间id
 
-    if (isNaN(room_id)) { return; }
+    let room_id = unsafeWindow.BilibiliLive.ROOMID ? unsafeWindow.BilibiliLive.ROOMID : 0; // 获取直播间id
+    let short_room_id = unsafeWindow.BilibiliLive.SHORT_ROOMID ? unsafeWindow.BilibiliLive.SHORT_ROOMID : 0; // 获取直播间id
+    let sc_url_api = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=';
 
-    let sc_url = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=' + room_id; // 请求sc的url
+    console.log('room_id:', room_id)
+    console.log('short_room_id:', short_room_id)
+    if (room_id === 0) { return; }
+
+    let sc_url = sc_url_api + room_id; // 请求sc的url
 
     let sc_panel_high = 400; // 显示面板的最大高度（单位是px，后面会拼接）
 
@@ -89,7 +112,7 @@
     function sc_process_start() {
         // Create a container for the circle
         const sc_circleContainer = document.createElement('div');
-        sc_circleContainer.classList.add('sc_circle', 'sc_drag_div');
+        sc_circleContainer.classList.add('sc_long_circle', 'sc_drag_div');
         sc_circleContainer.style.width = '30px';
         sc_circleContainer.style.height = '30px';
         sc_circleContainer.style.backgroundColor = 'rgb(167,201,211,0.5)'; //#A7C9D3 （恬豆应援色）
@@ -109,7 +132,7 @@
         let sc_rectangle_width = 302;
         // Create a container for the rectangle
         const sc_rectangleContainer = document.createElement('div');
-        sc_rectangleContainer.classList.add('sc_rectangle', 'sc_drag_div');
+        sc_rectangleContainer.classList.add('sc_long_rectangle', 'sc_drag_div');
         sc_rectangleContainer.style.width = sc_rectangle_width + 'px';
         sc_rectangleContainer.style.height = 'auto';
         sc_rectangleContainer.style.backgroundColor = 'rgba(255,255,255,1)';
@@ -153,7 +176,7 @@
 
         // Create a container for the buttons
         const sc_buttonsContainer = document.createElement('div');
-        sc_buttonsContainer.className = 'sc_buttons';
+        sc_buttonsContainer.className = 'sc_long_buttons';
         sc_buttonsContainer.style.display = 'none';
         sc_buttonsContainer.style.backgroundColor = 'rgba(255,255,255,0)';
         sc_buttonsContainer.style.textAlign = 'center';
@@ -216,7 +239,7 @@
 
         // Create a container for sc list
         const sc_listContainer = document.createElement('div');
-        sc_listContainer.className = 'sc_list';
+        sc_listContainer.className = 'sc_long_list';
         sc_listContainer.style.minHeight = '200px';
         sc_listContainer.style.maxHeight = sc_panel_high + 'px';
         sc_listContainer.style.overflowY = 'scroll';
@@ -235,14 +258,14 @@
         let sc_scrollbar_style = document.createElement('style');
         sc_scrollbar_style.id = 'sc_scrollbar_style';
         sc_scrollbar_style.textContent = `
-            .sc_list::-webkit-scrollbar {
+            .sc_long_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_list:hover::-webkit-scrollbar-thumb {
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
                     background: rgba(204,204,204,0.5);
                     border-radius: 6px;
             }
-            .sc_list::-webkit-scrollbar-thumb {
+            .sc_long_list::-webkit-scrollbar-thumb {
                 background: rgba(204,204,204,0);
             }
         `;
@@ -290,11 +313,10 @@
         `;
         document.head.appendChild(sc_other_style);
 
-
         let live_player_div = document.getElementById('live-player');
-        let live_room_div = document.getElementsByClassName('live-room-app')[0];
-        live_room_div.appendChild(sc_circleContainer);
-        live_room_div.appendChild(sc_rectangleContainer);
+
+        document.body.appendChild(sc_circleContainer);
+        document.body.appendChild(sc_rectangleContainer);
 
         let sc_isDragging = false;
         let sc_isClickAllowed = true;
@@ -305,7 +327,7 @@
         let sc_isFullscreen = false;
 
         // Set initial position
-        sc_circleContainer.style.top = `${innerHeight / 4}px`;
+        sc_circleContainer.style.top = `${unsafeWindow.innerHeight / 4}px`;
 
         $(document).on('mousedown', '.sc_drag_div', sc_startDragging);
         $(document).on('mousemove', sc_drag);
@@ -334,7 +356,7 @@
                 // 判断sc_circle界限
                 let xPos = 0;
                 let yPos = 0;
-                let sc_circles = $(document).find('.sc_circle');
+                let sc_circles = $(document).find('.sc_long_circle');
                 let sc_circles_width = sc_circles.width();
                 let sc_circles_height = sc_circles.height();
                 sc_circles.each(function() {
@@ -343,18 +365,18 @@
                     yPos = rect.top;
                 });
 
-                if (innerWidth - xPos < sc_circles_width + 10) {
-                    xPos = innerWidth - sc_circles_width - 10;
+                if (unsafeWindow.innerWidth - xPos < sc_circles_width + 10) {
+                    xPos = unsafeWindow.innerWidth - sc_circles_width - 10;
                     sc_circles.css('left', xPos + 'px');
                 }
 
-                if (innerHeight - yPos < sc_circles_height) {
-                    yPos = innerHeight - sc_circles_height - 5;
+                if (unsafeWindow.innerHeight - yPos < sc_circles_height) {
+                    yPos = unsafeWindow.innerHeight - sc_circles_height - 5;
                     sc_circles.css('top', yPos + 'px');
                 }
 
                 // 判断sc_rectangle界限
-                let sc_rectangles = $(document).find('.sc_rectangle');
+                let sc_rectangles = $(document).find('.sc_long_rectangle');
                 let sc_rectangles_width = sc_rectangles.width();
                 let sc_rectangles_height = sc_rectangles.height();
                 sc_rectangles.each(function() {
@@ -362,20 +384,20 @@
                     xPos = rect.left;
                     yPos = rect.top;
                 });
-                if (innerWidth - xPos < sc_rectangles_width + 15) {
-                    xPos = innerWidth - sc_rectangles_width - 15;
+                if (unsafeWindow.innerWidth - xPos < sc_rectangles_width + 15) {
+                    xPos = unsafeWindow.innerWidth - sc_rectangles_width - 15;
                     sc_rectangles.css('left', xPos + 'px');
                 }
 
-                if (innerHeight - yPos < sc_rectangles_height) {
-                    yPos = innerHeight - sc_rectangles_height - 10;
+                if (unsafeWindow.innerHeight - yPos < sc_rectangles_height) {
+                    yPos = unsafeWindow.innerHeight - sc_rectangles_height - 10;
                     sc_rectangles.css('top', yPos + 'px');
                 }
             }
         }
 
         function sc_startDragging(e) {
-            e = e || window.event;
+            e = e || unsafeWindow.event;
             sc_isDragging = true;
             sc_isClickAllowed = true;
             const rect = e.target.getBoundingClientRect();
@@ -384,16 +406,16 @@
         }
 
         function sc_drag(e) {
-            e = e || window.event;
+            e = e || unsafeWindow.event;
             if (sc_isDragging) {
                 let sc_elements = $(document).find('.sc_drag_div');
                 sc_elements.each(function() {
                     const rect = this.getBoundingClientRect();
 
-                    const maxX = innerWidth - rect.width;
-                    const maxY = innerHeight - rect.height;
+                    const maxX = unsafeWindow.innerWidth - rect.width;
+                    const maxY = unsafeWindow.innerHeight - rect.height;
 
-                    let x = Math.min(maxX, Math.max(0, e.clientX - sc_offsetX));
+                    let x = Math.min(maxX, Math.max(0, e.clientX - sc_offsetX)) + 0.5;
                     let y = Math.min(maxY, Math.max(0, e.clientY - sc_offsetY));
 
                     $(this).css('left', x + 'px');
@@ -408,11 +430,11 @@
             sc_isDragging = false;
         }
 
-        $(document).on('click', '.sc_circle', () => {
+        $(document).on('click', '.sc_long_circle', () => {
             if (sc_isClickAllowed) {
                 let xPos = 0;
                 let yPos = 0;
-                let sc_circles = $(document).find('.sc_circle');
+                let sc_circles = $(document).find('.sc_long_circle');
                 sc_circles.each(function() {
                     let rect = this.getBoundingClientRect();
                     xPos = rect.left;
@@ -420,21 +442,21 @@
                     $(this).hide();
                 });
 
-                if (innerWidth - xPos < sc_rectangle_width) {
-                    xPos = innerWidth - sc_rectangle_width - 15;
+                if (unsafeWindow.innerWidth - xPos < sc_rectangle_width) {
+                    xPos = unsafeWindow.innerWidth - sc_rectangle_width - 15;
                 }
 
-                if (innerHeight - yPos < sc_panel_high) {
-                    yPos = innerHeight - sc_panel_high - 150;
+                if (unsafeWindow.innerHeight - yPos < sc_panel_high) {
+                    yPos = unsafeWindow.innerHeight - sc_panel_high - 150;
                 }
 
-                let sc_rectangles = $(document).find('.sc_rectangle');
+                let sc_rectangles = $(document).find('.sc_long_rectangle');
                 sc_rectangles.each(function() {
                     $(this).css('left', xPos + 'px');
                     $(this).css('top', yPos + 'px');
 
                     $(this).slideDown(500, () => {
-                        $(document).find('.sc_buttons').slideDown(500);
+                        $(document).find('.sc_long_buttons').slideDown(500);
                     });
                 });
 
@@ -442,24 +464,24 @@
         });
 
 
-        $(document).on('mouseenter', '.sc_circle', () => {
-            $(document).find('.sc_circle').css('border', '3px solid rgba(255,255,255,0.5)');
+        $(document).on('mouseenter', '.sc_long_circle', () => {
+            $(document).find('.sc_long_circle').css('border', '3px solid rgba(255,255,255,0.5)');
         });
 
-        $(document).on('mouseleave', '.sc_circle', () => {
-            $(document).find('.sc_circle').css('border', '2px solid #ffffff');
+        $(document).on('mouseleave', '.sc_long_circle', () => {
+            $(document).find('.sc_long_circle').css('border', '2px solid #ffffff');
         });
 
         let sc_rectangle_is_slide_down = false;
         let sc_rectangle_is_slide_up = false;
         // 优化回弹问题
-        $(document).on('mouseenter', '.sc_rectangle', () => {
+        $(document).on('mouseenter', '.sc_long_rectangle', () => {
             if (sc_rectangle_is_slide_down) {
                 return;
             }
             sc_rectangle_is_slide_down = true;
 
-            $(document).find('.sc_buttons').slideDown(500, () => {
+            $(document).find('.sc_long_buttons').slideDown(500, () => {
                 sc_rectangle_is_slide_down = false;
             });
             $(document).find('.sc_data_show').slideDown(500, () => {
@@ -469,12 +491,12 @@
 
         });
 
-        $(document).on('mouseleave', '.sc_rectangle', (e) => {
+        $(document).on('mouseleave', '.sc_long_rectangle', (e) => {
             if (sc_rectangle_is_slide_up) {
                 return;
             }
 
-            e = e || window.event;
+            e = e || unsafeWindow.event;
             let sc_mouseleave_next_class_name = (e.relatedTarget && e.relatedTarget.className) || '';
             if (sc_mouseleave_next_class_name === 'sc_ctx_menu') {
                 return;
@@ -482,7 +504,7 @@
 
             sc_rectangle_is_slide_up = true;
 
-            $(document).find('.sc_buttons').slideUp(500, () => {
+            $(document).find('.sc_long_buttons').slideUp(500, () => {
                 sc_rectangle_is_slide_up = false;
             });
             $(document).find('.sc_data_show label').animate({opacity: 0}, 200);
@@ -492,12 +514,12 @@
 
         });
 
-        $(document).on('click', '.sc_item', sc_toggle_msg_body);
+        $(document).on('click', '.sc_long_item', sc_toggle_msg_body);
 
         // 折叠/展开单个消息
         function sc_toggle_msg_body() {
             let this_sc_item_class_arr = $(this).attr('class').split(' ');
-            let this_sc_item_dynamic_className = this_sc_item_class_arr.find((scClassName) => { return scClassName !== 'sc_item'; });
+            let this_sc_item_dynamic_className = this_sc_item_class_arr.find((scClassName) => { return scClassName !== 'sc_long_item'; });
             let this_sc_msg_body = $('.' + this_sc_item_dynamic_className).find('.sc_msg_body');
             let this_sc_item_bg_color = $('.' + this_sc_item_dynamic_className).css('background-color');
             if (this_sc_msg_body.is(":visible")) {
@@ -515,17 +537,17 @@
 
         // 折叠显示板
         function sc_minimize() {
-            $(document).find('.sc_circle').show();
-            $(document).find('.sc_rectangle').hide();
-            $(document).find('.sc_buttons').hide(); // 优化回弹问题
+            $(document).find('.sc_long_circle').show();
+            $(document).find('.sc_long_rectangle').hide();
+            $(document).find('.sc_long_buttons').hide(); // 优化回弹问题
         }
 
         // 切换主题
         function sc_switch_css() {
             sc_switch++;
-            let sc_rectangle = $(document).find('.sc_rectangle');
-            let sc_item = $(document).find('.sc_item');
-            let sc_list = $(document).find('.sc_list');
+            let sc_rectangle = $(document).find('.sc_long_rectangle');
+            let sc_item = $(document).find('.sc_long_item');
+            let sc_list = $(document).find('.sc_long_list');
             let sc_data_show = $(document).find('.sc_data_show');
             let sc_button_item = $(document).find('.sc_button_item');
 
@@ -539,14 +561,14 @@
                 sc_button_item.css('background-size', '350%');
                 sc_button_item.css('border', 0);
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_list::-webkit-scrollbar {
+            .sc_long_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_list:hover::-webkit-scrollbar-thumb {
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
                     background: rgba(204,204,204,0.5);
                     border-radius: 6px;
             }
-            .sc_list::-webkit-scrollbar-thumb {
+            .sc_long_list::-webkit-scrollbar-thumb {
                 background: rgba(204,204,204,0);
             }
             `);
@@ -559,14 +581,14 @@
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_list::-webkit-scrollbar {
+            .sc_long_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_list:hover::-webkit-scrollbar-thumb {
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
                     background: rgba(255,255,255,0.1);
                     border-radius: 6px;
             }
-            .sc_list::-webkit-scrollbar-thumb {
+            .sc_long_list::-webkit-scrollbar-thumb {
                 background: rgba(255,255,255,0);
             }
             `);
@@ -579,14 +601,14 @@
                 sc_button_item.css('background-size', '350%');
                 sc_button_item.css('border', 0);
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_list::-webkit-scrollbar {
+            .sc_long_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_list:hover::-webkit-scrollbar-thumb {
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
                     background: rgba(204,204,204,0.2);
                     border-radius: 6px;
             }
-            .sc_list::-webkit-scrollbar-thumb {
+            .sc_long_list::-webkit-scrollbar-thumb {
                 background: rgba(204,204,204,0);
             }
             `);
@@ -599,14 +621,14 @@
                 sc_button_item.css('background-size', '350%');
                 sc_button_item.css('border', 0);
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_list::-webkit-scrollbar {
+            .sc_long_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_list:hover::-webkit-scrollbar-thumb {
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
                     background: rgba(204,204,204,0.5);
                     border-radius: 6px;
             }
-            .sc_list::-webkit-scrollbar-thumb {
+            .sc_long_list::-webkit-scrollbar-thumb {
                 background: rgba(204,204,204,0);
             }
             `);
@@ -619,14 +641,14 @@
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_list::-webkit-scrollbar {
+            .sc_long_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_list:hover::-webkit-scrollbar-thumb {
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
                     background: rgba(255,255,255,0.2);
                     border-radius: 6px;
             }
-            .sc_list::-webkit-scrollbar-thumb {
+            .sc_long_list::-webkit-scrollbar-thumb {
                 background: rgba(255,255,255,0);
             }
             `);
@@ -639,14 +661,14 @@
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_list::-webkit-scrollbar {
+            .sc_long_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_list:hover::-webkit-scrollbar-thumb {
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
                     background: rgba(255,255,255,0.2);
                     border-radius: 6px;
             }
-            .sc_list::-webkit-scrollbar-thumb {
+            .sc_long_list::-webkit-scrollbar-thumb {
                 background: rgba(255,255,255,0);
             }
             `);
@@ -660,14 +682,14 @@
                 sc_button_item.css('background-size', '350%');
                 sc_button_item.css('border', 0);
                 $(document).find('#sc_scrollbar_style').text(`
-            .sc_list::-webkit-scrollbar {
+            .sc_long_list::-webkit-scrollbar {
                 width: 6px;
             }
-            .sc_list:hover::-webkit-scrollbar-thumb {
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
                     background: rgba(204,204,204,0.5);
                     border-radius: 6px;
             }
-            .sc_list::-webkit-scrollbar-thumb {
+            .sc_long_list::-webkit-scrollbar-thumb {
                 background: rgba(204,204,204,0);
             }
             `);
@@ -892,9 +914,18 @@
         }
 
         // 创建一个自定义右键菜单
-        let sc_copy_button = document.createElement('button');
-        sc_copy_button.className = 'sc_copy_btn';
-        sc_copy_button.innerHTML = '点击复制为图片';
+        let sc_copy_button1 = document.createElement('button');
+        sc_copy_button1.className = 'sc_copy_btn';
+        sc_copy_button1.id = 'sc_copy_has_time_btn';
+        sc_copy_button1.innerHTML = '点击复制为图片(有时间)';
+        sc_copy_button1.style.marginBottom = '2px';
+
+        let sc_copy_button2 = document.createElement('button');
+        sc_copy_button2.className = 'sc_copy_btn';
+        sc_copy_button2.id = 'sc_copy_no_time_btn';
+        sc_copy_button2.innerHTML = '点击复制为图片(没时间)';
+
+        let sc_copy_br = document.createElement('br');
 
         let sc_context_menu = document.createElement('div');
         sc_context_menu.id = 'sc_context_menu_body';
@@ -906,7 +937,9 @@
         sc_context_menu.style.padding = '5px';
         sc_context_menu.style.zIndex = 3333;
 
-        sc_context_menu.appendChild(sc_copy_button);
+        sc_context_menu.appendChild(sc_copy_button1);
+        sc_context_menu.appendChild(sc_copy_br);
+        sc_context_menu.appendChild(sc_copy_button2);
 
         // 将右键菜单添加到body中
         document.body.appendChild(sc_context_menu);
@@ -924,10 +957,10 @@
         })
 
         $(document).on('click', '.sc_copy_btn', function(e) {
-            e = e || window.event;
+            e = e || unsafeWindow.event;
             e.preventDefault();
 
-            $(document).find('.sc_rectangle').css('cursor', 'progress');
+            $(document).find('.sc_long_rectangle').css('cursor', 'progress');
 
             function capture_gen_canvas(tmp_sc_item_div, current_sc_div) {
 
@@ -950,6 +983,8 @@
                 });
             }
 
+            let sc_copy_btn_id = $(this).attr('id');
+
             $(this).parent().fadeOut(function() {
                 let current_sc_div = $(sc_context_menu).data('current_sc_div');
 
@@ -958,6 +993,11 @@
                 tmp_sc_item.height(current_sc_div.clientHeight);
                 tmp_sc_item.css('animation', '');
                 tmp_sc_item.find('.sc_font_color').css('color', '#000000');
+
+                if (sc_copy_btn_id === 'sc_copy_no_time_btn') {
+                    tmp_sc_item.find('.sc_start_time').hide()
+                }
+
                 document.body.appendChild(tmp_sc_item[0]);
 
                 capture_gen_canvas(tmp_sc_item[0], current_sc_div).then(canvas => {
@@ -991,8 +1031,8 @@
             clearTimeout(sc_context_menu_timeout_id);
         });
 
-        $(document).on('contextmenu', '.sc_item', function(e) {
-            e = e || window.event;
+        $(document).on('contextmenu', '.sc_long_item', function(e) {
+            e = e || unsafeWindow.event;
             e.preventDefault();
 
             // 存储当前右键的div
@@ -1009,7 +1049,7 @@
         });
 
         function open_and_close_sc_modal(show_str, show_color, e) {
-            $(document).find('.sc_rectangle').css('cursor', 'grab');
+            $(document).find('.sc_long_rectangle').css('cursor', 'grab');
             let sc_copy_modal = document.createElement('div');
             sc_copy_modal.className = 'sc_cp_mod';
             sc_copy_modal.style.position = 'fixed';
@@ -1128,13 +1168,13 @@
                             if (sc_switch === 0 || sc_switch === 2 || sc_switch === 3) {
                                 box_shadow_css = 'box-shadow: rgba(0, 0, 0, 0.5) 2px 2px 2px;';
                             }
-                            let sc_item_html = '<div class="sc_item sc_' + sc_uid + '_' + sc_start_timestamp + '" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
+                            let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
                                 '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-radius: 6px 6px 0px 0px;">'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
                                 '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">'+ sc_user_info_face_frame_div +'</a></div>'+
                                 '<div style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;">'+
-                                '<div style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>'+
-                                '<div style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + sc_rectangle_width / 2 + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;">' + sc_user_info_uname + '</span></div>'+
+                                '<div class="sc_start_time" style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>'+
+                                '<div style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((sc_rectangle_width / 2) - 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;">' + sc_user_info_uname + '</span></div>'+
                                 '</div>'+
                                 '<div style="float: right; box-sizing: border-box; height: 40px;">'+
                                 '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right;">CN￥'+ sc_price +'</span></div>'+
@@ -1144,7 +1184,7 @@
                                 '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+
                                 '</div>';
 
-                            $(document).find('.live-room-app .sc_list').prepend(sc_item_html);
+                            $(document).find('.sc_long_list').prepend(sc_item_html);
 
                         }
 
@@ -1211,6 +1251,27 @@
                 first_live_down_time = 0;
             }
         }, 1000 * sc_catch_interval_low);
+    }
+
+    function getBiliLive() {
+        return new Promise((resolve) => {
+            if (unsafeWindow.BilibiliLive.UID !== 0) {
+                resolve(unsafeWindow.BilibiliLive);
+
+                return;
+            }
+            unsafeWindow.BilibiliLive = new Proxy(unsafeWindow.BilibiliLive, {
+                set(target, prop, value) {
+                    target[prop] = value;
+                    if (prop === 'UID') {
+                        unsafeWindow.BilibiliLive = target;
+                        resolve(unsafeWindow.BilibiliLive);
+                    }
+
+                    return true;
+                }
+            });
+        });
     }
 
     sc_process_start();

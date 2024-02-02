@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      3.1.0
+// @version      4.0.0
 // @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -30,9 +30,8 @@
 // @license      GPL-3.0-or-later
 // ==/UserScript==
 
-(async function() {
+(function() {
     'use strict';
-    await getBiliLive();
 
     // 抓取SC ：https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=
     // 进入直播间的时候开始记录SC
@@ -48,19 +47,17 @@
     let sc_catch_interval_fast = 10; // 高速模式，每10秒抓取一次（比如：如果主播念的快时，可以切换到高速模式。最低可以设置为5）（不建议改的太小，毕竟请求太频繁会被ban）
     let sc_catch_interval_low = 55; // 默认低速(一般)模式，每55秒抓取一次（最低300电池的存活的时间是60秒，错开点时间）（固定）
 
-    let room_id = unsafeWindow.BilibiliLive.ROOMID ? unsafeWindow.BilibiliLive.ROOMID : 0; // 获取直播间id
-    let short_room_id = unsafeWindow.BilibiliLive.SHORT_ROOMID ? unsafeWindow.BilibiliLive.SHORT_ROOMID : 0; // 获取直播间id
+    let room_id = window.location.pathname.split('/').pop();
     let sc_url_api = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=';
 
-    console.log('room_id:', room_id)
-    console.log('short_room_id:', short_room_id)
-    if (room_id === 0) { return; }
+    sc_catch_log('url_room_id:', room_id);
+
+    if (!room_id) { sc_catch_log('获取room_id失败，插件已停止'); return; }
 
     let sc_url = sc_url_api + room_id; // 请求sc的url
 
     let sc_panel_high = 400; // 显示面板的最大高度（单位是px，后面会拼接）
 
-    let sc_catch = [];
     let sc_localstorage_key = 'live_' + room_id + '_sc';
     let sc_sid_localstorage_key = 'live_' + room_id + '_sc_sid';
     let sc_live_room_title = '';
@@ -313,7 +310,7 @@
         document.head.appendChild(sc_other_style);
 
         let live_player_div = document.getElementById('live-player');
-
+        if (!live_player_div) { return; }
         document.body.appendChild(sc_circleContainer);
         document.body.appendChild(sc_rectangleContainer);
 
@@ -757,7 +754,7 @@
             if(sc_button_model.html() === '一般') {
                 sc_button_model.html('中速');
                 sc_button_model.attr('title', '抓取状态：中速（30秒抓取一次）');
-                console.log('b站直播间SC抓取：已切换到中速，30秒抓取一次');
+                sc_catch_log('b站直播间SC抓取：已切换到中速，30秒抓取一次');
                 sc_catch_interval = parseInt(sc_catch_interval);
                 if (sc_catch_interval != 30) { sc_catch_interval = 30; }
                 sc_catch_inverval_id = setInterval(() => {
@@ -772,7 +769,7 @@
                                 clearInterval(sc_catch_inverval_id);
                                 sc_button_model.html('停止');
                                 sc_button_model.attr('title', '抓取状态：已停止抓取');
-                                console.log('b站直播间SC抓取：已停止');
+                                sc_catch_log('b站直播间SC抓取：已停止');
                             }
                         } else {
                             first_live_down_time = now_catch_time;
@@ -785,7 +782,7 @@
             } else if (sc_button_model.html() === '中速') {
                 sc_button_model.html('高速');
                 sc_button_model.attr('title', '抓取状态：高速（' + sc_catch_interval_fast + '秒抓取一次）');
-                console.log('b站直播间SC抓取：已切换到高速，' + sc_catch_interval_fast + '秒抓取一次');
+                sc_catch_log('b站直播间SC抓取：已切换到高速，' + sc_catch_interval_fast + '秒抓取一次');
                 sc_catch_interval_fast = parseInt(sc_catch_interval_fast);
                 if (sc_catch_interval_fast < 5) { sc_catch_interval_fast = 5; }
                 sc_catch_inverval_id = setInterval(() => {
@@ -800,7 +797,7 @@
                                 clearInterval(sc_catch_inverval_id);
                                 sc_button_model.html('停止');
                                 sc_button_model.attr('title', '抓取状态：已停止抓取');
-                                console.log('b站直播间SC抓取：已停止');
+                                sc_catch_log('b站直播间SC抓取：已停止');
                             }
                         } else {
                             first_live_down_time = now_catch_time;
@@ -813,12 +810,12 @@
             } else if(sc_button_model.html() === '高速'){
                 sc_button_model.html('停止');
                 sc_button_model.attr('title', '抓取状态：已停止抓取');
-                console.log('b站直播间SC抓取：已停止');
+                sc_catch_log('b站直播间SC抓取：已停止');
 
             } else if (sc_button_model.html() === '停止') {
                 sc_button_model.html('一般');
                 sc_button_model.attr('title', '抓取状态：一般（一分钟抓取一次）');
-                console.log('b站直播间SC抓取：已切换到低速，55秒抓取一次');
+                sc_catch_log('b站直播间SC抓取：已切换到低速，55秒抓取一次');
                 sc_catch_interval_low = parseInt(sc_catch_interval_low);
                 if (sc_catch_interval_low != 55) { sc_catch_interval_low = 55; }
                 sc_catch_inverval_id = setInterval(() => {
@@ -833,7 +830,7 @@
                                 clearInterval(sc_catch_inverval_id);
                                 sc_button_model.html('停止');
                                 sc_button_model.attr('title', '抓取状态：已停止抓取');
-                                console.log('b站直播间SC抓取：已停止');
+                                sc_catch_log('b站直播间SC抓取：已停止');
                             }
                         } else {
                             first_live_down_time = now_catch_time;
@@ -1227,7 +1224,7 @@
 
         check_and_clear_all_sc_store();
         sc_fetch_and_show();
-        console.log('start b站直播间SC抓取：低速，55秒抓取一次');
+        sc_catch_log('start b站直播间SC抓取：低速，55秒抓取一次');
         sc_catch_interval_low = parseInt(sc_catch_interval_low);
         if (sc_catch_interval_low !== 55) { sc_catch_interval_low = 55; }
         let sc_catch_inverval_id = setInterval(() => {
@@ -1243,7 +1240,7 @@
                         let sc_button_model = $(document).find('.sc_button_model');
                         sc_button_model.html('停止');
                         sc_button_model.attr('title', '抓取状态：已停止抓取');
-                        console.log('b站直播间SC抓取：已停止');
+                        sc_catch_log('b站直播间SC抓取：已停止');
                     }
                 } else {
                     first_live_down_time = now_catch_time;
@@ -1254,25 +1251,8 @@
         }, 1000 * sc_catch_interval_low);
     }
 
-    function getBiliLive() {
-        return new Promise((resolve) => {
-            if (unsafeWindow.BilibiliLive.UID !== 0) {
-                resolve(unsafeWindow.BilibiliLive);
-
-                return;
-            }
-            unsafeWindow.BilibiliLive = new Proxy(unsafeWindow.BilibiliLive, {
-                set(target, prop, value) {
-                    target[prop] = value;
-                    if (prop === 'UID') {
-                        unsafeWindow.BilibiliLive = target;
-                        resolve(unsafeWindow.BilibiliLive);
-                    }
-
-                    return true;
-                }
-            });
-        });
+    function sc_catch_log(...msg) {
+        console.log('%c[sc_catch]', 'font-weight: bold; color: white; background-color: #A7C9D3; padding: 2px; border-radius: 2px;', ...msg);
     }
 
     sc_process_start();

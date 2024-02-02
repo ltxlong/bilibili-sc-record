@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      4.0.0
+// @version      4.1.0
 // @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -316,6 +316,7 @@
 
         let sc_isDragging = false;
         let sc_isClickAllowed = true;
+        let sc_drag_start = 0; // 兼容有的时候点击触发拖拽的情况
         let sc_offsetX = 0;
         let sc_offsetY = 0;
         let sc_isListEmpty = true;
@@ -399,11 +400,12 @@
             const rect = e.target.getBoundingClientRect();
             sc_offsetX = e.clientX - rect.left;
             sc_offsetY = e.clientY - rect.top;
+            sc_drag_start = (new Date()).getTime();
         }
 
         function sc_drag(e) {
             e = e || unsafeWindow.event;
-            if (sc_isDragging) {
+            if (sc_isDragging && ((new Date()).getTime() - sc_drag_start) > 30) {
                 let sc_elements = $(document).find('.sc_drag_div');
                 sc_elements.each(function() {
                     const rect = this.getBoundingClientRect();

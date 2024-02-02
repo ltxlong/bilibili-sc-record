@@ -36,8 +36,6 @@ B站直播间SC记录板-在进入B站直播间的那一刻开始记录SC，可�
 
 
 
-
-
 # 版本更新时候，本tampermonkey脚本转edge脚本：
 1、去掉开头的==UserScript==注释
 
@@ -50,6 +48,16 @@ B站直播间SC记录板-在进入B站直播间的那一刻开始记录SC，可�
 5、图片资源需要修改的
 
 
+# 关于获取roomId
+3.0.0 版本开始用 window.BilibiliLive 里面的roomId，
+
+但是遇到了一个问题，就是在Edge里面扩展和页面的window对象是隔离的，
+
+试过了很多种方法都获取不到页面的 window.BilibiliLive，最后只能放弃了，
+
+换回直接通过url来获取roomId的通用方法（前提是match写的好）
+
+最后成了4.0.0版本，改用通用方法的好处是：从油猴脚本修改为Edge扩展很简单
 
 
 

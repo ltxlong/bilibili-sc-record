@@ -2,8 +2,8 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      4.1.0
-// @description  在进入B站直播间的那一刻开始记录SC，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，不用登录，多种主题切换，多种抓取速度切换（有停止状态），在屏幕顶层，自动清除超过12小时的房间SC存储，下播10分钟自动停止抓取
+// @version      5.0.0
+// @description  实时抓取SC、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
 // @match        *://live.bilibili.com/2*
@@ -35,28 +35,26 @@
 
     // 抓取SC ：https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=
     // 进入直播间的时候开始记录SC
-    // 开始固定在屏幕左上方一侧，为圆点，可以展开，可以拖拽移动，在屏幕顶层
-    // 进入直播间时候判断，如果保留的SC大于12小时就清除
+    // 开始固定在屏幕左上方一侧，为圆形小图片，可以点击展开，可以拖拽移动，直播全屏也在顶层显示
+    // 通过Hook实时抓取数据
     // 每个直播间隔离保留，用localstorage
-    // 每10秒（高速）/30秒（中速）/55秒（低速/一般）（默认）抓取一次，还有停止状态
-    // SC标明日期和距离前期时间差
+    // SC标明发送时间和距离当前的时间差
     // SC可折叠，可生成图片（折叠和展开都可以）
-    // 下播后10分钟自动停止抓取（非实时直播10分钟即停止，即可以提前10钟进入直播间）
 
-    let sc_catch_interval = 30; // 中速模式，每30秒抓取一次（固定）
-    let sc_catch_interval_fast = 10; // 高速模式，每10秒抓取一次（比如：如果主播念的快时，可以切换到高速模式。最低可以设置为5）（不建议改的太小，毕竟请求太频繁会被ban）
-    let sc_catch_interval_low = 55; // 默认低速(一般)模式，每55秒抓取一次（最低300电池的存活的时间是60秒，错开点时间）（固定）
-
-    let room_id = window.location.pathname.split('/').pop();
+    let room_id = unsafeWindow.location.pathname.split('/').pop();
     let sc_url_api = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=';
 
     sc_catch_log('url_room_id:', room_id);
 
-    if (!room_id) { sc_catch_log('获取room_id失败，插件已停止'); return; }
+    if (!room_id) { sc_catch_log('获取room_id失败，插件已停止正确的SC存储'); }
 
     let sc_url = sc_url_api + room_id; // 请求sc的url
 
     let sc_panel_high = 400; // 显示面板的最大高度（单位是px，后面会拼接）
+    let sc_rectangle_width = 302;
+
+    let data_show_top_flag = true; // 是否在页面右侧弹幕滚动框的顶部动态显示数据
+    let data_show_bottom_flag = true; // 是否在页面右侧弹幕滚动框的底部动态显示数据
 
     let sc_localstorage_key = 'live_' + room_id + '_sc';
     let sc_sid_localstorage_key = 'live_' + room_id + '_sc_sid';
@@ -67,14 +65,13 @@
     let sc_now_time = (new Date()).getTime();
     let sc_keep_time = unsafeWindow.localStorage.getItem(sc_keep_time_key);
     let sc_keep_time_flag = 0;
+    let sc_switch = 0;
+
+    let high_energy_num = 0;
 
     if (sc_keep_time !== null && sc_keep_time !== 'null' && sc_keep_time !== 0 && sc_keep_time !== '') {
         sc_keep_time_flag = 1;
     }
-
-    let catch_live_status = 1;
-    let catch_time_out = 10;
-    let first_live_down_time = 0;
 
     // 先检测并处理本房间的
     if (sc_keep_time_flag && (sc_now_time - sc_keep_time) > 1000 * 60 * 60 * sc_clear_time_hour) {
@@ -125,7 +122,6 @@
         sc_circleContainer.style.userSelect = 'none';
         sc_circleContainer.style.zIndex = '2233';
 
-        let sc_rectangle_width = 302;
         // Create a container for the rectangle
         const sc_rectangleContainer = document.createElement('div');
         sc_rectangleContainer.classList.add('sc_long_rectangle', 'sc_drag_div');
@@ -153,14 +149,6 @@
         sc_exportButton.classList.add('sc_button_export', 'sc_button_item');
         sc_exportButton.style.cursor = 'pointer';
         $(document).on('click', '.sc_button_export', sc_export);
-
-        // Add a button to the page to trigger model function
-        const sc_modelButton = document.createElement('button');
-        sc_modelButton.textContent = '一般';
-        sc_modelButton.title = '抓取状态：一般（一分钟抓取一次）';
-        sc_modelButton.classList.add('sc_button_model', 'sc_button_item');
-        sc_modelButton.style.cursor = 'pointer';
-        $(document).on('click', '.sc_button_model', sc_model_change);
 
         // Add a button to the page to trigger switch function
         const sc_switchButton = document.createElement('button');
@@ -197,7 +185,7 @@
 
         // Create labels for the dataShow
         const sc_label_high_energy_num_left = document.createElement('label');
-        sc_label_high_energy_num_left.textContent = '高能：';
+        sc_label_high_energy_num_left.textContent = '同接：';
         sc_label_high_energy_num_left.classList.add('sc_data_show_label', 'sc_high_energy_num_left');
         sc_label_high_energy_num_left.style.float = 'left';
 
@@ -219,7 +207,6 @@
         // Append buttons to the container
         sc_buttonsContainer.appendChild(sc_switchButton);
         sc_buttonsContainer.appendChild(sc_exportButton);
-        sc_buttonsContainer.appendChild(sc_modelButton);
         sc_buttonsContainer.appendChild(sc_minimizeButton);
 
         // Append the container to the rectangle
@@ -306,6 +293,34 @@
             .sc_copy_btn:hover {
                 animation: sc_sun 7s infinite;
             }
+
+            .fans_medal_item {
+                color: #ffffff;
+                height: 14px;
+                line-height: 14px;
+                border-radius: 2px;
+                display: inline-flex;
+                margin-left: 5px;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 5px;
+            }
+            .fans_medal_label {
+                padding: 0 3px;
+            }
+            .fans_medal_content {
+                font-size: 10px;
+            }
+            .fans_medal_level {
+                color: #06154c;
+                background-color: #ffffff;
+                font-size: 10px;
+                padding: 0 3px;
+                border-top-right-radius: 1px;
+                border-bottom-right-radius: 1px;
+                align-items: center;
+                justify-content: center;
+            }
         `;
         document.head.appendChild(sc_other_style);
 
@@ -320,7 +335,6 @@
         let sc_offsetX = 0;
         let sc_offsetY = 0;
         let sc_isListEmpty = true;
-        let sc_switch = 0;
         let sc_isFullscreen = false;
 
         // Set initial position
@@ -547,7 +561,6 @@
             sc_switch++;
             let sc_rectangle = $(document).find('.sc_long_rectangle');
             let sc_item = $(document).find('.sc_long_item');
-            let sc_list = $(document).find('.sc_long_list');
             let sc_data_show = $(document).find('.sc_data_show');
             let sc_button_item = $(document).find('.sc_button_item');
 
@@ -720,7 +733,7 @@
                         sc_export_guard = '[普通]';
                     }
 
-                    let sc_export_price = '[ CN￥' + sc_localstorage_export[j]["price"] + ' ]';
+                    let sc_export_price = '[ ￥' + sc_localstorage_export[j]["price"] + ' ]';
                     let sc_export_message = '[ ' + sc_localstorage_export[j]["message"] + ' ]';
 
                     sc_export_str += sc_export_timestamp + sc_export_guard + sc_export_uid + sc_export_uname + sc_export_price + ' : ' + sc_export_message + '\n\n';
@@ -745,174 +758,6 @@
             }
         }
 
-        // 切换抓取速度
-        function sc_model_change() {
-            let sc_button_model = $(document).find('.sc_button_model');
-            // 删除定时器
-            clearInterval(sc_catch_inverval_id);
-            updateTimestampDiff();
-            sc_fetch_and_show();
-            first_live_down_time = 0;
-            if(sc_button_model.html() === '一般') {
-                sc_button_model.html('中速');
-                sc_button_model.attr('title', '抓取状态：中速（30秒抓取一次）');
-                sc_catch_log('b站直播间SC抓取：已切换到中速，30秒抓取一次');
-                sc_catch_interval = parseInt(sc_catch_interval);
-                if (sc_catch_interval != 30) { sc_catch_interval = 30; }
-                sc_catch_inverval_id = setInterval(() => {
-                    updateTimestampDiff();
-                    sc_fetch_and_show();
-                    // 下播后，一段时间自动停止抓取（10分钟）（解决三种情况：提前、状况、下播）
-                    if (catch_live_status !== 1) {
-                        let now_catch_time = (new Date()).getTime();
-                        if (first_live_down_time) {
-                            if ( (now_catch_time - first_live_down_time) > 1000 * 60 * catch_time_out) {
-                                // 删除定时器
-                                clearInterval(sc_catch_inverval_id);
-                                sc_button_model.html('停止');
-                                sc_button_model.attr('title', '抓取状态：已停止抓取');
-                                sc_catch_log('b站直播间SC抓取：已停止');
-                            }
-                        } else {
-                            first_live_down_time = now_catch_time;
-                        }
-                    } else {
-                        first_live_down_time = 0;
-                    }
-                }, 1000 * sc_catch_interval);
-
-            } else if (sc_button_model.html() === '中速') {
-                sc_button_model.html('高速');
-                sc_button_model.attr('title', '抓取状态：高速（' + sc_catch_interval_fast + '秒抓取一次）');
-                sc_catch_log('b站直播间SC抓取：已切换到高速，' + sc_catch_interval_fast + '秒抓取一次');
-                sc_catch_interval_fast = parseInt(sc_catch_interval_fast);
-                if (sc_catch_interval_fast < 5) { sc_catch_interval_fast = 5; }
-                sc_catch_inverval_id = setInterval(() => {
-                    updateTimestampDiff();
-                    sc_fetch_and_show();
-                    // 下播后，一段时间自动停止抓取（10分钟）（解决三种情况：提前、状况、下播）
-                    if (catch_live_status !== 1) {
-                        let now_catch_time = (new Date()).getTime();
-                        if (first_live_down_time) {
-                            if ( (now_catch_time - first_live_down_time) > 1000 * 60 * catch_time_out) {
-                                // 删除定时器
-                                clearInterval(sc_catch_inverval_id);
-                                sc_button_model.html('停止');
-                                sc_button_model.attr('title', '抓取状态：已停止抓取');
-                                sc_catch_log('b站直播间SC抓取：已停止');
-                            }
-                        } else {
-                            first_live_down_time = now_catch_time;
-                        }
-                    } else {
-                        first_live_down_time = 0;
-                    }
-                }, 1000 * sc_catch_interval_fast);
-
-            } else if(sc_button_model.html() === '高速'){
-                sc_button_model.html('停止');
-                sc_button_model.attr('title', '抓取状态：已停止抓取');
-                sc_catch_log('b站直播间SC抓取：已停止');
-
-            } else if (sc_button_model.html() === '停止') {
-                sc_button_model.html('一般');
-                sc_button_model.attr('title', '抓取状态：一般（一分钟抓取一次）');
-                sc_catch_log('b站直播间SC抓取：已切换到低速，55秒抓取一次');
-                sc_catch_interval_low = parseInt(sc_catch_interval_low);
-                if (sc_catch_interval_low != 55) { sc_catch_interval_low = 55; }
-                sc_catch_inverval_id = setInterval(() => {
-                    updateTimestampDiff();
-                    sc_fetch_and_show();
-                    // 下播后，一段时间自动停止抓取（10分钟）（解决三种情况：提前、状况、下播）
-                    if (catch_live_status !== 1) {
-                        let now_catch_time = (new Date()).getTime();
-                        if (first_live_down_time) {
-                            if ( (now_catch_time - first_live_down_time) > 1000 * 60 * catch_time_out) {
-                                // 删除定时器
-                                clearInterval(sc_catch_inverval_id);
-                                sc_button_model.html('停止');
-                                sc_button_model.attr('title', '抓取状态：已停止抓取');
-                                sc_catch_log('b站直播间SC抓取：已停止');
-                            }
-                        } else {
-                            first_live_down_time = now_catch_time;
-                        }
-                    } else {
-                        first_live_down_time = 0;
-                    }
-                }, 1000 * sc_catch_interval_low);
-
-            }
-        }
-
-        function getTimestampConversion(timestamp) {
-            let timeStamp;
-            let timeStampLen = timestamp.toString().length;
-
-            if (timeStampLen === 10) {
-                timeStamp = timestamp * 1000
-            } else if (timeStampLen === 13) {
-                timeStamp = timestamp
-            } else {
-                timeStamp = timestamp
-            }
-
-            let date = new Date(timeStamp); // 时间戳为10位需*1000，时间戳为13位的话不需乘1000
-            let Y = (date.getFullYear() + '-');
-            let M = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1) + '-';
-            let D = (date.getDate() < 10 ? '0' + date.getDate() + ' ' : date.getDate() + ' ');
-            let h = (date.getHours() < 10 ? '0' + date.getHours() + ':' : date.getHours() + ':');
-            let m = (date.getMinutes() < 10 ? '0' + date.getMinutes() + ':' : date.getMinutes() + ':');
-            let s = (date.getSeconds() < 10 ? '0' + date.getSeconds() : date.getSeconds());
-
-            return Y + M + D + h + m + s;
-        }
-
-        function getTimestampDiff(timestamp) {
-            let timeStamp;
-            let timeStampLen = timestamp.toString().length;
-
-            if (timeStampLen === 10) {
-                timeStamp = timestamp * 1000
-            } else if (timeStampLen === 13) {
-                timeStamp = timestamp
-            } else {
-                timeStamp = timestamp
-            }
-
-            let nowTime = (new Date()).getTime();
-            let timeDiffValue = nowTime - timeStamp;;
-            let resultStr = '';
-            if (timeDiffValue < 0) {
-                return resultStr;
-            }
-
-            var dayDiff = timeDiffValue / (1000 * 60 * 60 * 24);
-            var hourDiff = timeDiffValue / (1000 * 60 * 60);
-            var minDiff = timeDiffValue / (1000 * 60);
-
-            if (dayDiff >= 1) {
-                resultStr = '' + parseInt(dayDiff) + '天前';
-            } else if (hourDiff >= 1) {
-                resultStr = '' + parseInt(hourDiff) + '小时前';
-            } else if (minDiff >= 1) {
-                resultStr = '' + parseInt(minDiff) + '分钟前';
-            } else {
-                resultStr = '刚刚';
-            }
-
-            return resultStr;
-        }
-
-        // 更新每条SC距离当前时间
-        function updateTimestampDiff() {
-            let sc_timestamp_item = $(document).find('.sc_start_timestamp');
-            sc_timestamp_item.each(function() {
-                let new_timestamp_diff = getTimestampDiff($(this).html());
-                $(this).prev().html(new_timestamp_diff);
-            });
-        }
-
         // 创建一个自定义右键菜单
         let sc_copy_button1 = document.createElement('button');
         sc_copy_button1.className = 'sc_copy_btn';
@@ -924,8 +769,15 @@
         sc_copy_button2.className = 'sc_copy_btn';
         sc_copy_button2.id = 'sc_copy_no_time_btn';
         sc_copy_button2.innerHTML = '点击复制为图片(没时间)';
+        sc_copy_button2.style.marginBottom = '2px';
 
-        let sc_copy_br = document.createElement('br');
+        let sc_copy_button3 = document.createElement('button');
+        sc_copy_button3.className = 'sc_copy_btn';
+        sc_copy_button3.id = 'sc_copy_uname_color_btn';
+        sc_copy_button3.innerHTML = '点击复制为图片(名颜色)';
+
+        let sc_copy_br1 = document.createElement('br');
+        let sc_copy_br2 = document.createElement('br');
 
         let sc_context_menu = document.createElement('div');
         sc_context_menu.id = 'sc_context_menu_body';
@@ -938,8 +790,10 @@
         sc_context_menu.style.zIndex = 3333;
 
         sc_context_menu.appendChild(sc_copy_button1);
-        sc_context_menu.appendChild(sc_copy_br);
+        sc_context_menu.appendChild(sc_copy_br1);
         sc_context_menu.appendChild(sc_copy_button2);
+        sc_context_menu.appendChild(sc_copy_br2);
+        sc_context_menu.appendChild(sc_copy_button3);
 
         // 将右键菜单添加到body中
         document.body.appendChild(sc_context_menu);
@@ -995,7 +849,18 @@
                 tmp_sc_item.find('.sc_font_color').css('color', '#000000');
 
                 if (sc_copy_btn_id === 'sc_copy_no_time_btn') {
-                    tmp_sc_item.find('.sc_start_time').hide()
+                    tmp_sc_item.find('.sc_start_time').hide();
+                } else if (sc_copy_btn_id === 'sc_copy_uname_color_btn') {
+                    tmp_sc_item.find('.sc_start_time').hide();
+                    let this_sc_uname_data_color = tmp_sc_item.find('.sc_font_color').attr('data-color');
+                    tmp_sc_item.find('.sc_font_color').css('color', this_sc_uname_data_color);
+                }
+
+                if (tmp_sc_item.find('.fans_medal_item').length) {
+                    // 粉丝牌存在时，可以兼容名字过长的情况
+                    tmp_sc_item.find('.sc_msg_head_left').css('width', '170px');
+                    tmp_sc_item.find('.sc_uname_div').css('width', '225px');
+                    tmp_sc_item.find('.sc_msg_head_right').css('height', '20px');
                 }
 
                 document.body.appendChild(tmp_sc_item[0]);
@@ -1096,12 +961,10 @@
             fetch(sc_url).then(response => {
                 return response.json();
             }).then(ret => {
+                let sc_catch = [];
                 if (ret.code === 0) {
-                    catch_live_status = ret.data.room_info.live_status;
-
                     // 高能数
-                    let high_energy_num = ret.data.room_rank_info ? ret.data.room_rank_info.user_rank_entry.user_contribution_rank_entry.count : 0;
-                    $(document).find('.sc_high_energy_num_right').text(high_energy_num);
+                    high_energy_num = ret.data.room_rank_info.user_rank_entry.user_contribution_rank_entry?.count || 0;
 
                     // 舰长数
                     let captain_num = ret.data.guard_info.count;
@@ -1109,154 +972,393 @@
 
                     sc_live_room_title = ret.data.anchor_info.base_info.uname + '_' + ret.data.room_info.title;
 
-                    // 追加到localstorage 和 SC显示板
-                    let sc_catch = ret.data.super_chat_info.message_list;
-                    let sc_localstorage = [];
-                    let sc_sid_localstorage = [];
-                    let diff_arr_new_sc = [];
-                    let sc_add_arr = [];
-                    let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
-                    if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
-                        diff_arr_new_sc = sc_catch;
-                    } else {
-                        sc_localstorage = JSON.parse(sc_localstorage_json);
-                        sc_sid_localstorage = JSON.parse(unsafeWindow.localStorage.getItem(sc_sid_localstorage_key));
-                        diff_arr_new_sc = sc_catch.filter(v => {
-                            let sid = String(v.id) + '_' + String(v.uid) + '_' + String(v.price);
+                    sc_catch = ret.data.super_chat_info.message_list;
+                }
 
-                            return !sc_sid_localstorage.includes(sid);
-                        });
+                // 追加到localstorage 和 SC显示板
+                let sc_localstorage = [];
+                let sc_sid_localstorage = [];
+                let diff_arr_new_sc = [];
+                let sc_add_arr = [];
+                let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
+                if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
+                    diff_arr_new_sc = sc_catch;
+                } else {
+                    sc_localstorage = JSON.parse(sc_localstorage_json);
+                    sc_sid_localstorage = JSON.parse(unsafeWindow.localStorage.getItem(sc_sid_localstorage_key));
+                    diff_arr_new_sc = sc_catch.filter(v => {
+                        let sid = String(v.id) + '_' + String(v.uid) + '_' + String(v.price);
+
+                        return !sc_sid_localstorage.includes(sid);
+                    });
+                }
+
+                diff_arr_new_sc = diff_arr_new_sc.sort((a, b) => a.start_time - b.start_time);
+
+                if (sc_isListEmpty) {
+                    // 一开始进入
+                    sc_add_arr = sc_localstorage.concat(diff_arr_new_sc);
+                } else {
+                    // 实时
+                    sc_add_arr = diff_arr_new_sc;
+                }
+
+                if (sc_add_arr.length) {
+                    for (let i = 0; i < sc_add_arr.length; i++){
+                        // 追加到SC显示板
+                        update_sc_item(sc_add_arr[i]);
                     }
 
-                    diff_arr_new_sc = diff_arr_new_sc.sort((a, b) => a.start_time - b.start_time);
+                    // 追加到localstorage（存储就不用GM_setValue了，直接localstorage，控制台就可以看到）
+                    if (diff_arr_new_sc.length) {
+                        // 加入记录组
+                        check_and_join_live_sc_room();
 
+                        for (let d = 0; d < diff_arr_new_sc.length; d++) {
+                            sc_localstorage.push(diff_arr_new_sc[d]);
+                            sc_sid_localstorage.push(String(diff_arr_new_sc[d]["id"]) + '_' + String(diff_arr_new_sc[d]["uid"]) + '_' + String(diff_arr_new_sc[d]["price"]));
+                        }
+
+                        // 保存/更新sc_keep_time （最后sc的时间戳）
+                        unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
+
+                        // 追加存储
+                        unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
+                        unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
+                    }
+
+                    sc_isListEmpty = false;
+                }
+            }).catch(error => {
+                let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
+                if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
+                    sc_catch_log('请求api失败！但不影响啦~');
+                } else {
+                    sc_catch_log('请求api失败！抓取已存在的SC失败！请刷新页面来解决~');
                     if (sc_isListEmpty) {
-                        // 一开始进入
-                        sc_add_arr = sc_localstorage.concat(diff_arr_new_sc);
-                    } else {
-                        // 实时
-                        sc_add_arr = diff_arr_new_sc;
-                    }
-
-                    if (sc_add_arr.length > 0) {
-                        for (let i = 0; i < sc_add_arr.length; i++){
-                            // 追加到SC显示板
-                            let sc_background_bottom_color = sc_add_arr[i]["background_bottom_color"];
-                            let sc_background_image = sc_add_arr[i]["background_image"];
-                            let sc_background_image_html = '';
-                            if (sc_background_image !== '') {
-                                sc_background_image_html = 'background-image: url('+ sc_background_image +');';
-                            }
-                            let sc_background_color = sc_add_arr[i]["background_color"];
-                            let sc_uid = sc_add_arr[i]["uid"];
-                            let sc_user_info_face = sc_add_arr[i]["user_info"]["face"];
-                            let sc_user_info_face_frame = sc_add_arr[i]["user_info"]["face_frame"];
-                            let sc_user_info_uname = sc_add_arr[i]["user_info"]["uname"];
-                            let sc_font_color = '#666666';
-                            let sc_price = sc_add_arr[i]["price"];
-                            let sc_message = sc_add_arr[i]["message"];
-                            let sc_start_timestamp = sc_add_arr[i]["start_time"];
-                            let sc_start_time = getTimestampConversion(sc_start_timestamp);
-                            let sc_diff_time = getTimestampDiff(sc_start_timestamp);
-
-                            let sc_user_info_face_frame_div = '';
-                            if (sc_user_info_face_frame !== '') {
-                                sc_user_info_face_frame_div = '<img src="'+ sc_user_info_face_frame +'" height="40" width="40" style="float: left; position: absolute; z-index:2;">';
+                        let sc_localstorage = JSON.parse(sc_localstorage_json);
+                        if (sc_localstorage.length) {
+                            for (let r = 0; r < sc_localstorage.length; r++){
+                                // 追加到SC显示板
+                                update_sc_item(sc_localstorage[r]);
                             }
 
-                            let box_shadow_css = '';
-                            if (sc_switch === 0 || sc_switch === 2 || sc_switch === 3) {
-                                box_shadow_css = 'box-shadow: rgba(0, 0, 0, 0.5) 2px 2px 2px;';
-                            }
-                            let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
-                                '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-radius: 6px 6px 0px 0px;">'+
-                                '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
-                                '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">'+ sc_user_info_face_frame_div +'</a></div>'+
-                                '<div style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;">'+
-                                '<div class="sc_start_time" style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>'+
-                                '<div style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((sc_rectangle_width / 2) - 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;">' + sc_user_info_uname + '</span></div>'+
-                                '</div>'+
-                                '<div style="float: right; box-sizing: border-box; height: 40px;">'+
-                                '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right;">CN￥'+ sc_price +'</span></div>'+
-                                '<div style="height: 20px; color: #666666" data-html2canvas-ignore><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span></div>'+
-                                '</div>'+
-                                '</div>'+
-                                '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+
-                                '</div>';
-
-                            $(document).find('.sc_long_list').prepend(sc_item_html);
-
+                            sc_isListEmpty = false;
                         }
-
-                        // 追加到localstorage（存储就不用GM_setValue了，直接localstorage，控制台就可以看到）
-                        if (diff_arr_new_sc.length > 0) {
-                            if (!sc_keep_time_flag) {
-
-                                sc_keep_time_flag = 1;
-
-                                // 加入记录组
-                                let live_sc_rooms_json = unsafeWindow.localStorage.getItem('live_sc_rooms');
-                                if (live_sc_rooms_json === null || live_sc_rooms_json === 'null' || live_sc_rooms_json === '[]' || live_sc_rooms_json === '') {
-                                    unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify([room_id]));
-                                } else {
-                                    let live_sc_rooms = JSON.parse(live_sc_rooms_json);
-                                    live_sc_rooms.push(room_id);
-                                    unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify(live_sc_rooms));
-                                }
-                            }
-
-                            for (let d = 0; d < diff_arr_new_sc.length; d++) {
-                                sc_localstorage.push(diff_arr_new_sc[d]);
-                                sc_sid_localstorage.push(String(diff_arr_new_sc[d]["id"]) + '_' + String(diff_arr_new_sc[d]["uid"]) + '_' + String(diff_arr_new_sc[d]["price"]));
-                            }
-
-                            // 保存/更新sc_keep_time （最后sc的时间戳）
-                            unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
-
-                            // 追加
-                            unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
-                            unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
-                        }
-
-                        sc_isListEmpty = false;
                     }
                 }
-            })
+            });
         }
 
         check_and_clear_all_sc_store();
         sc_fetch_and_show();
-        sc_catch_log('start b站直播间SC抓取：低速，55秒抓取一次');
-        sc_catch_interval_low = parseInt(sc_catch_interval_low);
-        if (sc_catch_interval_low !== 55) { sc_catch_interval_low = 55; }
-        let sc_catch_inverval_id = setInterval(() => {
-            updateTimestampDiff();
-            sc_fetch_and_show();
-            // 下播后，一段时间自动停止抓取（10分钟）（解决三种情况：提前、状况、下播）
-            if (catch_live_status !== 1) {
-                let now_catch_time = (new Date()).getTime();
-                if (first_live_down_time) {
-                    if ( (now_catch_time - first_live_down_time) > 1000 * 60 * catch_time_out) {
-                        // 删除定时器
-                        clearInterval(sc_catch_inverval_id);
-                        let sc_button_model = $(document).find('.sc_button_model');
-                        sc_button_model.html('停止');
-                        sc_button_model.attr('title', '抓取状态：已停止抓取');
-                        sc_catch_log('b站直播间SC抓取：已停止');
-                    }
-                } else {
-                    first_live_down_time = now_catch_time;
-                }
+
+    }
+
+    function getTimestampConversion(timestamp) {
+        let timeStamp;
+        let timeStampLen = timestamp.toString().length;
+
+        if (timeStampLen === 10) {
+            timeStamp = timestamp * 1000
+        } else if (timeStampLen === 13) {
+            timeStamp = timestamp
+        } else {
+            timeStamp = timestamp
+        }
+
+        let date = new Date(timeStamp); // 时间戳为10位需*1000，时间戳为13位的话不需乘1000
+        let Y = (date.getFullYear() + '-');
+        let M = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1) + '-';
+        let D = (date.getDate() < 10 ? '0' + date.getDate() + ' ' : date.getDate() + ' ');
+        let h = (date.getHours() < 10 ? '0' + date.getHours() + ':' : date.getHours() + ':');
+        let m = (date.getMinutes() < 10 ? '0' + date.getMinutes() + ':' : date.getMinutes() + ':');
+        let s = (date.getSeconds() < 10 ? '0' + date.getSeconds() : date.getSeconds());
+
+        return Y + M + D + h + m + s;
+    }
+
+    function getTimestampDiff(timestamp) {
+        let timeStamp;
+        let timeStampLen = timestamp.toString().length;
+
+        if (timeStampLen === 10) {
+            timeStamp = timestamp * 1000
+        } else if (timeStampLen === 13) {
+            timeStamp = timestamp
+        } else {
+            timeStamp = timestamp
+        }
+
+        let nowTime = (new Date()).getTime();
+        let timeDiffValue = nowTime - timeStamp;;
+        let resultStr = '';
+        if (timeDiffValue < 0) {
+            return resultStr;
+        }
+
+        var dayDiff = timeDiffValue / (1000 * 60 * 60 * 24);
+        var hourDiff = timeDiffValue / (1000 * 60 * 60);
+        var minDiff = timeDiffValue / (1000 * 60);
+
+        if (dayDiff >= 1) {
+            resultStr = '' + parseInt(dayDiff) + '天前';
+        } else if (hourDiff >= 1) {
+            resultStr = '' + parseInt(hourDiff) + '小时前';
+        } else if (minDiff >= 1) {
+            resultStr = '' + parseInt(minDiff) + '分钟前';
+        } else {
+            resultStr = '刚刚';
+        }
+
+        return resultStr;
+    }
+
+    // 更新每条SC距离当前时间
+    function updateTimestampDiff() {
+        let sc_timestamp_item = $(document).find('.sc_start_timestamp');
+        sc_timestamp_item.each(function() {
+            let new_timestamp_diff = getTimestampDiff($(this).html());
+            $(this).prev().html(new_timestamp_diff);
+        });
+    }
+
+    function check_and_join_live_sc_room() {
+        if (!sc_keep_time_flag) {
+
+            sc_keep_time_flag = 1;
+
+            // 加入记录组
+            let live_sc_rooms_json = unsafeWindow.localStorage.getItem('live_sc_rooms');
+            if (live_sc_rooms_json === null || live_sc_rooms_json === 'null' || live_sc_rooms_json === '[]' || live_sc_rooms_json === '') {
+                unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify([room_id]));
             } else {
-                first_live_down_time = 0;
+                let live_sc_rooms = JSON.parse(live_sc_rooms_json);
+                live_sc_rooms.push(room_id);
+                unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify(live_sc_rooms));
             }
-        }, 1000 * sc_catch_interval_low);
+        }
     }
 
     function sc_catch_log(...msg) {
         console.log('%c[sc_catch]', 'font-weight: bold; color: white; background-color: #A7C9D3; padding: 2px; border-radius: 2px;', ...msg);
     }
 
+    function update_sc_item(sc_data) {
+        // 追加SC 显示
+        let sc_background_bottom_color = sc_data["background_bottom_color"];
+        let sc_background_image = sc_data["background_image"];
+        let sc_background_color = sc_data["background_color"];
+        let sc_uid = sc_data["uid"];
+        let sc_user_info_face = sc_data["user_info"]["face"];
+        let sc_user_info_face_frame = sc_data["user_info"]["face_frame"];
+        let sc_user_info_uname = sc_data["user_info"]["uname"];
+        let sc_price = sc_data["price"];
+        let sc_message = sc_data["message"];
+        let sc_start_timestamp = sc_data["start_time"];
+
+        let sc_medal_flag = false;
+        let sc_medal_color = '';
+        let sc_medal_name = '';
+        let sc_medal_level = 0;
+
+        if (sc_data["medal_info"] && sc_data["medal_info"]["anchor_roomid"]) {
+            sc_medal_flag = true;
+            sc_medal_color = sc_data["medal_info"]["medal_color"];
+            sc_medal_name = sc_data["medal_info"]["medal_name"];
+            sc_medal_level = sc_data["medal_info"]["medal_level"];
+        }
+
+        let sc_background_image_html = '';
+        if (sc_background_image !== '') {
+            sc_background_image_html = 'background-image: url('+ sc_background_image +');';
+        }
+
+        let sc_font_color = '#666666';
+        let sc_font_color_data = sc_data["user_info"]["name_color"] ?? '#666666';
+
+        let sc_start_time = getTimestampConversion(sc_start_timestamp);
+        let sc_diff_time = getTimestampDiff(sc_start_timestamp);
+
+        let sc_user_info_face_img = '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">';
+        let sc_user_info_face_frame_img = '';
+        if (sc_user_info_face_frame !== '') {
+            sc_user_info_face_img = '<img src="'+ sc_user_info_face +'" height="35" width="35" style="border-radius: 20px; float: left; position: absolute; z-index: 1;top: 3px;left: 2px;">';
+            sc_user_info_face_frame_img = '<img src="'+ sc_user_info_face_frame +'" height="40" width="40" style="float: left; position: absolute; z-index: 2;">';
+        }
+
+        let box_shadow_css = '';
+        if (sc_switch === 0 || sc_switch === 2 || sc_switch === 3) {
+            box_shadow_css = 'box-shadow: rgba(0, 0, 0, 0.5) 2px 2px 2px;';
+        }
+
+        let metal_and_start_time_html = '<div class="sc_start_time" style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>';
+        if (sc_medal_flag) {
+            metal_and_start_time_html = '<div style="display: inline-flex;"><div class="fans_medal_item" style="background-color: '+ sc_medal_color +';border: 1px solid '+ sc_medal_color +';"><div class="fans_medal_label"><span class="fans_medal_content">'+ sc_medal_name +'</span></div><div class="fans_medal_level">'+ sc_medal_level +'</div></div>' +
+                '<div class="sc_start_time" style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">' + sc_start_time + '</span></div></div>'
+        }
+
+        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
+            '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-radius: 6px 6px 0px 0px;">'+
+            '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
+            sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
+            '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;">'+
+            metal_and_start_time_html+
+            '<div class="sc_uname_div" style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((sc_rectangle_width / 2) + 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;" data-color="'+ sc_font_color_data +'">' + sc_user_info_uname + '</span></div>'+
+            '</div>'+
+            '<div class="sc_msg_head_right" style="float: right; box-sizing: border-box; height: 40px;">'+
+            '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right;">￥'+ sc_price +'</span></div>'+
+            '<div style="height: 20px; color: #666666" data-html2canvas-ignore><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span></div>'+
+            '</div>'+
+            '</div>'+
+            '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+
+            '</div>';
+
+        $(document).find('.sc_long_list').prepend(sc_item_html);
+
+    }
+
+    function store_sc_item(sc_data) {
+        check_and_join_live_sc_room();
+        // 追加SC 存储
+        let sc_localstorage = [];
+        let sc_sid_localstorage = [];
+        let sid = String(sc_data["id"]) + '_' + String(sc_data["uid"]) + '_' + String(sc_data["price"]);
+        let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
+
+        if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
+            sc_localstorage.push(sc_data);
+            sc_sid_localstorage.push(sid);
+            // 保存/更新sc_keep_time （最后sc的时间戳）
+            unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
+
+            // 追加存储
+            unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
+            unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
+
+            return true;
+        } else {
+            sc_localstorage = JSON.parse(sc_localstorage_json);
+            sc_sid_localstorage = JSON.parse(unsafeWindow.localStorage.getItem(sc_sid_localstorage_key));
+
+            if (sc_sid_localstorage.includes(sid)) {
+                return false;
+            } else {
+                sc_localstorage.push(sc_data);
+                sc_sid_localstorage.push(sid);
+                // 保存/更新sc_keep_time （最后sc的时间戳）
+                unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
+
+                // 追加存储
+                unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
+                unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
+
+                return true;
+            }
+        }
+    }
+
+    function update_rank_count(n_count, n_online_count) {
+        if (n_online_count) {
+            high_energy_num = n_online_count;
+        } else {
+            n_online_count = high_energy_num;
+        }
+
+        // SC记录板的
+        $(document).find('.sc_high_energy_num_right').text(n_count);
+        $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ n_count + '/' + n_online_count +') = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
+
+        // 页面的
+        if (data_show_top_flag) {
+            const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (rank_data_show_div.length) {
+                rank_data_show_div.first().text('高能用户(' + n_count + '/' + n_online_count + ')');
+                rank_data_show_div.first().attr('title', '同接/高能 = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
+            }
+        }
+
+        if (data_show_bottom_flag) {
+            const sc_data_show_bottom_rank_num_div = $(document).find('#sc_data_show_bottom_rank_num');
+            if (sc_data_show_bottom_rank_num_div.length) {
+                sc_data_show_bottom_rank_num_div.text('同接：'+ n_count);
+                sc_data_show_bottom_rank_num_div.attr('title', '同接/高能('+ n_count + '/' + n_online_count +') = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
+            } else {
+                const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                if (rank_data_show_div.length) {
+                    const guard_text = rank_data_show_div.last().text();
+                    $(document).find('#control-panel-ctnr-box').append('<div style="position: relative;color: #ffffff;" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" title="'+ (n_count / n_online_count * 100).toFixed(2) +'%" style="width: 100%;margin-bottom: 5px;">同接：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ guard_text.match(/\d+/) +'</div></div>');
+                }
+            }
+
+        }
+    }
+
     sc_process_start();
+
+    const originalParse = JSON.parse;
+    JSON.parse = function (str) {
+        try {
+            const parsedArr = originalParse(str);
+            if (parsedArr && parsedArr.cmd !== undefined) {
+                if (parsedArr.cmd === 'ONLINE_RANK_COUNT') {
+                    let n_count = parsedArr.data.count;
+                    let n_online_count = parsedArr.data.online_count ?? 0;
+                    update_rank_count(n_count, n_online_count);
+                } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
+                    let store_flag = store_sc_item(parsedArr.data);
+                    if (store_flag) {
+                        update_sc_item(parsedArr.data);
+                    }
+                }
+            }
+
+            return parsedArr;
+        } catch (error) {
+            throw error;
+        }
+    };
+
+    setTimeout(() => {
+        // setTimeout的时间差内先更新一下再定时
+        const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+        if (_rank_list_ctnr_box_li.length) {
+            const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/);
+
+            $(document).find('.sc_captain_num_right').text(_guard_n);
+            if (data_show_bottom_flag) {
+                $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + _guard_n);
+            }
+        }
+
+        let rank_list_ctnr_box_interval = setInterval(() => {
+            const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (rank_list_ctnr_box_item.length) {
+                const guard_text_target = rank_list_ctnr_box_item.last();
+                const guard_test_observer = new MutationObserver((mutationsList) => {
+                    for (const mutation of mutationsList) {
+                        if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
+                            const guard_newNum = mutation.target.textContent.match(/\d+/);
+                            // SC记录板的
+                            $(document).find('.sc_captain_num_right').text(guard_newNum);
+
+                            // 页面的
+                            if (data_show_bottom_flag) {
+                                $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
+                            }
+                        }
+                    }
+                });
+                const guard_text_watch_config = { characterData: true, childList: true, subtree: true }
+                guard_test_observer.observe(guard_text_target[0], guard_text_watch_config);
+
+                clearInterval(rank_list_ctnr_box_interval);
+            }
+        });
+    }, 3000);
+
+    setInterval(() => {
+        updateTimestampDiff(); // 每30秒更新时间差
+    }, 30000);
 
 })();

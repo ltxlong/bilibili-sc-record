@@ -2,8 +2,8 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      5.0.0
-// @description  实时抓取SC、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
+// @version      5.1.0
+// @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
 // @match        *://live.bilibili.com/2*
@@ -27,6 +27,7 @@
 // @require      https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js
 // @require      https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
 // @grant        unsafeWindow
+// @grant        GM_registerMenuCommand
 // @license      GPL-3.0-or-later
 // ==/UserScript==
 
@@ -257,8 +258,8 @@
         let sc_other_style = document.createElement('style');
         sc_other_style.textContent = `
             @keyframes sc_fadenum {
-                0%{opacity: 0;}
-                100%{opacity: 1;}
+                0%{transform: translateY(-100%);opacity: 0;}
+                100%{transform: translateY(0);opacity: 1;}
             }
             @keyframes sc_sun {
                 100%{ background-position: -350% 0; }
@@ -326,6 +327,10 @@
 
         let live_player_div = document.getElementById('live-player');
         if (!live_player_div) { return; }
+
+        // 黑名单相关
+        if (!check_blacklist_menu(room_id)) { return; }
+
         document.body.appendChild(sc_circleContainer);
         document.body.appendChild(sc_rectangleContainer);
 
@@ -1030,11 +1035,9 @@
                     sc_isListEmpty = false;
                 }
             }).catch(error => {
+                sc_catch_log('请求api失败！抓取已存在的SC失败！请刷新页面来解决~');
                 let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
-                if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
-                    sc_catch_log('请求api失败！但不影响啦~');
-                } else {
-                    sc_catch_log('请求api失败！抓取已存在的SC失败！请刷新页面来解决~');
+                if (sc_localstorage_json !== null && sc_localstorage_json !== 'null' && sc_localstorage_json !== '[]' && sc_localstorage_json !== '') {
                     if (sc_isListEmpty) {
                         let sc_localstorage = JSON.parse(sc_localstorage_json);
                         if (sc_localstorage.length) {
@@ -1198,7 +1201,7 @@
                 '<div class="sc_start_time" style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">' + sc_start_time + '</span></div></div>'
         }
 
-        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 2s ease-out;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
+        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 1s linear forwards;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
             '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-radius: 6px 6px 0px 0px;">'+
             '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
@@ -1287,7 +1290,17 @@
                 const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
                 if (rank_data_show_div.length) {
                     const guard_text = rank_data_show_div.last().text();
-                    $(document).find('#control-panel-ctnr-box').append('<div style="position: relative;color: #ffffff;" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" title="'+ (n_count / n_online_count * 100).toFixed(2) +'%" style="width: 100%;margin-bottom: 5px;">同接：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ guard_text.match(/\d+/) +'</div></div>');
+
+                    let sc_data_show_bottom_div_color = '#ffffff';
+                    const chat_control_panel_vm_div = $(document).find('#chat-control-panel-vm');
+                    if (chat_control_panel_vm_div.length) {
+                        const chat_control_panel_vm_div_bg = chat_control_panel_vm_div.css('background-image');
+                        if (!chat_control_panel_vm_div_bg || chat_control_panel_vm_div_bg === 'none') {
+                            sc_data_show_bottom_div_color = '#666666';
+                        }
+                    }
+
+                    $(document).find('#control-panel-ctnr-box').append('<div style="position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" title="'+ (n_count / n_online_count * 100).toFixed(2) +'%" style="width: 100%;margin-bottom: 5px;">同接：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ guard_text.match(/\d+/) +'</div></div>');
                 }
             }
 
@@ -1335,6 +1348,7 @@
             const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
             if (rank_list_ctnr_box_item.length) {
                 const guard_text_target = rank_list_ctnr_box_item.last();
+
                 const guard_test_observer = new MutationObserver((mutationsList) => {
                     for (const mutation of mutationsList) {
                         if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
@@ -1361,4 +1375,43 @@
         updateTimestampDiff(); // 每30秒更新时间差
     }, 30000);
 
+    function check_blacklist_menu(room_id) {
+        let sc_room_black_list_json = unsafeWindow.localStorage.getItem('live_sc_room_blacklist');
+        if (sc_room_black_list_json === null || sc_room_black_list_json === 'null' || sc_room_black_list_json === '[]' || sc_room_black_list_json === '') {
+            // 显示加入黑名单
+            GM_registerMenuCommand('点击将当前直播房间加入黑名单', function() {
+                unsafeWindow.localStorage.setItem('live_sc_room_blacklist', JSON.stringify([room_id]));
+                sc_catch_log('直播房间id：' + room_id + ' 已加入黑名单！');
+                alert("当前直播房间已加入黑名单，刷新页面生效！");
+                unsafeWindow.location.reload();
+            });
+
+            return true;
+        } else {
+            let sc_room_black_list = JSON.parse(sc_room_black_list_json);
+            if (sc_room_black_list.includes(room_id)) {
+                // 显示移除黑名单
+                GM_registerMenuCommand('当前直播房间已加入黑名单，点击移出黑名单', function() {
+                    sc_room_black_list = sc_room_black_list.filter(item => item !== room_id);
+                    unsafeWindow.localStorage.setItem('live_sc_room_blacklist', JSON.stringify(sc_room_black_list));
+                    sc_catch_log('直播房间id：' + room_id + ' 已移出黑名单！');
+                    alert("当前直播房间已除出黑名单，刷新页面生效！");
+                    unsafeWindow.location.reload();
+                });
+
+                return false;
+            } else {
+                // 显示加入黑名单
+                GM_registerMenuCommand('点击将当前直播房间加入黑名单', function() {
+                    sc_room_black_list.push(room_id);
+                    unsafeWindow.localStorage.setItem('live_sc_room_blacklist', JSON.stringify(sc_room_black_list));
+                    sc_catch_log('直播房间id：' + room_id + ' 已加入黑名单！');
+                    alert("当前直播房间已加入黑名单，刷新页面生效！");
+                    unsafeWindow.location.reload();
+                });
+
+                return true;
+            }
+        }
+    }
 })();

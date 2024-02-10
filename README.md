@@ -39,11 +39,13 @@ B站直播间SC记录板-实时抓取SC、同接、高能和舰长数据，可�
 
 2、将全部unsafeWindow替换为window
 
-3、修改manifest.json
+3、删除GM_registerMenuCommand函数
 
-4、修改_locales/zh_CN目录里面的messages.json
+4、修改manifest.json
 
-5、图片资源需要修改的
+5、修改_locales/zh_CN目录里面的messages.json
+
+6、图片资源需要修改的
 
 
 # 关于获取roomId

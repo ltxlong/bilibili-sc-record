@@ -2,8 +2,8 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      5.1.0
-// @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
+// @version      5.2.0
+// @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
 // @match        *://live.bilibili.com/2*
@@ -36,11 +36,12 @@
 
     // 抓取SC ：https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=
     // 进入直播间的时候开始记录SC
-    // 开始固定在屏幕左上方一侧，为圆形小图片，可以点击展开，可以拖拽移动，直播全屏也在顶层显示
+    // 开始固定在屏幕左上方一侧，为圆形小图标，可以点击展开，可以拖拽移动，直播全屏也在顶层显示
     // 通过Hook实时抓取数据
-    // 每个直播间隔离保留，用localstorage
+    // 每个直播间隔离保留，用localstorage，并且自动清理时间长的数据
     // SC标明发送时间和距离当前的时间差
     // SC可折叠，可生成图片（折叠和展开都可以）
+    // 黑名单功能
 
     let room_id = unsafeWindow.location.pathname.split('/').pop();
     let sc_url_api = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=';
@@ -69,6 +70,8 @@
     let sc_switch = 0;
 
     let high_energy_num = 0;
+
+    let sc_room_blacklist_flag = false;
 
     if (sc_keep_time !== null && sc_keep_time !== 'null' && sc_keep_time !== 0 && sc_keep_time !== '') {
         sc_keep_time_flag = 1;
@@ -329,7 +332,7 @@
         if (!live_player_div) { return; }
 
         // 黑名单相关
-        if (!check_blacklist_menu(room_id)) { return; }
+        if (!check_blacklist_menu(room_id)) { sc_room_blacklist_flag = true; return; }
 
         document.body.appendChild(sc_circleContainer);
         document.body.appendChild(sc_rectangleContainer);
@@ -472,9 +475,9 @@
                     $(this).css('left', xPos + 'px');
                     $(this).css('top', yPos + 'px');
 
-                    $(this).slideDown(500, () => {
-                        $(document).find('.sc_long_buttons').slideDown(500);
-                    });
+                    $(document).find('.sc_long_buttons').show();
+                    $(document).find('.sc_data_show').show();
+                    $(this).slideDown(500);
                 });
 
             } else {
@@ -1309,71 +1312,74 @@
 
     sc_process_start();
 
-    const originalParse = JSON.parse;
-    JSON.parse = function (str) {
-        try {
-            const parsedArr = originalParse(str);
-            if (parsedArr && parsedArr.cmd !== undefined) {
-                if (parsedArr.cmd === 'ONLINE_RANK_COUNT') {
-                    let n_count = parsedArr.data.count;
-                    let n_online_count = parsedArr.data.online_count ?? 0;
-                    update_rank_count(n_count, n_online_count);
-                } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
-                    let store_flag = store_sc_item(parsedArr.data);
-                    if (store_flag) {
-                        update_sc_item(parsedArr.data);
+    if (!sc_room_blacklist_flag) {
+        const originalParse = JSON.parse;
+        JSON.parse = function (str) {
+            try {
+                const parsedArr = originalParse(str);
+                if (parsedArr && parsedArr.cmd !== undefined) {
+                    if (parsedArr.cmd === 'ONLINE_RANK_COUNT') {
+                        let n_count = parsedArr.data.count;
+                        let n_online_count = parsedArr.data.online_count ?? 0;
+                        update_rank_count(n_count, n_online_count);
+                    } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
+                        let store_flag = store_sc_item(parsedArr.data);
+                        if (store_flag) {
+                            update_sc_item(parsedArr.data);
+                        }
                     }
+                }
+
+                return parsedArr;
+            } catch (error) {
+                throw error;
+            }
+        };
+
+        setTimeout(() => {
+            // setTimeout的时间差内先更新一下再定时
+            const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (_rank_list_ctnr_box_li.length) {
+                const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/);
+
+                $(document).find('.sc_captain_num_right').text(_guard_n);
+                if (data_show_bottom_flag) {
+                    $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + _guard_n);
                 }
             }
 
-            return parsedArr;
-        } catch (error) {
-            throw error;
-        }
-    };
+            let rank_list_ctnr_box_interval = setInterval(() => {
+                const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                if (rank_list_ctnr_box_item.length) {
+                    const guard_text_target = rank_list_ctnr_box_item.last();
 
-    setTimeout(() => {
-        // setTimeout的时间差内先更新一下再定时
-        const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-        if (_rank_list_ctnr_box_li.length) {
-            const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/);
+                    const guard_test_observer = new MutationObserver((mutationsList) => {
+                        for (const mutation of mutationsList) {
+                            if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
+                                const guard_newNum = mutation.target.textContent.match(/\d+/);
+                                // SC记录板的
+                                $(document).find('.sc_captain_num_right').text(guard_newNum);
 
-            $(document).find('.sc_captain_num_right').text(_guard_n);
-            if (data_show_bottom_flag) {
-                $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + _guard_n);
-            }
-        }
-
-        let rank_list_ctnr_box_interval = setInterval(() => {
-            const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-            if (rank_list_ctnr_box_item.length) {
-                const guard_text_target = rank_list_ctnr_box_item.last();
-
-                const guard_test_observer = new MutationObserver((mutationsList) => {
-                    for (const mutation of mutationsList) {
-                        if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
-                            const guard_newNum = mutation.target.textContent.match(/\d+/);
-                            // SC记录板的
-                            $(document).find('.sc_captain_num_right').text(guard_newNum);
-
-                            // 页面的
-                            if (data_show_bottom_flag) {
-                                $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
+                                // 页面的
+                                if (data_show_bottom_flag) {
+                                    $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
+                                }
                             }
                         }
-                    }
-                });
-                const guard_text_watch_config = { characterData: true, childList: true, subtree: true }
-                guard_test_observer.observe(guard_text_target[0], guard_text_watch_config);
+                    });
+                    const guard_text_watch_config = { characterData: true, childList: true, subtree: true }
+                    guard_test_observer.observe(guard_text_target[0], guard_text_watch_config);
 
-                clearInterval(rank_list_ctnr_box_interval);
-            }
-        });
-    }, 3000);
+                    clearInterval(rank_list_ctnr_box_interval);
+                }
+            });
+        }, 3000);
 
-    setInterval(() => {
-        updateTimestampDiff(); // 每30秒更新时间差
-    }, 30000);
+        setInterval(() => {
+            updateTimestampDiff(); // 每30秒更新时间差
+        }, 30000);
+
+    }
 
     function check_blacklist_menu(room_id) {
         let sc_room_black_list_json = unsafeWindow.localStorage.getItem('live_sc_room_blacklist');

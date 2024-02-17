@@ -26,7 +26,7 @@ B站直播间SC记录板-实时抓取SC、同接、高能和舰长数据，可�
 
 -> 选择https://live.bilibili.com 
 
--> 找到相应的 live_房间id_sc_keep_time 
+-> 找到相应的 live_房间id_sc_keep_time （这个参数就是该房间最后一条SC的时间）
 
 -> 右键，选择删除
 

@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      5.3.0
+// @version      5.4.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -1281,7 +1281,7 @@
             if (!sc_update_date_guard_once) {
                 const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
                 if (rank_data_show_div.length) {
-                    $(document).find('.sc_captain_num_right').text(rank_data_show_div.last().text().match(/\d+/));
+                    $(document).find('.sc_captain_num_right').text(rank_data_show_div.last().text().match(/\d+/) ?? 0);
                     sc_update_date_guard_once = true;
                 }
             }
@@ -1330,9 +1330,9 @@
                     }
 
                     if (n_count > n_online_count) {
-                        $(document).find('#control-panel-ctnr-box').append('<div style="position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">高能：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ guard_text.match(/\d+/) +'</div></div>');
+                        $(document).find('#control-panel-ctnr-box').append('<div style="position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">高能：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
                     } else {
-                        $(document).find('#control-panel-ctnr-box').append('<div style="position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" title="'+ (n_count / n_online_count * 100).toFixed(2) +'%" style="width: 100%;margin-bottom: 5px;">同接：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ guard_text.match(/\d+/) +'</div></div>');
+                        $(document).find('#control-panel-ctnr-box').append('<div style="position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" title="'+ (n_count / n_online_count * 100).toFixed(2) +'%" style="width: 100%;margin-bottom: 5px;">同接：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
                     }
                 }
             }
@@ -1369,7 +1369,7 @@
             // setTimeout的时间差内先更新一下再定时
             const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
             if (_rank_list_ctnr_box_li.length) {
-                const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/);
+                const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
 
                 $(document).find('.sc_captain_num_right').text(_guard_n);
                 sc_update_date_guard_once = true;
@@ -1387,7 +1387,7 @@
                     const guard_test_observer = new MutationObserver((mutationsList) => {
                         for (const mutation of mutationsList) {
                             if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
-                                const guard_newNum = mutation.target.textContent.match(/\d+/);
+                                const guard_newNum = mutation.target.textContent.match(/\d+/) ?? 0;
                                 // SC记录板的
                                 $(document).find('.sc_captain_num_right').text(guard_newNum);
 

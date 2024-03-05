@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      5.4.0
+// @version      5.5.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -68,6 +68,7 @@
     let sc_keep_time = unsafeWindow.localStorage.getItem(sc_keep_time_key);
     let sc_keep_time_flag = 0;
     let sc_switch = 0;
+    let sc_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record');
 
     let high_energy_num = 0;
     let sc_update_date_guard_once = false;
@@ -76,6 +77,10 @@
 
     if (sc_keep_time !== null && sc_keep_time !== 'null' && sc_keep_time !== 0 && sc_keep_time !== '') {
         sc_keep_time_flag = 1;
+    }
+
+    if (sc_switch_record !== null && sc_switch_record !== 'null' && sc_switch_record !== '') {
+        sc_switch = parseInt(sc_switch_record);
     }
 
     // 先检测并处理本房间的
@@ -161,7 +166,7 @@
         sc_switchButton.title = '主题切换';
         sc_switchButton.classList.add('sc_button_switch', 'sc_button_item');
         sc_switchButton.style.cursor = 'pointer';
-        $(document).on('click', '.sc_button_switch', sc_switch_css);
+        $(document).on('click', '.sc_button_switch', () => sc_switch_css(true));
 
         // Create a container for the buttons
         const sc_buttonsContainer = document.createElement('div');
@@ -566,8 +571,14 @@
         }
 
         // 切换主题
-        function sc_switch_css() {
-            sc_switch++;
+        function sc_switch_css(flag = false) {
+            if (flag) {
+                sc_switch++;
+
+                // 记录主题
+                unsafeWindow.localStorage.setItem('live_sc_switch_record', sc_switch);
+            }
+
             let sc_rectangle = $(document).find('.sc_long_rectangle');
             let sc_item = $(document).find('.sc_long_item');
             let sc_data_show = $(document).find('.sc_data_show');
@@ -1057,6 +1068,7 @@
             });
         }
 
+        sc_switch_css();
         check_and_clear_all_sc_store();
         sc_fetch_and_show();
 

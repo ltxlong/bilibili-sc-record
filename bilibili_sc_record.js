@@ -2,8 +2,8 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      5.5.0
-// @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
+// @version      6.0.0
+// @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
 // @match        *://live.bilibili.com/2*
@@ -75,6 +75,11 @@
 
     let sc_room_blacklist_flag = false;
 
+    let sc_panel_fold_mode = 0; // 0-最小化，1-侧折，2-展开
+    let sc_panel_side_fold_flag = false; // 侧折
+    let sc_item_side_fold_touch_flag = false;
+    let sc_item_side_fold_touch_oj = {};
+
     if (sc_keep_time !== null && sc_keep_time !== 'null' && sc_keep_time !== 0 && sc_keep_time !== '') {
         sc_keep_time_flag = 1;
     }
@@ -145,6 +150,14 @@
         sc_rectangleContainer.style.userSelect = 'none';
         sc_rectangleContainer.style.zIndex = '2233';
 
+        // Add a button to the page to trigger sidefold function
+        const sc_sidefoldButton = document.createElement('button');
+        sc_sidefoldButton.textContent = '侧折';
+        sc_sidefoldButton.classList.add('sc_button_sidefold', 'sc_button_item');
+        sc_sidefoldButton.style.cursor = 'pointer';
+        $(document).on('click', '.sc_button_sidefold', sc_sidefold);
+        $(document).on('click', '.sc_button_foldback', sc_foldback);
+
         // Add a button to the page to trigger minimize function
         const sc_minimizeButton = document.createElement('button');
         sc_minimizeButton.textContent = '折叠';
@@ -214,17 +227,31 @@
         sc_label_captain_num_right.classList.add('sc_data_show_label', 'sc_captain_num_right');
         sc_label_captain_num_right.style.float = 'right';
 
+        const sc_label_data_br1 = document.createElement('br');
+        sc_label_data_br1.style.display = 'none';
+        sc_label_data_br1.className = 'sc_label_data_br';
+        const sc_label_data_br2 = document.createElement('br');
+        sc_label_data_br2.style.display = 'none';
+        sc_label_data_br2.className = 'sc_label_data_br';
+        const sc_label_data_br3 = document.createElement('br');
+        sc_label_data_br3.style.display = 'none';
+        sc_label_data_br3.classList.add('sc_label_data_br', 'sc_label_num_br3');
+
         // Append buttons to the container
         sc_buttonsContainer.appendChild(sc_switchButton);
         sc_buttonsContainer.appendChild(sc_exportButton);
+        sc_buttonsContainer.appendChild(sc_sidefoldButton);
         sc_buttonsContainer.appendChild(sc_minimizeButton);
 
         // Append the container to the rectangle
         sc_rectangleContainer.appendChild(sc_buttonsContainer);
 
         sc_dataShowContainer.appendChild(sc_label_high_energy_num_left);
+        sc_dataShowContainer.appendChild(sc_label_data_br1);
         sc_dataShowContainer.appendChild(sc_label_high_energy_num_right);
+        sc_dataShowContainer.appendChild(sc_label_data_br2);
         sc_dataShowContainer.appendChild(sc_label_captain_num_right);
+        sc_dataShowContainer.appendChild(sc_label_data_br3);
         sc_dataShowContainer.appendChild(sc_label_captain_num_left);
         sc_rectangleContainer.appendChild(sc_dataShowContainer);
 
@@ -486,6 +513,11 @@
                     $(this).slideDown(500);
                 });
 
+                if (sc_panel_side_fold_flag) {
+                    sc_panel_fold_mode = 1;
+                } else {
+                    sc_panel_fold_mode = 2;
+                }
             } else {
                 sc_isClickAllowed = true;
             }
@@ -542,7 +574,55 @@
 
         });
 
+        $(document).on('mouseenter', '.sc_msg_head', function(e) {
+            if (!sc_panel_side_fold_flag || sc_item_side_fold_touch_flag) { return; }
+
+            let sc_fold_out_show_top = $(this).offset().top - $(this).parent().parent().parent().offset().top;
+            $(this).parent().css('position', 'absolute');
+            $(this).parent().css('top', sc_fold_out_show_top);
+            $(this).parent().css('z-index', '10');
+            $(this).parent().css('width', (sc_rectangle_width - 22) + 'px'); // 22 约为总padding
+
+            if (($(this).offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
+                $(this).parent().css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+            }
+            sc_side_fold_out_one($(this).parent());
+
+            sc_item_side_fold_touch_flag = true;
+            sc_item_side_fold_touch_oj = $(this).parent();
+        });
+
+        $(document).on('mouseleave', '.sc_msg_head', function() {
+            if (!sc_panel_side_fold_flag) { return; }
+
+            $(this).parent().css('position', '');
+            $(this).parent().css('top', '');
+            $(this).parent().css('z-index', '');
+            $(this).parent().css('width', '');
+            $(this).parent().css('left', '');
+            sc_side_fold_in_one($(this).parent());
+
+            sc_item_side_fold_touch_flag = false;
+            sc_item_side_fold_touch_oj = {};
+        });
+
         $(document).on('click', '.sc_long_item', sc_toggle_msg_body);
+
+        // 侧折状态下，展开一个SC时也可以滚动
+        $(document).on('wheel', '.sc_long_list', function(e) {
+            if (sc_panel_side_fold_flag && sc_item_side_fold_touch_flag) {
+                e = e || unsafeWindow.event;
+                let the_sc_item_mov = 60; // 60是侧折后头像框高度+间隙
+                if (e.originalEvent.deltaY < 0) {
+                    the_sc_item_mov = -60;
+                }
+                let the_sc_list = $(document).find('.sc_long_list');
+                the_sc_list.scrollTop(the_sc_list.scrollTop() + the_sc_item_mov);
+                if (the_sc_list.scrollTop() !== 0 || the_sc_list.scrollTop() + the_sc_list.height() !== the_sc_list[0].scrollHeight) {
+                    sc_item_side_fold_touch_oj.css('top', sc_item_side_fold_touch_oj.position().top + the_sc_item_mov);
+                }
+            }
+        });
 
         // 折叠/展开单个消息
         function sc_toggle_msg_body() {
@@ -555,12 +635,97 @@
                 $('.' + this_sc_item_dynamic_className).css('border-radius', '8px');
                 this_sc_msg_body.prev().css('border-radius', '6px');
                 $('.' + this_sc_item_dynamic_className).find('.sc_value_font').css('color', this_sc_item_bg_color);
+                $('.' + this_sc_item_dynamic_className).attr('data-fold', '1');
             } else {
                 $('.' + this_sc_item_dynamic_className).css('border-radius', '8px 8px 6px 6px');
                 this_sc_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
                 this_sc_msg_body.slideDown(200);
                 $('.' + this_sc_item_dynamic_className).find('.sc_value_font').css('color', '');
+                $('.' + this_sc_item_dynamic_className).attr('data-fold', '0');
             }
+        }
+
+        // 侧折显示板
+        function sc_sidefold() {
+            $(document).find('.sc_long_rectangle').css('width', '72px');
+            let sc_btn_item = $(document).find('.sc_button_item');
+            sc_btn_item.css('margin-top', '6px');
+            sc_btn_item.css('margin-bottom', '0px');
+            sc_btn_item.css('margin-right', '0px');
+
+            let sc_btn_sidefold = $(document).find('.sc_button_sidefold');
+            sc_btn_sidefold.addClass('sc_button_foldback');
+            sc_btn_sidefold.removeClass('sc_button_sidefold');
+            sc_btn_sidefold.text('展开');
+
+            let sc_data_show = $(document).find('.sc_data_show');
+            sc_data_show.css('margin-bottom', '15px');
+            sc_data_show.css('height', '70px');
+
+            $(document).find('.sc_label_data_br').show();
+
+            let sc_label_high_energy_left = $(document).find('.sc_high_energy_num_left');
+            let sc_label_high_energy_right = $(document).find('.sc_high_energy_num_right');
+            let sc_label_captain_left = $(document).find('.sc_captain_num_left');
+            let sc_label_captain_right = $(document).find('.sc_captain_num_right');
+            let sc_label_num_br3 = $(document).find('.sc_label_num_br3');
+            let clone_sc_label_captain_right = sc_label_captain_right.last().clone(true);
+            let clone_sc_label_num_br3 = sc_label_num_br3.last().clone(true);
+            clone_sc_label_captain_right.css('float', 'none');
+            sc_data_show.append(clone_sc_label_num_br3);
+            sc_data_show.append(clone_sc_label_captain_right);
+            sc_label_captain_right.remove();
+            sc_label_num_br3.remove();
+            sc_label_high_energy_left.css('float', 'right');
+            sc_label_high_energy_right.css('float', 'none');
+            sc_label_captain_left.css('margin-top', '10px');
+
+            sc_side_fold_in_all();
+
+            sc_panel_fold_mode = 1;
+            sc_panel_side_fold_flag = true;
+        }
+
+        // 侧折后恢复展开显示板
+        function sc_foldback() {
+            $(document).find('.sc_long_rectangle').css('width', sc_rectangle_width + 'px');
+            let sc_btn_item = $(document).find('.sc_button_item');
+            sc_btn_item.css('margin-top', '15px');
+            sc_btn_item.css('margin-bottom', '15px');
+            sc_btn_item.css('margin-right', '10px');
+            $(document).find('.sc_button_min').css('margin-right', '0px');
+
+            let sc_btn_foldback = $(document).find('.sc_button_foldback');
+            sc_btn_foldback.addClass('sc_button_sidefold');
+            sc_btn_foldback.removeClass('sc_button_foldback');
+            sc_btn_foldback.text('侧折');
+
+            let sc_data_show = $(document).find('.sc_data_show');
+            sc_data_show.css('margin-bottom', '20px');
+            sc_data_show.css('height', '20px');
+
+            $(document).find('.sc_label_data_br').hide();
+
+            let sc_label_high_energy_left = $(document).find('.sc_high_energy_num_left');
+            let sc_label_high_energy_right = $(document).find('.sc_high_energy_num_right');
+            let sc_label_captain_left = $(document).find('.sc_captain_num_left');
+            let sc_label_captain_right = $(document).find('.sc_captain_num_right');
+            let sc_label_num_br3 = $(document).find('.sc_label_num_br3');
+            let clone_sc_label_captain_left = sc_label_captain_left.last().clone(true);
+            let clone_sc_label_num_br3 = sc_label_num_br3.last().clone(true);
+            clone_sc_label_captain_left.css('margin-top', '0px');
+            sc_data_show.append(clone_sc_label_num_br3);
+            sc_data_show.append(clone_sc_label_captain_left);
+            sc_label_captain_left.remove();
+            sc_label_num_br3.remove();
+            sc_label_high_energy_left.css('float', 'left');
+            sc_label_high_energy_right.css('float', 'left');
+            sc_label_captain_right.css('float', 'right');
+
+            sc_side_fold_out_all();
+
+            sc_panel_fold_mode = 2;
+            sc_panel_side_fold_flag = false;
         }
 
         // 折叠显示板
@@ -568,6 +733,8 @@
             $(document).find('.sc_long_circle').show();
             $(document).find('.sc_long_rectangle').hide();
             $(document).find('.sc_long_buttons').hide(); // 优化回弹问题
+
+            sc_panel_fold_mode = 0;
         }
 
         // 切换主题
@@ -581,6 +748,7 @@
 
             let sc_rectangle = $(document).find('.sc_long_rectangle');
             let sc_item = $(document).find('.sc_long_item');
+            let sc_list = $(document).find('.sc_long_list');
             let sc_data_show = $(document).find('.sc_data_show');
             let sc_button_item = $(document).find('.sc_button_item');
 
@@ -589,6 +757,7 @@
                 sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
                 sc_rectangle.css('box-shadow', '2px 2px 5px black');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
+                sc_list.css('padding', '10px 13px 10px 10px');
                 sc_data_show.css('color', '');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
@@ -610,6 +779,7 @@
                 sc_rectangle.css('background-color', 'rgba(255,255,255,0)');
                 sc_rectangle.css('box-shadow', '');
                 sc_item.css('box-shadow', '');
+                sc_list.css('padding', '10px 11px 10px 10px');
                 sc_data_show.css('color', '#ffffff');
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
@@ -629,6 +799,7 @@
                 // 半透明（白0.1）
                 sc_rectangle.css('background-color', 'rgba(255,255,255,0.1)');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
+                sc_list.css('padding', '10px 13px 10px 10px');
                 sc_data_show.css('color', '#ffffff');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
@@ -649,6 +820,7 @@
                 // 半透明（白0.5）
                 sc_rectangle.css('background-color', 'rgba(255,255,255,0.5)');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
+                sc_list.css('padding', '10px 13px 10px 10px');
                 sc_data_show.css('color', '');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
@@ -670,6 +842,7 @@
                 sc_rectangle.css('background-color', 'rgba(0,0,0,0.1)');
                 sc_rectangle.css('box-shadow', '');
                 sc_item.css('box-shadow', '');
+                sc_list.css('padding', '10px 11px 10px 10px');
                 sc_data_show.css('color', '#ffffff');
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
@@ -690,6 +863,7 @@
                 sc_rectangle.css('background-color', 'rgba(0,0,0,0.5)');
                 sc_rectangle.css('box-shadow', '');
                 sc_item.css('box-shadow', '');
+                sc_list.css('padding', '10px 11px 10px 10px');
                 sc_data_show.css('color', '#ffffff');
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
@@ -710,6 +884,7 @@
                 sc_switch = 0;
                 sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
+                sc_list.css('padding', '10px 13px 10px 10px');
                 sc_data_show.css('color', '');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
@@ -727,6 +902,37 @@
             }
             `);
             }
+        }
+
+        function sc_side_fold_in_all() {
+            $(document).find('.sc_long_item').each(function() {
+                sc_side_fold_in_one($(this));
+            });
+        }
+
+        function sc_side_fold_out_all() {
+            $(document).find('.sc_long_item').each(function() {
+                sc_side_fold_out_one($(this));
+            });
+        }
+
+        function sc_side_fold_in_one(target_oj) {
+            target_oj.find('.sc_msg_body').hide();
+            target_oj.find('.sc_msg_head').css('border-radius', '6px');
+            target_oj.find('.sc_msg_head_left').hide();
+            target_oj.find('.sc_msg_head_right').hide();
+        }
+
+        function sc_side_fold_out_one(target_oj) {
+            let sc_item_fold_flag = target_oj.attr('data-fold');
+
+            if (sc_item_fold_flag === '0') {
+                target_oj.find('.sc_msg_body').show();
+                target_oj.find('.sc_msg_head').css('border-radius', '6px 6px 0px 0px');
+            }
+
+            target_oj.find('.sc_msg_head_left').show();
+            target_oj.find('.sc_msg_head_right').show();
         }
 
         // 导出
@@ -862,6 +1068,11 @@
             $(this).parent().fadeOut(function() {
                 let current_sc_div = $(sc_context_menu).data('current_sc_div');
 
+                if (sc_panel_side_fold_flag) {
+                    $(current_sc_div).css('width', (sc_rectangle_width - 22) + 'px');
+                    sc_side_fold_out_one($(current_sc_div));
+                }
+
                 let tmp_sc_item = $(current_sc_div).clone(); // 为了去掉animation的影响
                 tmp_sc_item.width(current_sc_div.clientWidth);
                 tmp_sc_item.height(current_sc_div.clientHeight);
@@ -901,6 +1112,11 @@
                 });
 
                 document.body.removeChild(tmp_sc_item[0]);
+
+                if (sc_panel_side_fold_flag) {
+                    $(current_sc_div).css('width', '');
+                    sc_side_fold_in_one($(current_sc_div));
+                }
             });
         });
 
@@ -1217,20 +1433,31 @@
                 '<div class="sc_start_time" style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">' + sc_start_time + '</span></div></div>'
         }
 
-        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 1s linear forwards;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
-            '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center; border-radius: 6px 6px 0px 0px;">'+
+        let sc_msg_body_style_display = '';
+        let sc_msg_head_style_border_radius = 'border-radius: 6px 6px 0px 0px;';
+        let sc_msg_head_left_style_display = '';
+        let sc_msg_head_right_style_display = '';
+        if (sc_panel_side_fold_flag) {
+            sc_msg_body_style_display = 'display: none;';
+            sc_msg_head_style_border_radius = 'border-radius: 6px;';
+            sc_msg_head_left_style_display = 'display: none;';
+            sc_msg_head_right_style_display = 'display: none;';
+        }
+
+        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 1s linear forwards;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
+            '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center;'+ sc_msg_head_style_border_radius +'">'+
             '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
-            '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;">'+
+            '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;'+ sc_msg_head_left_style_display +'">'+
             metal_and_start_time_html+
             '<div class="sc_uname_div" style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((sc_rectangle_width / 2) + 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;" data-color="'+ sc_font_color_data +'">' + sc_user_info_uname + '</span></div>'+
             '</div>'+
-            '<div class="sc_msg_head_right" style="float: right; box-sizing: border-box; height: 40px;">'+
+            '<div class="sc_msg_head_right" style="float: right; box-sizing: border-box; height: 40px;'+ sc_msg_head_right_style_display +'">'+
             '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right;">￥'+ sc_price +'</span></div>'+
             '<div style="height: 20px; color: #666666" data-html2canvas-ignore><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span></div>'+
             '</div>'+
             '</div>'+
-            '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+
+            '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;'+ sc_msg_body_style_display +'"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+
             '</div>';
 
         $(document).find('.sc_long_list').prepend(sc_item_html);

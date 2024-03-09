@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      6.0.0
+// @version      6.1.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -549,6 +549,10 @@
             });
             $(document).find('.sc_data_show label').animate({opacity: 1}, 1000);
 
+            if (sc_panel_side_fold_flag) {
+                $(document).find('.sc_long_rectangle').css('border-bottom', '10px solid transparent');
+            }
+
         });
 
         $(document).on('mouseleave', '.sc_long_rectangle', (e) => {
@@ -567,10 +571,15 @@
             $(document).find('.sc_long_buttons').slideUp(500, () => {
                 sc_rectangle_is_slide_up = false;
             });
-            $(document).find('.sc_data_show label').animate({opacity: 0}, 200);
-            $(document).find('.sc_data_show').slideUp(500, () => {
-                sc_rectangle_is_slide_up = false;
-            });
+
+            if (sc_panel_side_fold_flag) {
+                $(document).find('.sc_long_rectangle').css('border-bottom', '');
+            } else {
+                $(document).find('.sc_data_show label').animate({opacity: 0}, 200);
+                $(document).find('.sc_data_show').slideUp(500, () => {
+                    sc_rectangle_is_slide_up = false;
+                });
+            }
 
         });
 
@@ -680,6 +689,23 @@
             sc_label_high_energy_right.css('float', 'none');
             sc_label_captain_left.css('margin-top', '10px');
 
+            let sc_long_rectangle = $(document).find('.sc_long_rectangle');
+            let sc_long_buttons = $(document).find('.sc_long_buttons');
+            let clone_sc_data_show = sc_data_show.last().clone(true);
+            let clone_sc_long_buttons = sc_long_buttons.last().clone(true);
+            clone_sc_long_buttons.hide();
+            sc_long_rectangle.css('border-bottom', '');
+            sc_long_rectangle.append(clone_sc_data_show);
+            sc_long_rectangle.append(clone_sc_long_buttons);
+            sc_data_show.remove();
+            sc_long_buttons.remove();
+
+            if (unsafeWindow.innerHeight - sc_long_rectangle.position().top < sc_panel_high + 250) {
+                sc_long_rectangle.each(function() {
+                    $(this).css('top', unsafeWindow.innerHeight - sc_panel_high - 250);
+                });
+            }
+
             sc_side_fold_in_all();
 
             sc_panel_fold_mode = 1;
@@ -721,6 +747,22 @@
             sc_label_high_energy_left.css('float', 'left');
             sc_label_high_energy_right.css('float', 'left');
             sc_label_captain_right.css('float', 'right');
+
+            let sc_long_rectangle = $(document).find('.sc_long_rectangle');
+            let sc_long_buttons = $(document).find('.sc_long_buttons');
+            let clone_sc_data_show = sc_data_show.last().clone(true);
+            let clone_sc_long_buttons = sc_long_buttons.last().clone(true);
+            sc_long_rectangle.css('border-bottom', '10px solid transparent');
+            sc_long_rectangle.prepend(clone_sc_data_show);
+            sc_long_rectangle.prepend(clone_sc_long_buttons);
+            sc_data_show.remove();
+            sc_long_buttons.remove();
+
+            if (unsafeWindow.innerWidth - sc_long_rectangle.position().left < sc_rectangle_width) {
+                sc_long_rectangle.each(function() {
+                    $(this).css('left', unsafeWindow.innerWidth - sc_rectangle_width - 15);
+                });
+            }
 
             sc_side_fold_out_all();
 

@@ -2,8 +2,8 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      6.1.0
-// @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
+// @version      7.0.0
+// @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
 // @match        *://live.bilibili.com/2*
@@ -36,12 +36,46 @@
 
     // 抓取SC ：https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=
     // 进入直播间的时候开始记录SC
-    // 开始固定在屏幕左上方一侧，为圆形小图标，可以点击展开，可以拖拽移动，直播全屏也在顶层显示
+    // 开始固定在屏幕左上方一侧，为圆形小图标，可以点击展开，可以拖拽移动，活动页可用，直播全屏也在顶层显示
     // 通过Hook实时抓取数据
     // 每个直播间隔离保留，用localstorage，并且自动清理时间长的数据
     // SC标明发送时间和距离当前的时间差
     // SC可折叠，可生成图片（折叠和展开都可以）
     // 黑名单功能
+    // 侧折模式功能
+    // 记忆模式选择功能
+    // 记忆模式说明：
+    // 没记：没有记忆配置
+    // 题记：只记忆主题，所有<题记>房间共用一个主题配置
+    // 个记：独立记忆当前房间的所有配置
+    // 全记：所有的房间共用的记忆配置
+    // 记忆的优先级：
+    // 全记 > 个记 > 题记
+    // 进入直播房间的时候会依次检查优先级，来进行自动加载配置
+    // 例子说明：
+    // 有四个直播房间：
+    // A、B、C、D
+    // 已经打开：A[题记]，B[个记]
+    // 现在打开C房间，会从[全记]->[个记]->[题记]依次检查，都没有则默认是[没记]。
+    // 当C从[没记]切换到[题记]时，如果[题记]存在记忆的主题，C的主题会自动切换到[题记]记忆的主题，当C切换主题时候，会更新[题记]记忆的主题
+    // 这个时候，虽然A和C都是[题记]模式，但是主题却不一样，其中C的主题才是[题记]记忆的最新主题，当A页面刷新后，会变为[题记]最新记忆的主题
+    // 当C从[题记]切换到[个记]，[题记]的房间中剔除C，并且C会立即生成自己的独立配置，处于[个记]模式下，C的所有配置操作都会独立记忆
+    // 当C从[个记]切换到[全记]，C的[个记]独立配置会立即删除，并且会将自己的所有配置生成[全记]的配置，如果这个时候，A、B页面刷新，会自动加载[全记]的配置
+    // 现在打开D房间，由于已经存在[全记]的配置，所以D会自动加载[全记]的配置。
+    // 如果这个时候，D从[全记]切换到[没记]，那么所有页面的[全记]都会失效，最多30秒后，其余[全记]页面的按钮会变为[没记]（因为每30秒检查一次）
+    // 刷新A、B页面，A会自动加载[题记], B会自动加载[个记]，即都会恢复为被[全记]影响之前的配置模式
+    // 总结：
+    // [个记]的删除时机：从[个记]点击按钮，手动切换到[全记]
+    // [全记]的删除时机：从[全记]点击按钮，手动切换到[没记]
+    // [题记]和[全记]的区别：
+    // [题记]是一个小圈子，这个圈子有自己的主题颜色，每个房间都可以加入其中，切换加入的时候，该房间会被动的染上圈子的主题颜色，并且也有权限改变圈子的颜色
+    // [全记]是一个全局权限，当有一个房间切换到[全记]时，即拿到了这个全局权限，并且复制自己的所有配置附加在上面，
+    // 后续每一个新进入/刷新的房间都会自动获得这个全局权限并且自动加载上面的配置，
+    // 当其中一个房间从[全记]模式切换到[没记]的时候，这个全局权限就会失效，最多30秒后，其余[全记]页面的按钮会变为[没记]（因为每30秒检查一次），其余房间刷新页面会恢复被[全记]影响之前的配置模式
+    // 注意：
+    // [全记]模式的使用注意的是，如果在普通房间将记录板位置移动到很边缘，那么在活动页的房间可能会看不到
+    // 解决：
+    // 活动页如果看不到，那么全屏的时候就可以看到，再退出全屏的时候就也可以看到了
 
     let room_id = unsafeWindow.location.pathname.split('/').pop();
     let sc_url_api = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=';
@@ -67,25 +101,115 @@
     let sc_now_time = (new Date()).getTime();
     let sc_keep_time = unsafeWindow.localStorage.getItem(sc_keep_time_key);
     let sc_keep_time_flag = 0;
-    let sc_switch = 0;
-    let sc_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record');
 
     let high_energy_num = 0;
     let sc_update_date_guard_once = false;
 
     let sc_room_blacklist_flag = false;
 
+    let sc_memory = 0; // 0-没记，1-题记，2-个记，3-全记
+    let sc_switch = 0;
     let sc_panel_fold_mode = 0; // 0-最小化，1-侧折，2-展开
+    let sc_panel_side_fold_simple = false; // 侧折的极简模式
+    let sc_panel_drag_left = -1;
+    let sc_panel_drag_top = -1;
     let sc_panel_side_fold_flag = false; // 侧折
     let sc_item_side_fold_touch_flag = false;
     let sc_item_side_fold_touch_oj = {};
+    let sc_self_memory_config_key = 'live_' + room_id + '_sc_self_memory_config';
+
+    // 记忆配置检查
+    // 优先级：3-全记 > 2-个记 > 1-题记
+    let sc_memory_all_rooms_mode = unsafeWindow.localStorage.getItem('live_sc_memory_all_rooms_mode');
+    if (sc_memory_all_rooms_mode !== null && sc_memory_all_rooms_mode !== 'null' && sc_memory_all_rooms_mode !== '') {
+        sc_memory = parseInt(sc_memory_all_rooms_mode);
+
+        // sc_memory_all_rooms_mode的值目前只能是3-全记
+        if (sc_memory !== 3) {
+            sc_memory = 0;
+        }
+
+        if (sc_memory === 3) {
+            // 全记
+            let sc_all_memory_config_json = unsafeWindow.localStorage.getItem('live_sc_all_memory_config');
+            if (sc_all_memory_config_json !== null && sc_all_memory_config_json !== 'null' && sc_all_memory_config_json !== '[]' && sc_all_memory_config_json !== '{}' && sc_all_memory_config_json !== '') {
+                sc_memory_get_store_mode_all(sc_all_memory_config_json);
+            }
+        } else {
+            // 个记
+            let sc_self_memory_config_json = unsafeWindow.localStorage.getItem(sc_self_memory_config_key);
+            if (sc_self_memory_config_json !== null && sc_self_memory_config_json !== 'null' && sc_self_memory_config_json !== '[]' && sc_self_memory_config_json !== '{}' && sc_self_memory_config_json !== '') {
+                sc_memory_get_store_mode_self(sc_self_memory_config_json);
+            } else {
+                // 题记
+                let sc_switch_memory_rooms_json = unsafeWindow.localStorage.getItem('live_sc_switch_memory_rooms');
+                if (sc_switch_memory_rooms_json !== null && sc_switch_memory_rooms_json !== 'null' && sc_switch_memory_rooms_json !== '[]' && sc_switch_memory_rooms_json !== '') {
+                    sc_memory_get_store_mode_switch(sc_switch_memory_rooms_json);
+                }
+            }
+        }
+    } else {
+        // 个记
+        let sc_self_memory_config_json = unsafeWindow.localStorage.getItem(sc_self_memory_config_key);
+        if (sc_self_memory_config_json !== null && sc_self_memory_config_json !== 'null' && sc_self_memory_config_json !== '[]' && sc_self_memory_config_json !== '{}' && sc_self_memory_config_json !== '') {
+            sc_memory_get_store_mode_self(sc_self_memory_config_json);
+        } else {
+            // 题记
+            let sc_switch_memory_rooms_json = unsafeWindow.localStorage.getItem('live_sc_switch_memory_rooms');
+            if (sc_switch_memory_rooms_json !== null && sc_switch_memory_rooms_json !== 'null' && sc_switch_memory_rooms_json !== '[]' && sc_switch_memory_rooms_json !== '') {
+                sc_memory_get_store_mode_switch(sc_switch_memory_rooms_json);
+            }
+        }
+    }
+
+    function sc_memory_get_store_mode_all(sc_all_memory_config_json) {
+        let sc_all_memory_config = JSON.parse(sc_all_memory_config_json);
+        sc_switch = sc_all_memory_config['sc_switch'] ?? 0;
+        sc_panel_fold_mode = sc_all_memory_config['sc_panel_fold_mode'] ?? 0;
+        sc_panel_side_fold_flag = sc_all_memory_config['sc_panel_side_fold_flag'] ?? false;
+        sc_panel_side_fold_simple = sc_all_memory_config['sc_panel_side_fold_simple'] ?? false;
+        sc_panel_drag_left = sc_all_memory_config['sc_panel_drag_left'] ?? -1;
+        sc_panel_drag_top = sc_all_memory_config['sc_panel_drag_top'] ?? -1;
+        if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
+            sc_panel_drag_left = unsafeWindow.innerWidth - 72;
+        }
+        if (sc_panel_fold_mode === 2 && (unsafeWindow.innerWidth - sc_panel_drag_left) < sc_rectangle_width) {
+            sc_panel_drag_left = unsafeWindow.innerWidth - sc_rectangle_width;
+        }
+    }
+
+    function sc_memory_get_store_mode_self(sc_self_memory_config_json) {
+        let sc_self_memory_config = JSON.parse(sc_self_memory_config_json);
+        sc_switch = sc_self_memory_config['sc_switch'] ?? 0;
+        sc_panel_fold_mode = sc_self_memory_config['sc_panel_fold_mode'] ?? 0;
+        sc_panel_side_fold_flag = sc_self_memory_config['sc_panel_side_fold_flag'] ?? false;
+        sc_panel_side_fold_simple = sc_self_memory_config['sc_panel_side_fold_simple'] ?? false;
+        sc_panel_drag_left = sc_self_memory_config['sc_panel_drag_left'] ?? -1;
+        sc_panel_drag_top = sc_self_memory_config['sc_panel_drag_top'] ?? -1;
+        if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
+            sc_panel_drag_left = unsafeWindow.innerWidth - 72;
+        }
+        if (sc_panel_fold_mode === 2 && (unsafeWindow.innerWidth - sc_panel_drag_left) < sc_rectangle_width) {
+            sc_panel_drag_left = unsafeWindow.innerWidth - sc_rectangle_width;
+        }
+
+        sc_memory = 2;
+    }
+
+    function sc_memory_get_store_mode_switch(sc_switch_memory_rooms_json) {
+        let sc_switch_memory_rooms = JSON.parse(sc_switch_memory_rooms_json);
+        if (sc_switch_memory_rooms.includes(room_id)) {
+            let sc_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record');
+            if (sc_switch_record !== null && sc_switch_record !== 'null' && sc_switch_record !== '') {
+                sc_switch = parseInt(sc_switch_record);
+            }
+
+            sc_memory = 1;
+        }
+    }
 
     if (sc_keep_time !== null && sc_keep_time !== 'null' && sc_keep_time !== 0 && sc_keep_time !== '') {
         sc_keep_time_flag = 1;
-    }
-
-    if (sc_switch_record !== null && sc_switch_record !== 'null' && sc_switch_record !== '') {
-        sc_switch = parseInt(sc_switch_record);
     }
 
     // 先检测并处理本房间的
@@ -150,6 +274,14 @@
         sc_rectangleContainer.style.userSelect = 'none';
         sc_rectangleContainer.style.zIndex = '2233';
 
+        // Add a button to the page to trigger minimize function
+        const sc_minimizeButton = document.createElement('button');
+        sc_minimizeButton.textContent = '折叠';
+        sc_minimizeButton.classList.add('sc_button_min', 'sc_button_item');
+        sc_minimizeButton.style.cursor = 'pointer';
+        sc_minimizeButton.style.marginRight = '0px';
+        $(document).on('click', '.sc_button_min', sc_minimize);
+
         // Add a button to the page to trigger sidefold function
         const sc_sidefoldButton = document.createElement('button');
         sc_sidefoldButton.textContent = '侧折';
@@ -158,13 +290,15 @@
         $(document).on('click', '.sc_button_sidefold', sc_sidefold);
         $(document).on('click', '.sc_button_foldback', sc_foldback);
 
-        // Add a button to the page to trigger minimize function
-        const sc_minimizeButton = document.createElement('button');
-        sc_minimizeButton.textContent = '折叠';
-        sc_minimizeButton.classList.add('sc_button_min', 'sc_button_item');
-        sc_minimizeButton.style.cursor = 'pointer';
-        sc_minimizeButton.style.marginRight = '0px';
-        $(document).on('click', '.sc_button_min', sc_minimize);
+        // Add a button to the page to trigger memory function
+        let sc_memory_text_arr = ['没记', '题记', '个记', '全记'];
+        const sc_memoryButton = document.createElement('button');
+        sc_memoryButton.textContent = sc_memory_text_arr[sc_memory];
+        sc_memoryButton.title = '[没记]-没记忆配置；[题记]-所有<题记>房间共用一个主题配置；[个记]-独立记忆当前的所有配置；[全记]-所有房间共用当前的所有配置';
+        sc_memoryButton.classList.add('sc_button_memory', 'sc_button_item');
+        sc_memoryButton.style.cursor = 'pointer';
+        $(document).on('click', '.sc_button_memory', sc_memory_modify);
+
 
         // Add a button to the page to trigger export function
         const sc_exportButton = document.createElement('button');
@@ -240,6 +374,7 @@
         // Append buttons to the container
         sc_buttonsContainer.appendChild(sc_switchButton);
         sc_buttonsContainer.appendChild(sc_exportButton);
+        sc_buttonsContainer.appendChild(sc_memoryButton);
         sc_buttonsContainer.appendChild(sc_sidefoldButton);
         sc_buttonsContainer.appendChild(sc_minimizeButton);
 
@@ -303,11 +438,11 @@
 
             .sc_button_item {
                 text-decoration: none;
-                width: 60px;
+                width: 50px;
                 padding: 5px;
                 margin-top: 15px;
                 margin-bottom: 15px;
-                margin-right: 10px;
+                margin-right: 7px;
                 background: linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3);
                 background-size: 350%;
                 color: #ffffff;
@@ -417,8 +552,8 @@
                     yPos = rect.top;
                 });
 
-                if (unsafeWindow.innerWidth - xPos < sc_circles_width + 10) {
-                    xPos = unsafeWindow.innerWidth - sc_circles_width - 10;
+                if (unsafeWindow.innerWidth - xPos < sc_circles_width) {
+                    xPos = unsafeWindow.innerWidth - sc_circles_width;
                     sc_circles.css('left', xPos + 'px');
                 }
 
@@ -436,8 +571,8 @@
                     xPos = rect.left;
                     yPos = rect.top;
                 });
-                if (unsafeWindow.innerWidth - xPos < sc_rectangles_width + 15) {
-                    xPos = unsafeWindow.innerWidth - sc_rectangles_width - 15;
+                if (unsafeWindow.innerWidth - xPos < sc_rectangles_width) {
+                    xPos = unsafeWindow.innerWidth - sc_rectangles_width;
                     sc_rectangles.css('left', xPos + 'px');
                 }
 
@@ -480,6 +615,16 @@
         }
 
         function sc_stopDragging() {
+            if (!sc_isClickAllowed) {
+                const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
+                if (rect_circle.width === 0 && rect_circle.height === 0) {
+                    const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
+                    sc_panel_drag_store(rect_rectangle.left, rect_rectangle.top);
+                } else {
+                    sc_panel_drag_store(rect_circle.left, rect_circle.top);
+                }
+            }
+
             sc_isDragging = false;
         }
 
@@ -495,9 +640,21 @@
                     $(this).hide();
                 });
 
-                if (unsafeWindow.innerWidth - xPos < sc_rectangle_width) {
-                    xPos = unsafeWindow.innerWidth - sc_rectangle_width - 15;
+                if (sc_panel_side_fold_flag) {
+                    if (unsafeWindow.innerWidth - xPos < 72) {
+                        xPos = unsafeWindow.innerWidth - 72;
+                    }
+
+                    sc_panel_fold_mode = 1;
+                } else {
+                    if (unsafeWindow.innerWidth - xPos < sc_rectangle_width) {
+                        xPos = unsafeWindow.innerWidth - sc_rectangle_width;
+                    }
+
+                    sc_panel_fold_mode = 2;
                 }
+
+
 
                 if (unsafeWindow.innerHeight - yPos < sc_panel_high) {
                     yPos = unsafeWindow.innerHeight - sc_panel_high - 150;
@@ -513,16 +670,11 @@
                     $(this).slideDown(500);
                 });
 
-                if (sc_panel_side_fold_flag) {
-                    sc_panel_fold_mode = 1;
-                } else {
-                    sc_panel_fold_mode = 2;
-                }
+                sc_fold_mode_store();
             } else {
                 sc_isClickAllowed = true;
             }
         });
-
 
         $(document).on('mouseenter', '.sc_long_circle', () => {
             $(document).find('.sc_long_circle').css('border', '3px solid rgba(255,255,255,0.5)');
@@ -573,7 +725,14 @@
             });
 
             if (sc_panel_side_fold_flag) {
-                $(document).find('.sc_long_rectangle').css('border-bottom', '');
+                if (sc_panel_side_fold_simple) {
+                    $(document).find('.sc_data_show label').animate({opacity: 0}, 200);
+                    $(document).find('.sc_data_show').slideUp(500, () => {
+                        sc_rectangle_is_slide_up = false;
+                    });
+                } else {
+                    $(document).find('.sc_long_rectangle').css('border-bottom', '');
+                }
             } else {
                 $(document).find('.sc_data_show label').animate({opacity: 0}, 200);
                 $(document).find('.sc_data_show').slideUp(500, () => {
@@ -591,6 +750,7 @@
             $(this).parent().css('top', sc_fold_out_show_top);
             $(this).parent().css('z-index', '10');
             $(this).parent().css('width', (sc_rectangle_width - 22) + 'px'); // 22 约为总padding
+            $(this).parent().css('height', '');
 
             if (($(this).offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
                 $(this).parent().css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
@@ -607,7 +767,8 @@
             $(this).parent().css('position', '');
             $(this).parent().css('top', '');
             $(this).parent().css('z-index', '');
-            $(this).parent().css('width', '');
+            $(this).parent().css('width', '50px');
+            $(this).parent().css('height', '50px');
             $(this).parent().css('left', '');
             sc_side_fold_in_one($(this).parent());
 
@@ -617,10 +778,27 @@
 
         $(document).on('click', '.sc_long_item', sc_toggle_msg_body);
 
+        $(document).on('click', '.sc_data_show', function(e) {
+            if (sc_panel_side_fold_flag) {
+                e = e || unsafeWindow.event;
+
+                if (sc_panel_side_fold_simple) {
+                    sc_panel_side_fold_simple = false;
+                    open_and_close_sc_modal('已退出 侧折的极简模式 ✓', '#A7C9D3', e, 1);
+                } else {
+                    sc_panel_side_fold_simple = true;
+                    open_and_close_sc_modal('已设置 侧折的极简模式 ✓', '#A7C9D3', e, 1);
+                }
+
+                sc_side_fold_simple_store();
+            }
+        });
+
         // 侧折状态下，展开一个SC时也可以滚动
         $(document).on('wheel', '.sc_long_list', function(e) {
             if (sc_panel_side_fold_flag && sc_item_side_fold_touch_flag) {
                 e = e || unsafeWindow.event;
+
                 let the_sc_item_mov = 60; // 60是侧折后头像框高度+间隙
                 if (e.originalEvent.deltaY < 0) {
                     the_sc_item_mov = -60;
@@ -655,8 +833,11 @@
         }
 
         // 侧折显示板
-        function sc_sidefold() {
+        function sc_sidefold(flag = true) {
             $(document).find('.sc_long_rectangle').css('width', '72px');
+            $(document).find('.sc_long_list').css('padding-left', '11px');
+            $(document).find('.sc_long_item').css('width', '50px');
+            $(document).find('.sc_long_item').css('height', '50px');
             let sc_btn_item = $(document).find('.sc_button_item');
             sc_btn_item.css('margin-top', '6px');
             sc_btn_item.css('margin-bottom', '0px');
@@ -694,31 +875,43 @@
             let clone_sc_data_show = sc_data_show.last().clone(true);
             let clone_sc_long_buttons = sc_long_buttons.last().clone(true);
             clone_sc_long_buttons.hide();
-            sc_long_rectangle.css('border-bottom', '');
+            if (sc_panel_side_fold_simple) {
+                clone_sc_data_show.hide();
+            } else {
+                sc_long_rectangle.css('border-bottom', '');
+            }
             sc_long_rectangle.append(clone_sc_data_show);
             sc_long_rectangle.append(clone_sc_long_buttons);
             sc_data_show.remove();
             sc_long_buttons.remove();
 
-            if (unsafeWindow.innerHeight - sc_long_rectangle.position().top < sc_panel_high + 250) {
-                sc_long_rectangle.each(function() {
-                    $(this).css('top', unsafeWindow.innerHeight - sc_panel_high - 250);
-                });
-            }
-
             sc_side_fold_in_all();
 
             sc_panel_fold_mode = 1;
             sc_panel_side_fold_flag = true;
+
+            if (flag) {
+                if (unsafeWindow.innerHeight - sc_long_rectangle.position().top < sc_panel_high + 280) {
+                    sc_long_rectangle.each(function() {
+                        $(this).css('top', unsafeWindow.innerHeight - sc_panel_high - 280);
+                    });
+                }
+
+                sc_fold_mode_store();
+                sc_panel_side_fold_flag_store();
+            }
         }
 
         // 侧折后恢复展开显示板
         function sc_foldback() {
             $(document).find('.sc_long_rectangle').css('width', sc_rectangle_width + 'px');
+            $(document).find('.sc_long_list').css('padding-left', '10px');
+            $(document).find('.sc_long_item').css('width', '');
+            $(document).find('.sc_long_item').css('height', '');
             let sc_btn_item = $(document).find('.sc_button_item');
             sc_btn_item.css('margin-top', '15px');
             sc_btn_item.css('margin-bottom', '15px');
-            sc_btn_item.css('margin-right', '10px');
+            sc_btn_item.css('margin-right', '7px');
             $(document).find('.sc_button_min').css('margin-right', '0px');
 
             let sc_btn_foldback = $(document).find('.sc_button_foldback');
@@ -768,6 +961,9 @@
 
             sc_panel_fold_mode = 2;
             sc_panel_side_fold_flag = false;
+
+            sc_fold_mode_store();
+            sc_panel_side_fold_flag_store();
         }
 
         // 折叠显示板
@@ -777,6 +973,8 @@
             $(document).find('.sc_long_buttons').hide(); // 优化回弹问题
 
             sc_panel_fold_mode = 0;
+
+            sc_fold_mode_store();
         }
 
         // 切换主题
@@ -785,7 +983,7 @@
                 sc_switch++;
 
                 // 记录主题
-                unsafeWindow.localStorage.setItem('live_sc_switch_record', sc_switch);
+                sc_switch_store();
             }
 
             let sc_rectangle = $(document).find('.sc_long_rectangle');
@@ -799,7 +997,11 @@
                 sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
                 sc_rectangle.css('box-shadow', '2px 2px 5px black');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                sc_list.css('padding', '10px 13px 10px 10px');
+                if (sc_panel_side_fold_flag) {
+                    sc_list.css('padding', '10px 14px 10px 11px');
+                } else {
+                    sc_list.css('padding', '10px 13px 10px 10px');
+                }
                 sc_data_show.css('color', '');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
@@ -821,7 +1023,11 @@
                 sc_rectangle.css('background-color', 'rgba(255,255,255,0)');
                 sc_rectangle.css('box-shadow', '');
                 sc_item.css('box-shadow', '');
-                sc_list.css('padding', '10px 11px 10px 10px');
+                if (sc_panel_side_fold_flag){
+                    sc_list.css('padding', '10px 12px 10px 11px');
+                } else {
+                    sc_list.css('padding', '10px 11px 10px 10px');
+                }
                 sc_data_show.css('color', '#ffffff');
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
@@ -841,7 +1047,11 @@
                 // 半透明（白0.1）
                 sc_rectangle.css('background-color', 'rgba(255,255,255,0.1)');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                sc_list.css('padding', '10px 13px 10px 10px');
+                if (sc_panel_side_fold_flag) {
+                    sc_list.css('padding', '10px 14px 10px 11px');
+                } else {
+                    sc_list.css('padding', '10px 13px 10px 10px');
+                }
                 sc_data_show.css('color', '#ffffff');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
@@ -862,7 +1072,11 @@
                 // 半透明（白0.5）
                 sc_rectangle.css('background-color', 'rgba(255,255,255,0.5)');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                sc_list.css('padding', '10px 13px 10px 10px');
+                if (sc_panel_side_fold_flag) {
+                    sc_list.css('padding', '10px 14px 10px 11px');
+                } else {
+                    sc_list.css('padding', '10px 13px 10px 10px');
+                }
                 sc_data_show.css('color', '');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
@@ -884,7 +1098,11 @@
                 sc_rectangle.css('background-color', 'rgba(0,0,0,0.1)');
                 sc_rectangle.css('box-shadow', '');
                 sc_item.css('box-shadow', '');
-                sc_list.css('padding', '10px 11px 10px 10px');
+                if (sc_panel_side_fold_flag) {
+                    sc_list.css('padding', '10px 12px 10px 11px');
+                } else {
+                    sc_list.css('padding', '10px 11px 10px 10px');
+                }
                 sc_data_show.css('color', '#ffffff');
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
@@ -905,7 +1123,11 @@
                 sc_rectangle.css('background-color', 'rgba(0,0,0,0.5)');
                 sc_rectangle.css('box-shadow', '');
                 sc_item.css('box-shadow', '');
-                sc_list.css('padding', '10px 11px 10px 10px');
+                if (sc_panel_side_fold_flag) {
+                    sc_list.css('padding', '10px 12px 10px 11px');
+                } else {
+                    sc_list.css('padding', '10px 12px 10px 10px');
+                }
                 sc_data_show.css('color', '#ffffff');
                 sc_button_item.css('background', 'rgba(255,255,255,0)');
                 sc_button_item.css('border', '1px solid #ffffff');
@@ -926,7 +1148,12 @@
                 sc_switch = 0;
                 sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
                 sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                sc_list.css('padding', '10px 13px 10px 10px');
+                if (sc_panel_side_fold_flag) {
+                    sc_list.css('padding', '10px 14px 10px 11px');
+                } else {
+                    sc_list.css('padding', '10px 13px 10px 10px');
+                }
+
                 sc_data_show.css('color', '');
                 sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
                 sc_button_item.css('background-size', '350%');
@@ -959,6 +1186,7 @@
         }
 
         function sc_side_fold_in_one(target_oj) {
+            target_oj.css('border-radius', '8px');
             target_oj.find('.sc_msg_body').hide();
             target_oj.find('.sc_msg_head').css('border-radius', '6px');
             target_oj.find('.sc_msg_head_left').hide();
@@ -966,6 +1194,8 @@
         }
 
         function sc_side_fold_out_one(target_oj) {
+            target_oj.css('border-radius', '8px 8px 6px 6px');
+
             let sc_item_fold_flag = target_oj.attr('data-fold');
 
             if (sc_item_fold_flag === '0') {
@@ -975,6 +1205,212 @@
 
             target_oj.find('.sc_msg_head_left').show();
             target_oj.find('.sc_msg_head_right').show();
+        }
+
+        // 记忆存储
+        function sc_switch_store() {
+            if (sc_memory === 1) {
+                // 题记
+                unsafeWindow.localStorage.setItem('live_sc_switch_record', sc_switch);
+            } else if (sc_memory === 2) {
+                // 个记
+                update_sc_memory_config('sc_switch', sc_switch, 'self');
+            } else if (sc_memory === 3) {
+                // 全记
+                update_sc_memory_config('sc_switch', sc_switch, 'all');
+            }
+        }
+
+        function sc_fold_mode_store() {
+            if (sc_memory === 2) {
+                // 个记
+                update_sc_memory_config('sc_panel_fold_mode', sc_panel_fold_mode, 'self');
+            } else if (sc_memory === 3) {
+                // 全记
+                update_sc_memory_config('sc_panel_fold_mode', sc_panel_fold_mode, 'all');
+            }
+        }
+
+        function sc_panel_side_fold_flag_store() {
+            if (sc_memory === 2) {
+                // 个记
+                update_sc_memory_config('sc_panel_side_fold_flag', sc_panel_side_fold_flag, 'self');
+            } else if (sc_memory === 3) {
+                // 全记
+                update_sc_memory_config('sc_panel_side_fold_flag', sc_panel_side_fold_flag, 'all');
+            }
+        }
+
+        function sc_side_fold_simple_store() {
+            if (sc_memory === 2) {
+                // 个记
+                update_sc_memory_config('sc_panel_side_fold_simple', sc_panel_side_fold_simple, 'self');
+            } else if (sc_memory === 3) {
+                // 全记
+                update_sc_memory_config('sc_panel_side_fold_simple', sc_panel_side_fold_simple, 'all');
+            }
+        }
+
+        function sc_panel_drag_store(sc_panel_drag_left_val, sc_panel_drag_top_val) {
+            if (sc_memory === 2) {
+                // 个记
+                update_sc_memory_config('sc_panel_drag', [sc_panel_drag_left_val, sc_panel_drag_top_val], 'self');
+            } else if (sc_memory === 3) {
+                // 全记
+                update_sc_memory_config('sc_panel_drag', [sc_panel_drag_left_val, sc_panel_drag_top_val], 'all');
+            }
+        }
+
+        function update_sc_memory_config(config_item_name, config_item_val, type = 'self') {
+            let sc_memory_config_key = sc_self_memory_config_key
+            if (type === 'all') {
+                sc_memory_config_key = 'live_sc_all_memory_config';
+            }
+
+            let sc_memory_config = {};
+            let sc_memory_config_json = unsafeWindow.localStorage.getItem(sc_memory_config_key);
+            if (sc_memory_config_json !== null && sc_memory_config_json !== 'null' && sc_memory_config_json !== '[]' && sc_memory_config_json !== '{}' && sc_memory_config_json !== '') {
+                sc_memory_config = JSON.parse(sc_memory_config_json);
+            }
+
+            if (config_item_name === 'sc_panel_drag' && Array.isArray(config_item_val)) {
+                sc_memory_config['sc_panel_drag_left'] = config_item_val[0] ?? -1;
+                sc_memory_config['sc_panel_drag_top'] = config_item_val[1] ?? -1;
+            } else {
+                sc_memory_config[config_item_name] = config_item_val;
+            }
+
+            unsafeWindow.localStorage.setItem(sc_memory_config_key, JSON.stringify(sc_memory_config));
+        }
+
+        function update_sc_switch_rooms(type = 'add') {
+            let sc_switch_memory_rooms = [];
+            let sc_switch_memory_rooms_json = unsafeWindow.localStorage.getItem('live_sc_switch_memory_rooms');
+            if (sc_switch_memory_rooms_json !== null && sc_switch_memory_rooms_json !== 'null' && sc_switch_memory_rooms_json !== '[]' && sc_switch_memory_rooms_json !== '') {
+                sc_switch_memory_rooms = JSON.parse(sc_switch_memory_rooms_json);
+            }
+
+            if (type === 'add') {
+                sc_switch_memory_rooms.push(room_id);
+            } else {
+                sc_switch_memory_rooms = sc_switch_memory_rooms.filter(item => item !== room_id);
+            }
+
+            unsafeWindow.localStorage.setItem('live_sc_switch_memory_rooms', JSON.stringify(sc_switch_memory_rooms));
+        }
+
+        // 记忆模式
+        function sc_memory_modify() {
+            let sc_btn_memory = $(document).find('.sc_button_memory');
+
+            if (sc_memory === 1) {
+                // 从[题记]切换到其他模式时，在题记房间中剔除当前房间
+                update_sc_switch_rooms('del');
+            } else if (sc_memory === 2) {
+                // 从[个记]切换到其他模式时，删除当前的个记配置
+                unsafeWindow.localStorage.removeItem(sc_self_memory_config_key);
+            } else if (sc_memory=== 3) {
+                // 从[全记]切换到其他模式时，删除全记配置
+                unsafeWindow.localStorage.removeItem('live_sc_memory_all_rooms_mode');
+                unsafeWindow.localStorage.removeItem('live_sc_all_memory_config');
+            }
+
+            sc_memory++;
+            if (sc_memory === 0) {
+                sc_btn_memory.text('没记');
+            } else if(sc_memory === 1) {
+                sc_btn_memory.text('题记');
+                update_sc_switch_rooms('add');
+                // 切换到题记的配置
+                let sc_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record');
+                if (sc_switch_record !== null && sc_switch_record !== 'null' && sc_switch_record !== '') {
+                    sc_switch = parseInt(sc_switch_record);
+                    sc_switch_css();
+                }
+            } else if(sc_memory === 2) {
+                sc_btn_memory.text('个记');
+                // 保存个记的配置
+                sc_switch_store();
+                sc_fold_mode_store();
+                sc_panel_side_fold_flag_store();
+                sc_side_fold_simple_store();
+
+                const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
+                if (rect_circle.width === 0 && rect_circle.height === 0) {
+                    const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
+                    sc_panel_drag_store(rect_rectangle.left, rect_rectangle.top);
+                } else {
+                    sc_panel_drag_store(rect_circle.left, rect_circle.top);
+                }
+            } else if(sc_memory=== 3) {
+                sc_btn_memory.text('全记');
+                unsafeWindow.localStorage.setItem('live_sc_memory_all_rooms_mode', sc_memory);
+                // 保存全记的配置
+                sc_switch_store();
+                sc_fold_mode_store();
+                sc_panel_side_fold_flag_store();
+                sc_side_fold_simple_store();
+
+                const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
+                if (rect_circle.width === 0 && rect_circle.height === 0) {
+                    const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
+                    sc_panel_drag_store(rect_rectangle.left, rect_rectangle.top);
+                } else {
+                    sc_panel_drag_store(rect_circle.left, rect_circle.top);
+                }
+            } else {
+                sc_memory = 0;
+                sc_btn_memory.text('没记');
+            }
+        }
+
+        function sc_memory_show() {
+            let sc_circles = $(document).find('.sc_long_circle');
+            let sc_rectangles = $(document).find('.sc_long_rectangle');
+
+            if (sc_panel_fold_mode) {
+                sc_circles.each(function() {
+                    if (sc_panel_drag_left >= 0) {
+                        $(this).css('left', sc_panel_drag_left + 'px');
+                    }
+
+                    if (sc_panel_drag_top >= 0) {
+                        $(this).css('top', sc_panel_drag_top + 'px');
+                    }
+
+                    $(this).hide();
+                });
+
+                sc_rectangles.each(function() {
+                    if (sc_panel_drag_left >= 0) {
+                        $(this).css('left', sc_panel_drag_left + 'px');
+                    }
+
+                    if (sc_panel_drag_top >= 0) {
+                        $(this).css('top', sc_panel_drag_top + 'px');
+                    }
+
+                    if (sc_panel_fold_mode === 1 && !sc_panel_side_fold_simple) {
+                        $(document).find('.sc_data_show').show();
+                    }
+
+                    $(this).slideDown(500);
+                });
+
+                if (sc_panel_fold_mode === 1) { sc_sidefold(false); }
+            } else {
+                if (sc_panel_side_fold_flag) { sc_sidefold(false); }
+
+                sc_circles.each(function() {
+                    if (sc_panel_drag_left >= 0) {
+                        $(this).css('left', sc_panel_drag_left + 'px');
+                    }
+
+                    if (sc_panel_drag_top >= 0) {
+                        $(this).css('top', sc_panel_drag_top + 'px');
+                    }
+                });
+            }
         }
 
         // 导出
@@ -1145,7 +1581,7 @@
                         ]).then(() => {
                             open_and_close_sc_modal('✓', '#A7C9D3', e);
                         }).catch(err => {
-                            open_and_close_sc_modal('✗', 'red');
+                            open_and_close_sc_modal('✗', 'red', e);
                             console.error('复制SC图片失败', err);
                         });
                     });
@@ -1191,25 +1627,33 @@
             clearTimeout(sc_context_menu_timeout_id);
         });
 
-        function open_and_close_sc_modal(show_str, show_color, e) {
+        function open_and_close_sc_modal(show_str, show_color, e, mode = 0) {
             $(document).find('.sc_long_rectangle').css('cursor', 'grab');
             let sc_copy_modal = document.createElement('div');
             sc_copy_modal.className = 'sc_cp_mod';
             sc_copy_modal.style.position = 'fixed';
             sc_copy_modal.style.display = 'none';
             sc_copy_modal.style.color = show_color;
-            sc_copy_modal.style.width = '30px';
-            sc_copy_modal.style.height = '30px';
-            sc_copy_modal.style.lineHeight = '30px';
             sc_copy_modal.style.textAlign = 'center';
             sc_copy_modal.style.backgroundColor = '#ffffff';
             sc_copy_modal.style.border = 0;
-            sc_copy_modal.style.borderRadius = '50%';
             sc_copy_modal.style.boxShadow = '0 0 3px rgba(0, 0, 0, 0.3)';
             sc_copy_modal.innerHTML = show_str;
-            sc_copy_modal.style.left = e.pageX + 10 + 'px';
-            sc_copy_modal.style.top = e.pageY - 10 + 'px';
             sc_copy_modal.style.zIndex = 3333;
+
+            if (mode === 0) {
+                sc_copy_modal.style.width = '30px';
+                sc_copy_modal.style.height = '30px';
+                sc_copy_modal.style.lineHeight = '30px';
+                sc_copy_modal.style.borderRadius = '50%';
+                sc_copy_modal.style.left = e.pageX + 10 + 'px';
+                sc_copy_modal.style.top = e.pageY - 10 + 'px';
+            } else {
+                sc_copy_modal.style.borderRadius = '10px';
+                sc_copy_modal.style.padding = '10px';
+                sc_copy_modal.style.left = e.target.getBoundingClientRect().left + 10 + 'px';
+                sc_copy_modal.style.top = e.target.getBoundingClientRect().top + 'px';
+            }
 
             if (sc_isFullscreen) {
                 $(live_player_div).append(sc_copy_modal);
@@ -1327,6 +1771,7 @@
         }
 
         sc_switch_css();
+        sc_memory_show();
         check_and_clear_all_sc_store();
         sc_fetch_and_show();
 
@@ -1417,6 +1862,24 @@
         }
     }
 
+    // 检查全记的状态
+    function check_all_memory_status() {
+        // 只有当前的记忆模式是全记时才检查
+        if (sc_memory === 3) {
+            let sc_btn_memory = $(document).find('.sc_button_memory');
+            let sc_memory_all_rooms_mode = unsafeWindow.localStorage.getItem('live_sc_memory_all_rooms_mode');
+            if (sc_memory_all_rooms_mode !== null && sc_memory_all_rooms_mode !== 'null' && sc_memory_all_rooms_mode !== '') {
+                if (parseInt(sc_memory_all_rooms_mode) !== 3) {
+                    sc_memory = 0;
+                    sc_btn_memory.text('没记');
+                }
+            } else {
+                sc_memory = 0;
+                sc_btn_memory.text('没记');
+            }
+        }
+    }
+
     function sc_catch_log(...msg) {
         console.log('%c[sc_catch]', 'font-weight: bold; color: white; background-color: #A7C9D3; padding: 2px; border-radius: 2px;', ...msg);
     }
@@ -1475,18 +1938,22 @@
                 '<div class="sc_start_time" style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">' + sc_start_time + '</span></div></div>'
         }
 
+        let sc_msg_item_style_width = '';
+        let sc_msg_item_style_border_radius = 'border-radius: 8px 8px 6px 6px;';
         let sc_msg_body_style_display = '';
         let sc_msg_head_style_border_radius = 'border-radius: 6px 6px 0px 0px;';
         let sc_msg_head_left_style_display = '';
         let sc_msg_head_right_style_display = '';
         if (sc_panel_side_fold_flag) {
+            sc_msg_item_style_width = 'width: 50px;';
+            sc_msg_item_style_border_radius = 'border-radius: 8px;';
             sc_msg_body_style_display = 'display: none;';
             sc_msg_head_style_border_radius = 'border-radius: 6px;';
             sc_msg_head_left_style_display = 'display: none;';
             sc_msg_head_right_style_display = 'display: none;';
         }
 
-        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" style="background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 1s linear forwards;border-radius: 8px 8px 6px 6px;'+ box_shadow_css +'">'+
+        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 1s linear forwards;'+ sc_msg_item_style_border_radius + box_shadow_css +'">'+
             '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center;'+ sc_msg_head_style_border_radius +'">'+
             '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
@@ -1689,6 +2156,7 @@
 
         setInterval(() => {
             updateTimestampDiff(); // 每30秒更新时间差
+            check_all_memory_status(); // 每30秒检查全记状态
         }, 30000);
 
     }

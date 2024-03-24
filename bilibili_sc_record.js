@@ -29,8 +29,6 @@
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
 // @license      GPL-3.0-or-later
-// @downloadURL https://update.greasyfork.org/scripts/484381/B%E7%AB%99%E7%9B%B4%E6%92%AD%E9%97%B4SC%E8%AE%B0%E5%BD%95%E6%9D%BF.user.js
-// @updateURL https://update.greasyfork.org/scripts/484381/B%E7%AB%99%E7%9B%B4%E6%92%AD%E9%97%B4SC%E8%AE%B0%E5%BD%95%E6%9D%BF.meta.js
 // ==/UserScript==
 
 (function() {
@@ -757,7 +755,6 @@
                     sc_stopDragging();
                 }
             }
-
         }
 
         function sc_stopDragging() {
@@ -803,8 +800,6 @@
 
                     sc_panel_fold_mode = 2;
                 }
-
-
 
                 if (unsafeWindow.innerHeight - yPos < sc_panel_high) {
                     yPos = unsafeWindow.innerHeight - sc_panel_high - 150;

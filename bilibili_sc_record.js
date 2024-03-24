@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      8.1.0
+// @version      8.2.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -812,6 +812,8 @@
                 });
 
                 sc_fold_mode_store();
+
+                sc_custom_config_apply(sc_side_fold_custom_first_class);
             } else {
                 sc_isClickAllowed = true;
             }
@@ -1149,10 +1151,15 @@
             }
 
             sc_btn_mode_apply();
+
+            sc_custom_config_apply(sc_side_fold_custom_first_class);
         }
 
         // 侧折后恢复展开显示板
         function sc_foldback() {
+            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class)); }
+            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
             $(document).find('.sc_long_rectangle').css('width', sc_rectangle_width + 'px');
             $(document).find('.sc_long_list').css('padding-left', '10px');
             $(document).find('.sc_long_item').css('width', '');
@@ -1219,6 +1226,9 @@
 
         // 折叠显示板
         function sc_minimize() {
+            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class)); }
+            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
             $(document).find('.sc_long_circle').show();
             $(document).find('.sc_long_rectangle').hide();
             $(document).find('.sc_long_buttons').hide(); // 优化回弹问题
@@ -1938,12 +1948,12 @@
 
             if (sc_custom_select_val === '0') {
 
-                if (sc_side_fold_custom_first_class) { sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class)); }
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class)); }
                 if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
 
             } else if (sc_custom_select_val === '1') {
 
-                if (sc_side_fold_custom_first_class) { sc_trigger_item_side_fold_out($('.' + sc_side_fold_custom_first_class)); }
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out($('.' + sc_side_fold_custom_first_class)); }
                 if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
 
             } else if (sc_custom_select_val === '2') {
@@ -1963,11 +1973,13 @@
                     }
                 }
 
-                if (sc_side_fold_custom_first_class) {
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
                     sc_trigger_item_side_fold_out($('.' + sc_side_fold_custom_first_class));
 
                     sc_side_fold_custom_first_timeout_id = setTimeout(function() {
-                        sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class));
+                        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                            sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class));
+                        }
                     }, sc_side_fold_custom_time * 1000);
                 }
             }
@@ -1984,12 +1996,12 @@
 
             if (sc_custom_select_val === '0') {
 
-                if (sc_side_fold_custom_first_class) { sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class)); }
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class)); }
                 if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
 
             } else if (sc_custom_select_val === '1') {
 
-                if (sc_side_fold_custom_first_class) { sc_trigger_item_side_fold_out($('.' + sc_side_fold_custom_first_class)); }
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out($('.' + sc_side_fold_custom_first_class)); }
                 if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
 
             } else if (sc_custom_select_val === '2') {
@@ -2009,11 +2021,13 @@
                     }
                 }
 
-                if (sc_side_fold_custom_first_class) {
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
                     sc_trigger_item_side_fold_out($('.' + sc_side_fold_custom_first_class));
 
                     sc_side_fold_custom_first_timeout_id = setTimeout(function() {
-                        sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class));
+                        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                            sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class));
+                        }
                     }, sc_side_fold_custom_time * 1000);
                 }
             }
@@ -2775,23 +2789,29 @@
         if (sc_panel_side_fold_flag) {
             if (sc_side_fold_custom_config === 1) {
                 // 第一个SC保持展开
-                if (sc_side_fold_custom_first_class) {
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class) {
                     sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class));
                 }
-                sc_trigger_item_side_fold_out($('.' + new_sc_side_fold_custom_first_class));
+                if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                    sc_trigger_item_side_fold_out($('.' + new_sc_side_fold_custom_first_class));
+                }
             } else if (sc_side_fold_custom_config === 2) {
                 // 第一个SC展开时间自定义
-                if (sc_side_fold_custom_first_class) {
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class) {
                     sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class));
                 }
                 if (sc_side_fold_custom_first_timeout_id) {
                     clearTimeout(sc_side_fold_custom_first_timeout_id);
                 }
 
-                sc_trigger_item_side_fold_out($('.' + new_sc_side_fold_custom_first_class));
+                if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                    sc_trigger_item_side_fold_out($('.' + new_sc_side_fold_custom_first_class));
+                }
 
                 sc_side_fold_custom_first_timeout_id = setTimeout(function() {
-                    sc_trigger_item_side_fold_in($('.' + new_sc_side_fold_custom_first_class));
+                    if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                        sc_trigger_item_side_fold_in($('.' + new_sc_side_fold_custom_first_class));
+                    }
                 }, sc_side_fold_custom_time * 1000);
 
             }

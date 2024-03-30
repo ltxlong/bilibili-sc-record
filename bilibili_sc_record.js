@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      8.3.0
+// @version      8.3.1
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -130,6 +130,7 @@
     let sc_side_fold_custom_each_same_time_class = '';
     let sc_side_fold_custom_each_same_time_timeout_id = '';
     let sc_side_fold_custom_auto_run_flag = false; // 是否在运行自动展现SC了
+    let sc_side_fold_custom_stop_from_auto_flag = false; // 是否自动运行时间到的停止
 
     let sc_memory = 0; // 0-没记，1-题记，2-个记，3-全记
     let sc_switch = 0;
@@ -546,6 +547,14 @@
 
         if (auto_target_oj.length === 0) { sc_side_fold_custom_auto_run_flag = false; return; }
 
+        if (sc_side_fold_custom_stop_from_auto_flag) {
+            let auto_target_oj_next = auto_target_oj.prev();
+            if (auto_target_oj_next.length) {
+                auto_target_oj = auto_target_oj_next;
+                sc_side_fold_custom_each_same_time_class = auto_target_oj.attr('class').split(' ').find((scClassName) => { return scClassName !== 'sc_long_item'; });
+            }
+        }
+
         auto_target_oj.css('position', 'absolute');
         auto_target_oj.css('top', '10px'); // 第一个SC的位置
         auto_target_oj.css('translateY', '-100%');
@@ -582,6 +591,8 @@
 
                     sc_side_fold_custom_each_same_time_class = prev_target_oj.attr('class').split(' ').find((scClassName) => { return scClassName !== 'sc_long_item'; });
 
+                    sc_side_fold_custom_stop_from_auto_flag = false;
+
                     sc_sleep(1500).then(() => { sc_auto_trigger_side_fold_out_next() });
 
                 } else {
@@ -590,6 +601,8 @@
                     }
 
                     sc_side_fold_custom_auto_run_flag = false;
+
+                    sc_side_fold_custom_stop_from_auto_flag = true;
 
                 }
             }

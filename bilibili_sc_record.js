@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      8.2.0
+// @version      8.3.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -46,6 +46,7 @@
     // SC标明发送时间和距离当前的时间差
     // SC可折叠，可生成图片（折叠和展开都可以）
     // 黑名单功能
+    // 右键菜单功能
     // 侧折模式功能
     // 记忆模式选择功能
     // 记忆模式说明：
@@ -121,6 +122,15 @@
     let sc_side_fold_custom_first_class = '';
     let sc_side_fold_custom_first_timeout_id = '';
 
+    let sc_start_time_show_flag = true; //是否显示SC发送的具体时间
+
+    let sc_welt_hide_circle_half_flag = false; // 是否小图标贴边半隐藏
+
+    let sc_side_fold_custom_each_same_time_flag = false; // 是否每个实时SC都有相同的展开时间
+    let sc_side_fold_custom_each_same_time_class = '';
+    let sc_side_fold_custom_each_same_time_timeout_id = '';
+    let sc_side_fold_custom_auto_run_flag = false; // 是否在运行自动展现SC了
+
     let sc_memory = 0; // 0-没记，1-题记，2-个记，3-全记
     let sc_switch = 0;
     let sc_panel_fold_mode = 0; // 0-最小化，1-侧折，2-展开
@@ -131,6 +141,17 @@
     let sc_item_side_fold_touch_flag = false;
     let sc_item_side_fold_touch_oj = {};
     let sc_self_memory_config_key = 'live_' + room_id + '_sc_self_memory_config';
+
+    let sc_isDragging = false;
+    let sc_isClickAllowed = true;
+    let sc_drag_start = 0; // 兼容有的时候点击触发拖拽的情况
+    let sc_offsetX = 0;
+    let sc_offsetY = 0;
+    let sc_isListEmpty = true;
+    let sc_isFullscreen = false;
+
+    let sc_rectangle_is_slide_down = false;
+    let sc_rectangle_is_slide_up = false;
 
     function sc_memory_get_store_mode_all(sc_all_memory_config_json) {
         let sc_all_memory_config = JSON.parse(sc_all_memory_config_json);
@@ -145,6 +166,9 @@
         sc_panel_allow_drag_flag = sc_all_memory_config['sc_panel_allow_drag_flag'] ?? true;
         sc_side_fold_custom_config = sc_all_memory_config['sc_side_fold_custom_config'] ?? 0;
         sc_side_fold_custom_time = sc_all_memory_config['sc_side_fold_custom_time'] ?? 10;
+        sc_start_time_show_flag = sc_all_memory_config['sc_start_time_show_flag'] ?? true;
+        sc_welt_hide_circle_half_flag = sc_all_memory_config['sc_welt_hide_circle_half_flag'] ?? false;
+        sc_side_fold_custom_each_same_time_flag = sc_all_memory_config['sc_side_fold_custom_each_same_time_flag'] ?? false;
 
         if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
             sc_panel_drag_left = unsafeWindow.innerWidth - 72;
@@ -174,6 +198,9 @@
         sc_panel_allow_drag_flag = sc_self_memory_config['sc_panel_allow_drag_flag'] ?? true;
         sc_side_fold_custom_config = sc_self_memory_config['sc_side_fold_custom_config'] ?? 0;
         sc_side_fold_custom_time = sc_self_memory_config['sc_side_fold_custom_time'] ?? 10;
+        sc_start_time_show_flag = sc_self_memory_config['sc_start_time_show_flag'] ?? true;
+        sc_welt_hide_circle_half_flag = sc_self_memory_config['sc_welt_hide_circle_half_flag'] ?? false;
+        sc_side_fold_custom_each_same_time_flag = sc_self_memory_config['sc_side_fold_custom_each_same_time_flag'] ?? false;
 
         if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
             sc_panel_drag_left = unsafeWindow.innerWidth - 72;
@@ -281,6 +308,186 @@
         }
     }
 
+    function check_blacklist_menu(room_id) {
+        let sc_room_black_list_json = unsafeWindow.localStorage.getItem('live_sc_room_blacklist');
+        if (sc_room_black_list_json === null || sc_room_black_list_json === 'null' || sc_room_black_list_json === '[]' || sc_room_black_list_json === '') {
+            // 显示加入黑名单
+            GM_registerMenuCommand('点击将当前直播房间加入黑名单', function() {
+                unsafeWindow.localStorage.setItem('live_sc_room_blacklist', JSON.stringify([room_id]));
+                sc_catch_log('直播房间id：' + room_id + ' 已加入黑名单！');
+                alert("当前直播房间已加入黑名单，刷新页面生效！");
+                unsafeWindow.location.reload();
+            });
+
+            return true;
+        } else {
+            let sc_room_black_list = JSON.parse(sc_room_black_list_json);
+            if (sc_room_black_list.includes(room_id)) {
+                // 显示移除黑名单
+                GM_registerMenuCommand('当前直播房间已加入黑名单，点击移出黑名单', function() {
+                    sc_room_black_list = sc_room_black_list.filter(item => item !== room_id);
+                    unsafeWindow.localStorage.setItem('live_sc_room_blacklist', JSON.stringify(sc_room_black_list));
+                    sc_catch_log('直播房间id：' + room_id + ' 已移出黑名单！');
+                    alert("当前直播房间已除出黑名单，刷新页面生效！");
+                    unsafeWindow.location.reload();
+                });
+
+                return false;
+            } else {
+                // 显示加入黑名单
+                GM_registerMenuCommand('点击将当前直播房间加入黑名单', function() {
+                    sc_room_black_list.push(room_id);
+                    unsafeWindow.localStorage.setItem('live_sc_room_blacklist', JSON.stringify(sc_room_black_list));
+                    sc_catch_log('直播房间id：' + room_id + ' 已加入黑名单！');
+                    alert("当前直播房间已加入黑名单，刷新页面生效！");
+                    unsafeWindow.location.reload();
+                });
+
+                return true;
+            }
+        }
+    }
+
+    function getTimestampConversion(timestamp) {
+        let timeStamp;
+        let timeStampLen = timestamp.toString().length;
+
+        if (timeStampLen === 10) {
+            timeStamp = timestamp * 1000
+        } else if (timeStampLen === 13) {
+            timeStamp = timestamp
+        } else {
+            timeStamp = timestamp
+        }
+
+        let date = new Date(timeStamp); // 时间戳为10位需*1000，时间戳为13位的话不需乘1000
+        let Y = (date.getFullYear() + '-');
+        let M = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1) + '-';
+        let D = (date.getDate() < 10 ? '0' + date.getDate() + ' ' : date.getDate() + ' ');
+        let h = (date.getHours() < 10 ? '0' + date.getHours() + ':' : date.getHours() + ':');
+        let m = (date.getMinutes() < 10 ? '0' + date.getMinutes() + ':' : date.getMinutes() + ':');
+        let s = (date.getSeconds() < 10 ? '0' + date.getSeconds() : date.getSeconds());
+
+        return Y + M + D + h + m + s;
+    }
+
+    function getTimestampDiff(timestamp) {
+        let timeStamp;
+        let timeStampLen = timestamp.toString().length;
+
+        if (timeStampLen === 10) {
+            timeStamp = timestamp * 1000
+        } else if (timeStampLen === 13) {
+            timeStamp = timestamp
+        } else {
+            timeStamp = timestamp
+        }
+
+        let nowTime = (new Date()).getTime();
+        let timeDiffValue = nowTime - timeStamp;;
+        let resultStr = '';
+        if (timeDiffValue < 0) {
+            return resultStr;
+        }
+
+        var dayDiff = timeDiffValue / (1000 * 60 * 60 * 24);
+        var hourDiff = timeDiffValue / (1000 * 60 * 60);
+        var minDiff = timeDiffValue / (1000 * 60);
+
+        if (dayDiff >= 1) {
+            resultStr = '' + parseInt(dayDiff) + '天前';
+        } else if (hourDiff >= 1) {
+            resultStr = '' + parseInt(hourDiff) + '小时前';
+        } else if (minDiff >= 1) {
+            resultStr = '' + parseInt(minDiff) + '分钟前';
+        } else {
+            resultStr = '刚刚';
+        }
+
+        return resultStr;
+    }
+
+    // 更新每条SC距离当前时间
+    function updateTimestampDiff() {
+        let sc_timestamp_item = $(document).find('.sc_start_timestamp');
+        sc_timestamp_item.each(function() {
+            let new_timestamp_diff = getTimestampDiff($(this).html());
+            $(this).prev().html(new_timestamp_diff);
+        });
+    }
+
+    function close_and_remove_sc_modal() {
+        // 关闭模态框
+        $(document).find('.sc_cp_mod').hide();
+
+        // 从 body 中移除模态框
+        $(document).find('.sc_cp_mod').remove();
+    }
+
+    function open_and_close_sc_modal(show_str, show_color, e, mode = 0) {
+        $(document).find('.sc_long_rectangle').css('cursor', 'grab');
+        let sc_copy_modal = document.createElement('div');
+        sc_copy_modal.className = 'sc_cp_mod';
+        sc_copy_modal.style.position = 'fixed';
+        sc_copy_modal.style.display = 'none';
+        sc_copy_modal.style.color = show_color;
+        sc_copy_modal.style.textAlign = 'center';
+        sc_copy_modal.style.backgroundColor = '#ffffff';
+        sc_copy_modal.style.border = 0;
+        sc_copy_modal.style.boxShadow = '0 0 3px rgba(0, 0, 0, 0.3)';
+        sc_copy_modal.innerHTML = show_str;
+        sc_copy_modal.style.zIndex = 3333;
+
+        if (mode === 0) {
+            sc_copy_modal.style.width = '30px';
+            sc_copy_modal.style.height = '30px';
+            sc_copy_modal.style.lineHeight = '30px';
+            sc_copy_modal.style.borderRadius = '50%';
+            sc_copy_modal.style.left = e.clientX + 10 + 'px';
+            sc_copy_modal.style.top = e.clientY - 10 + 'px';
+        } else {
+            sc_copy_modal.style.borderRadius = '10px';
+            sc_copy_modal.style.padding = '10px';
+            sc_copy_modal.style.left = e.target.getBoundingClientRect().left + 10 + 'px';
+            sc_copy_modal.style.top = e.target.getBoundingClientRect().top - 30 + 'px';
+        }
+
+        if (sc_isFullscreen) {
+            $(document).find('#live-player').append(sc_copy_modal);
+        } else {
+            document.body.appendChild(sc_copy_modal);
+        }
+
+        // 显示模态框
+        sc_copy_modal.style.display = 'block';
+
+        // 在一定时间后关闭并删除模态框
+        setTimeout(() => {
+            close_and_remove_sc_modal();
+        }, 1500);
+    }
+
+    function check_and_join_live_sc_room() {
+        if (!sc_keep_time_flag) {
+
+            sc_keep_time_flag = 1;
+
+            // 加入记录组
+            let live_sc_rooms_json = unsafeWindow.localStorage.getItem('live_sc_rooms');
+            if (live_sc_rooms_json === null || live_sc_rooms_json === 'null' || live_sc_rooms_json === '[]' || live_sc_rooms_json === '') {
+                unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify([room_id]));
+            } else {
+                let live_sc_rooms = JSON.parse(live_sc_rooms_json);
+                live_sc_rooms.push(room_id);
+                unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify(live_sc_rooms));
+            }
+        }
+    }
+
+    function sc_sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     function sc_side_fold_in_one(target_oj) {
         target_oj.css('border-radius', '8px');
         target_oj.find('.sc_msg_body').hide();
@@ -319,21 +526,9 @@
         });
     }
 
-    function sc_trigger_item_side_fold_out(target_oj) {
-        target_oj.css('position', 'absolute');
-        target_oj.css('top', '10px'); // 第一个SC
-        target_oj.css('z-index', '10');
-        target_oj.css('width', (sc_rectangle_width - 22) + 'px'); // 22 约为总padding
-        target_oj.css('height', '');
+    function sc_trigger_item_side_fold_in(target_oj_class) {
+        let target_oj = $(document).find('.' + target_oj_class);
 
-        if ((target_oj.offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
-            target_oj.css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
-        }
-
-        sc_side_fold_out_one(target_oj, true);
-    }
-
-    function sc_trigger_item_side_fold_in(target_oj) {
         target_oj.css('position', '');
         target_oj.css('top', '');
         target_oj.css('z-index', '');
@@ -342,6 +537,1380 @@
         target_oj.css('left', '');
 
         sc_side_fold_in_one(target_oj);
+    }
+
+    function sc_auto_trigger_side_fold_out_next() {
+        sc_side_fold_custom_auto_run_flag = true;
+
+        let auto_target_oj = $(document).find('.' + sc_side_fold_custom_each_same_time_class);
+
+        if (auto_target_oj.length === 0) { sc_side_fold_custom_auto_run_flag = false; return; }
+
+        auto_target_oj.css('position', 'absolute');
+        auto_target_oj.css('top', '10px'); // 第一个SC的位置
+        auto_target_oj.css('translateY', '-100%');
+        auto_target_oj.css('opacity', 0);
+        auto_target_oj.css('z-index', '10');
+        auto_target_oj.css('width', (sc_rectangle_width - 22) + 'px'); // 22 约为总padding
+        auto_target_oj.css('height', '');
+
+        if ((auto_target_oj.offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
+            auto_target_oj.css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+        }
+
+        sc_side_fold_out_one(auto_target_oj, true);
+
+        auto_target_oj.hide();
+
+        auto_target_oj.animate({
+            'translateY': '0',
+            'opacity' : 1
+        }, {
+            duration: 1000,
+            easing: 'linear'
+        });
+
+        auto_target_oj.show();
+
+        sc_side_fold_custom_each_same_time_timeout_id = setTimeout(function() {
+            if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) {
+                // 下一个SC
+                let prev_target_oj = auto_target_oj.prev();
+                if (prev_target_oj.length > 0) {
+
+                    sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class);
+
+                    sc_side_fold_custom_each_same_time_class = prev_target_oj.attr('class').split(' ').find((scClassName) => { return scClassName !== 'sc_long_item'; });
+
+                    sc_sleep(1500).then(() => { sc_auto_trigger_side_fold_out_next() });
+
+                } else {
+                    if (sc_side_fold_custom_config === 2) {
+                        sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class);
+                    }
+
+                    sc_side_fold_custom_auto_run_flag = false;
+
+                }
+            }
+        }, sc_side_fold_custom_time * 1000);
+    }
+
+    function sc_auto_trigger_side_fold_out_start(target_oj_class) {
+        if (sc_side_fold_custom_each_same_time_class === '') {
+            // 如果是刚刚开始
+            sc_side_fold_custom_each_same_time_class = target_oj_class;
+            sc_auto_trigger_side_fold_out_next();
+        } else {
+            // 如果已经暂停了
+            if (!sc_side_fold_custom_auto_run_flag) {
+                sc_auto_trigger_side_fold_out_next();
+            }
+        }
+    }
+
+    function sc_trigger_item_side_fold_out(target_oj_class) {
+
+        let target_oj = $(document).find('.' + target_oj_class);
+
+        if (sc_side_fold_custom_each_same_time_flag) {
+            sc_auto_trigger_side_fold_out_start(target_oj_class);
+        } else {
+            target_oj.css('position', 'absolute');
+            target_oj.css('top', '10px'); // 第一个SC的位置
+            target_oj.css('z-index', '10');
+            target_oj.css('width', (sc_rectangle_width - 22) + 'px'); // 22 约为总padding
+            target_oj.css('height', '');
+
+            if ((target_oj.offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
+                target_oj.css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+            }
+
+            sc_side_fold_out_one(target_oj, true);
+        }
+    }
+
+    function sc_custom_config_start_class_by_fetch(sc_catch_new_arr) {
+        if (Array.isArray(sc_catch_new_arr)) {
+            let first_catch_sc = sc_catch_new_arr[0];
+
+            if (first_catch_sc) {
+                sc_side_fold_custom_each_same_time_class = 'sc_' + first_catch_sc["uid"] + '_' + first_catch_sc["start_time"];
+            }
+        }
+    }
+
+    function sc_custom_config_start_class_by_store(sc_store_arr) {
+        if (Array.isArray(sc_store_arr)) {
+            let first_store_sc = sc_store_arr.at(-1);
+            if (first_store_sc) {
+                sc_side_fold_custom_each_same_time_class = 'sc_' + first_store_sc["uid"] + '_' + first_store_sc["start_time"];
+            }
+        }
+    }
+
+    function sc_custom_config_apply(new_sc_side_fold_custom_first_class) {
+        if (sc_panel_side_fold_flag) {
+            if (sc_side_fold_custom_config === 1) {
+                // 第一个SC保持展开
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class && !sc_side_fold_custom_auto_run_flag) {
+                    sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class);
+                }
+
+                if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                    sc_trigger_item_side_fold_out(new_sc_side_fold_custom_first_class);
+                }
+            } else if (sc_side_fold_custom_config === 2) {
+                // 第一个SC不保持展开
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class && !sc_side_fold_custom_auto_run_flag) {
+                    sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class);
+                }
+                if (sc_side_fold_custom_first_timeout_id) {
+                    clearTimeout(sc_side_fold_custom_first_timeout_id);
+                }
+
+                if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                    sc_trigger_item_side_fold_out(new_sc_side_fold_custom_first_class);
+                }
+
+                if (!sc_side_fold_custom_each_same_time_flag) {
+                    sc_side_fold_custom_first_timeout_id = setTimeout(function() {
+                        if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                            sc_trigger_item_side_fold_in(new_sc_side_fold_custom_first_class);
+                        }
+                    }, sc_side_fold_custom_time * 1000);
+                }
+
+            }
+        }
+    }
+
+    // 检查全记的状态
+    function check_all_memory_status() {
+        // 只有当前的记忆模式是全记时才检查
+        if (sc_memory === 3) {
+            let sc_btn_memory = $(document).find('.sc_button_memory');
+            let sc_memory_all_rooms_mode = unsafeWindow.localStorage.getItem('live_sc_memory_all_rooms_mode');
+            if (sc_memory_all_rooms_mode !== null && sc_memory_all_rooms_mode !== 'null' && sc_memory_all_rooms_mode !== '') {
+                if (parseInt(sc_memory_all_rooms_mode, 10) !== 3) {
+                    sc_memory = 0;
+                    sc_btn_memory.text('没记');
+                }
+            } else {
+                sc_memory = 0;
+                sc_btn_memory.text('没记');
+            }
+        }
+    }
+
+    // 记忆存储
+    function update_sc_memory_config(config_item_name, config_item_val, type = 'self') {
+        let sc_memory_config_key = sc_self_memory_config_key
+        if (type === 'all') {
+            sc_memory_config_key = 'live_sc_all_memory_config';
+        }
+
+        let sc_memory_config = {};
+        let sc_memory_config_json = unsafeWindow.localStorage.getItem(sc_memory_config_key);
+        if (sc_memory_config_json !== null && sc_memory_config_json !== 'null' && sc_memory_config_json !== '[]' && sc_memory_config_json !== '{}' && sc_memory_config_json !== '') {
+            sc_memory_config = JSON.parse(sc_memory_config_json);
+        }
+
+        if (config_item_name === 'sc_panel_drag' && Array.isArray(config_item_val)) {
+            sc_memory_config['sc_panel_drag_left'] = config_item_val[0] ?? -1;
+            sc_memory_config['sc_panel_drag_top'] = config_item_val[1] ?? -1;
+        } else {
+            sc_memory_config[config_item_name] = config_item_val;
+        }
+
+        unsafeWindow.localStorage.setItem(sc_memory_config_key, JSON.stringify(sc_memory_config));
+    }
+
+    function sc_switch_store() {
+        if (sc_memory === 1) {
+            // 题记
+            unsafeWindow.localStorage.setItem('live_sc_switch_record', sc_switch);
+        } else if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_switch', sc_switch, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_switch', sc_switch, 'all');
+        }
+    }
+
+    function sc_fold_mode_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_panel_fold_mode', sc_panel_fold_mode, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_panel_fold_mode', sc_panel_fold_mode, 'all');
+        }
+    }
+
+    function sc_panel_side_fold_flag_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_panel_side_fold_flag', sc_panel_side_fold_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_panel_side_fold_flag', sc_panel_side_fold_flag, 'all');
+        }
+    }
+
+    function sc_side_fold_simple_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_panel_side_fold_simple', sc_panel_side_fold_simple, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_panel_side_fold_simple', sc_panel_side_fold_simple, 'all');
+        }
+    }
+
+    function sc_panel_drag_store(sc_panel_drag_left_val, sc_panel_drag_top_val) {
+        if (sc_panel_drag_left_val <= 0) {
+            sc_panel_drag_left_val = 0;
+        }
+        if (sc_panel_drag_top_val <= 0) {
+            sc_panel_drag_top_val = 0;
+        }
+        if (sc_panel_drag_left_val >= unsafeWindow.innerWidth) {
+            if (sc_panel_fold_mode === 1) {
+                sc_panel_drag_left_val = unsafeWindow.innerWidth - 72;
+            } else {
+                sc_panel_drag_left_val = unsafeWindow.innerWidth - sc_rectangle_width;
+            }
+        }
+        if (sc_panel_drag_top_val >= unsafeWindow.innerHeight) {
+            sc_panel_drag_top_val = unsafeWindow.innerHeight - sc_panel_high;
+        }
+
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_panel_drag', [sc_panel_drag_left_val, sc_panel_drag_top_val], 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_panel_drag', [sc_panel_drag_left_val, sc_panel_drag_top_val], 'all');
+        }
+    }
+
+    function sc_func_btn_mode_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_func_btn_mode', sc_func_btn_mode, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_func_btn_mode', sc_func_btn_mode, 'all');
+        }
+    }
+
+    function sc_data_show_bottom_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('data_show_bottom_flag', data_show_bottom_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('data_show_bottom_flag', data_show_bottom_flag, 'all');
+        }
+    }
+
+    function sc_panel_allow_drag_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_panel_allow_drag_flag', sc_panel_allow_drag_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_panel_allow_drag_flag', sc_panel_allow_drag_flag, 'all');
+        }
+    }
+
+    function sc_start_time_show_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_start_time_show_flag', sc_start_time_show_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_start_time_show_flag', sc_start_time_show_flag, 'all');
+        }
+    }
+
+    function sc_side_fold_custom_config_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_side_fold_custom_config', sc_side_fold_custom_config, 'self');
+            update_sc_memory_config('sc_side_fold_custom_time', sc_side_fold_custom_time, 'self');
+            update_sc_memory_config('sc_side_fold_custom_each_same_time_flag', sc_side_fold_custom_each_same_time_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_side_fold_custom_config', sc_side_fold_custom_config, 'all');
+            update_sc_memory_config('sc_side_fold_custom_time', sc_side_fold_custom_time, 'all');
+            update_sc_memory_config('sc_side_fold_custom_each_same_time_flag', sc_side_fold_custom_each_same_time_flag, 'all');
+        }
+    }
+
+    function sc_welt_hide_circle_half_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_welt_hide_circle_half_flag', sc_welt_hide_circle_half_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_welt_hide_circle_half_flag', sc_welt_hide_circle_half_flag, 'all');
+        }
+    }
+
+    function update_sc_switch_rooms(type = 'add') {
+        let sc_switch_memory_rooms = [];
+        let sc_switch_memory_rooms_json = unsafeWindow.localStorage.getItem('live_sc_switch_memory_rooms');
+        if (sc_switch_memory_rooms_json !== null && sc_switch_memory_rooms_json !== 'null' && sc_switch_memory_rooms_json !== '[]' && sc_switch_memory_rooms_json !== '') {
+            sc_switch_memory_rooms = JSON.parse(sc_switch_memory_rooms_json);
+        }
+
+        if (type === 'add') {
+            sc_switch_memory_rooms.push(room_id);
+        } else {
+            sc_switch_memory_rooms = sc_switch_memory_rooms.filter(item => item !== room_id);
+        }
+
+        unsafeWindow.localStorage.setItem('live_sc_switch_memory_rooms', JSON.stringify(sc_switch_memory_rooms));
+    }
+
+    // 显示所有按钮
+    function sc_menu() {
+        $(document).find('.sc_button_item').show();
+        $(document).find('.sc_button_menu').hide();
+    }
+
+    // 折叠/展开单个消息
+    function sc_toggle_msg_body() {
+        let this_sc_item_class_arr = $(this).attr('class').split(' ');
+        let this_sc_item_dynamic_className = this_sc_item_class_arr.find((scClassName) => { return scClassName !== 'sc_long_item'; });
+        let this_sc_msg_body = $('.' + this_sc_item_dynamic_className).find('.sc_msg_body');
+        let this_sc_item_bg_color = $('.' + this_sc_item_dynamic_className).css('background-color');
+        if (this_sc_msg_body.is(":visible")) {
+            this_sc_msg_body.slideUp(200);
+            $('.' + this_sc_item_dynamic_className).css('border-radius', '8px');
+            this_sc_msg_body.prev().css('border-radius', '6px');
+            $('.' + this_sc_item_dynamic_className).find('.sc_value_font').css('color', this_sc_item_bg_color);
+            $('.' + this_sc_item_dynamic_className).attr('data-fold', '1');
+        } else {
+            $('.' + this_sc_item_dynamic_className).css('border-radius', '8px 8px 6px 6px');
+            this_sc_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
+            this_sc_msg_body.slideDown(200);
+            $('.' + this_sc_item_dynamic_className).find('.sc_value_font').css('color', '');
+            $('.' + this_sc_item_dynamic_className).attr('data-fold', '0');
+        }
+    }
+
+    // 按钮模式选择
+    function sc_btn_mode_apply() {
+
+        if (sc_panel_side_fold_flag) {
+            if (sc_func_btn_mode === 0) {
+                // 侧折模式下显示所有的按钮
+                sc_menu();
+            } else if (sc_func_btn_mode === 1) {
+                // 侧折模式下隐藏所有的按钮
+                $(document).find('.sc_button_item').hide();
+            } else if (sc_func_btn_mode === 2) {
+                // 侧折模式下按钮的极简模式
+                $(document).find('.sc_button_item').hide();
+                $(document).find('.sc_button_menu').show();
+                $(document).find('.sc_button_min').show();
+            } else if (sc_func_btn_mode === 3) {
+                // 侧折模式下只显示折叠按钮
+                $(document).find('.sc_button_item').hide();
+                $(document).find('.sc_button_min').show();
+            } else if (sc_func_btn_mode === 4) {
+                // 侧折模式下只显示菜单按钮
+                $(document).find('.sc_button_item').hide();
+                $(document).find('.sc_button_menu').show();
+            }
+
+            sc_rectangle_is_slide_down = false;
+        }
+
+    }
+
+    // 贴边半隐藏
+    function sc_circle_welt_hide_half(sc_circle_left = -10, sc_circle_top = -10) {
+        let sc_circle_oj = $(document).find('.sc_long_circle');
+        let rect_circle = sc_circle_oj[0].getBoundingClientRect();
+
+        if (rect_circle.width === 0 && rect_circle.height === 0) {
+            return;
+        }
+
+        if (sc_circle_left === -10 && sc_circle_top === -10) {
+            sc_circle_left = sc_circle_oj.position().left;
+            sc_circle_top = sc_circle_oj.position().top;
+        }
+
+        if (sc_circle_left <= 1) {
+            sc_circle_oj.removeClass('sc_circle_x_left_show_animate');
+            sc_circle_oj.addClass('sc_circle_x_left_hide_animate');
+        } else if (sc_circle_top <= 1) {
+            sc_circle_oj.removeClass('sc_circle_y_top_show_animate');
+            sc_circle_oj.addClass('sc_circle_y_top_hide_animate');
+        } else if (sc_circle_left >= unsafeWindow.innerWidth - 39) {
+            sc_circle_oj.removeClass('sc_circle_x_right_show_animate');
+            sc_circle_oj.addClass('sc_circle_x_right_hide_animate');
+        } else if (sc_circle_top >= unsafeWindow.innerHeight - 39) {
+            sc_circle_oj.removeClass('sc_circle_y_bottom_show_animate');
+            sc_circle_oj.addClass('sc_circle_y_bottom_hide_animate');
+        }
+    }
+
+    // 侧折显示板
+    function sc_sidefold(flag = true) {
+        $(document).find('.sc_long_rectangle').css('width', '72px');
+        $(document).find('.sc_long_list').css('padding-left', '11px');
+        $(document).find('.sc_long_item').css('width', '50px');
+        $(document).find('.sc_long_item').css('height', '50px');
+        let sc_btn_item = $(document).find('.sc_button_item');
+        sc_btn_item.css('margin-top', '6px');
+        sc_btn_item.css('margin-bottom', '0px');
+        sc_btn_item.css('margin-right', '0px');
+
+        let sc_btn_sidefold = $(document).find('.sc_button_sidefold');
+        sc_btn_sidefold.addClass('sc_button_foldback');
+        sc_btn_sidefold.removeClass('sc_button_sidefold');
+        sc_btn_sidefold.text('展开');
+
+        let sc_data_show = $(document).find('.sc_data_show');
+        sc_data_show.css('margin-bottom', '15px');
+        sc_data_show.css('height', '70px');
+
+        $(document).find('.sc_label_data_br').show();
+
+        let sc_label_high_energy_left = $(document).find('.sc_high_energy_num_left');
+        let sc_label_high_energy_right = $(document).find('.sc_high_energy_num_right');
+        let sc_label_captain_left = $(document).find('.sc_captain_num_left');
+        let sc_label_captain_right = $(document).find('.sc_captain_num_right');
+        let sc_label_num_br3 = $(document).find('.sc_label_num_br3');
+        let clone_sc_label_captain_right = sc_label_captain_right.last().clone(true);
+        let clone_sc_label_num_br3 = sc_label_num_br3.last().clone(true);
+        clone_sc_label_captain_right.css('float', 'none');
+        sc_data_show.append(clone_sc_label_num_br3);
+        sc_data_show.append(clone_sc_label_captain_right);
+        sc_label_captain_right.remove();
+        sc_label_num_br3.remove();
+        sc_label_high_energy_left.css('float', 'right');
+        sc_label_high_energy_right.css('float', 'none');
+        sc_label_captain_left.css('margin-top', '10px');
+
+        let sc_long_rectangle = $(document).find('.sc_long_rectangle');
+        let sc_long_buttons = $(document).find('.sc_long_buttons');
+        let clone_sc_data_show = sc_data_show.last().clone(true);
+        let clone_sc_long_buttons = sc_long_buttons.last().clone(true);
+        clone_sc_long_buttons.hide();
+        if (sc_panel_side_fold_simple) {
+            clone_sc_data_show.hide();
+        } else {
+            sc_long_rectangle.css('border-bottom', '');
+        }
+        sc_long_rectangle.append(clone_sc_data_show);
+        sc_long_rectangle.append(clone_sc_long_buttons);
+        sc_data_show.remove();
+        sc_long_buttons.remove();
+
+        sc_side_fold_in_all();
+
+        sc_panel_side_fold_flag = true;
+
+        if (flag) {
+            if (unsafeWindow.innerHeight - sc_long_rectangle.position().top < sc_panel_high + 280) {
+                sc_long_rectangle.each(function() {
+                    $(this).css('top', unsafeWindow.innerHeight - sc_panel_high - 280);
+                });
+            }
+
+            sc_panel_fold_mode = 1;
+            sc_fold_mode_store();
+            sc_panel_side_fold_flag_store();
+        }
+
+        sc_btn_mode_apply();
+
+        sc_custom_config_apply(sc_side_fold_custom_first_class);
+    }
+
+    // 侧折后恢复展开显示板
+    function sc_foldback() {
+        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+        if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
+        if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+        if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+        sc_side_fold_custom_auto_run_flag = false;
+
+        $(document).find('.sc_long_rectangle').css('width', sc_rectangle_width + 'px');
+        $(document).find('.sc_long_list').css('padding-left', '10px');
+        $(document).find('.sc_long_item').css('width', '');
+        $(document).find('.sc_long_item').css('height', '');
+        let sc_btn_item = $(document).find('.sc_button_item');
+        sc_btn_item.css('margin-top', '15px');
+        sc_btn_item.css('margin-bottom', '15px');
+        sc_btn_item.css('margin-right', '7px');
+        $(document).find('.sc_button_min').css('margin-right', '0px');
+
+        let sc_btn_foldback = $(document).find('.sc_button_foldback');
+        sc_btn_foldback.addClass('sc_button_sidefold');
+        sc_btn_foldback.removeClass('sc_button_foldback');
+        sc_btn_foldback.text('侧折');
+
+        let sc_data_show = $(document).find('.sc_data_show');
+        sc_data_show.css('margin-bottom', '20px');
+        sc_data_show.css('height', '20px');
+
+        $(document).find('.sc_label_data_br').hide();
+
+        let sc_label_high_energy_left = $(document).find('.sc_high_energy_num_left');
+        let sc_label_high_energy_right = $(document).find('.sc_high_energy_num_right');
+        let sc_label_captain_left = $(document).find('.sc_captain_num_left');
+        let sc_label_captain_right = $(document).find('.sc_captain_num_right');
+        let sc_label_num_br3 = $(document).find('.sc_label_num_br3');
+        let clone_sc_label_captain_left = sc_label_captain_left.last().clone(true);
+        let clone_sc_label_num_br3 = sc_label_num_br3.last().clone(true);
+        clone_sc_label_captain_left.css('margin-top', '0px');
+        sc_data_show.append(clone_sc_label_num_br3);
+        sc_data_show.append(clone_sc_label_captain_left);
+        sc_label_captain_left.remove();
+        sc_label_num_br3.remove();
+        sc_label_high_energy_left.css('float', 'left');
+        sc_label_high_energy_right.css('float', 'left');
+        sc_label_captain_right.css('float', 'right');
+
+        let sc_long_rectangle = $(document).find('.sc_long_rectangle');
+        let sc_long_buttons = $(document).find('.sc_long_buttons');
+        let clone_sc_data_show = sc_data_show.last().clone(true);
+        let clone_sc_long_buttons = sc_long_buttons.last().clone(true);
+        sc_long_rectangle.css('border-bottom', '10px solid transparent');
+        sc_long_rectangle.prepend(clone_sc_data_show);
+        sc_long_rectangle.prepend(clone_sc_long_buttons);
+        sc_data_show.remove();
+        sc_long_buttons.remove();
+
+        if (unsafeWindow.innerWidth - sc_long_rectangle.position().left < sc_rectangle_width) {
+            sc_long_rectangle.each(function() {
+                $(this).css('left', unsafeWindow.innerWidth - sc_rectangle_width - 15);
+            });
+        }
+
+        sc_side_fold_out_all();
+
+        sc_panel_fold_mode = 2;
+        sc_panel_side_fold_flag = false;
+
+        sc_fold_mode_store();
+        sc_panel_side_fold_flag_store();
+
+        sc_menu();
+    }
+
+    // 折叠显示板
+    function sc_minimize() {
+        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+        if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
+        if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+        if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+        sc_side_fold_custom_auto_run_flag = false;
+
+        $(document).find('.sc_long_circle').show();
+        $(document).find('.sc_long_rectangle').hide();
+        $(document).find('.sc_long_buttons').hide(); // 优化回弹问题
+
+        sc_panel_fold_mode = 0;
+
+        sc_fold_mode_store();
+
+        if (sc_welt_hide_circle_half_flag) { sc_circle_welt_hide_half(); }
+    }
+
+    // 切换主题
+    function sc_switch_css(flag = false) {
+        if (flag) {
+            sc_switch++;
+
+            // 记录主题
+            sc_switch_store();
+        }
+
+        let sc_rectangle = $(document).find('.sc_long_rectangle');
+        let sc_item = $(document).find('.sc_long_item');
+        let sc_list = $(document).find('.sc_long_list');
+        let sc_data_show = $(document).find('.sc_data_show');
+        let sc_button_item = $(document).find('.sc_button_item');
+
+        if (sc_switch === 0) {
+            // 白色
+            sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
+            sc_rectangle.css('box-shadow', '2px 2px 5px black');
+            sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
+            if (sc_panel_side_fold_flag) {
+                sc_list.css('padding', '10px 14px 10px 11px');
+            } else {
+                sc_list.css('padding', '10px 13px 10px 10px');
+            }
+            sc_data_show.css('color', '');
+            sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
+            sc_button_item.css('background-size', '350%');
+            sc_button_item.css('border', 0);
+            $(document).find('#sc_scrollbar_style').text(`
+            .sc_long_list::-webkit-scrollbar {
+                width: 6px;
+            }
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(204,204,204,0.5);
+                    border-radius: 6px;
+            }
+            .sc_long_list::-webkit-scrollbar-thumb {
+                background: rgba(204,204,204,0);
+            }
+            `);
+        } else if(sc_switch === 1) {
+            // 透明
+            sc_rectangle.css('background-color', 'rgba(255,255,255,0)');
+            sc_rectangle.css('box-shadow', '');
+            sc_item.css('box-shadow', '');
+            if (sc_panel_side_fold_flag){
+                sc_list.css('padding', '10px 12px 10px 11px');
+            } else {
+                sc_list.css('padding', '10px 11px 10px 10px');
+            }
+            sc_data_show.css('color', '#ffffff');
+            sc_button_item.css('background', 'rgba(255,255,255,0)');
+            sc_button_item.css('border', '1px solid #ffffff');
+            $(document).find('#sc_scrollbar_style').text(`
+            .sc_long_list::-webkit-scrollbar {
+                width: 6px;
+            }
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(255,255,255,0.1);
+                    border-radius: 6px;
+            }
+            .sc_long_list::-webkit-scrollbar-thumb {
+                background: rgba(255,255,255,0);
+            }
+            `);
+        } else if(sc_switch === 2) {
+            // 半透明（白0.1）
+            sc_rectangle.css('background-color', 'rgba(255,255,255,0.1)');
+            sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
+            if (sc_panel_side_fold_flag) {
+                sc_list.css('padding', '10px 14px 10px 11px');
+            } else {
+                sc_list.css('padding', '10px 13px 10px 10px');
+            }
+            sc_data_show.css('color', '#ffffff');
+            sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
+            sc_button_item.css('background-size', '350%');
+            sc_button_item.css('border', 0);
+            $(document).find('#sc_scrollbar_style').text(`
+            .sc_long_list::-webkit-scrollbar {
+                width: 6px;
+            }
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(204,204,204,0.2);
+                    border-radius: 6px;
+            }
+            .sc_long_list::-webkit-scrollbar-thumb {
+                background: rgba(204,204,204,0);
+            }
+            `);
+        } else if(sc_switch === 3) {
+            // 半透明（白0.5）
+            sc_rectangle.css('background-color', 'rgba(255,255,255,0.5)');
+            sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
+            if (sc_panel_side_fold_flag) {
+                sc_list.css('padding', '10px 14px 10px 11px');
+            } else {
+                sc_list.css('padding', '10px 13px 10px 10px');
+            }
+            sc_data_show.css('color', '');
+            sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
+            sc_button_item.css('background-size', '350%');
+            sc_button_item.css('border', 0);
+            $(document).find('#sc_scrollbar_style').text(`
+            .sc_long_list::-webkit-scrollbar {
+                width: 6px;
+            }
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(204,204,204,0.5);
+                    border-radius: 6px;
+            }
+            .sc_long_list::-webkit-scrollbar-thumb {
+                background: rgba(204,204,204,0);
+            }
+            `);
+        } else if(sc_switch === 4) {
+            // 半透明（黑色0.1）
+            sc_rectangle.css('background-color', 'rgba(0,0,0,0.1)');
+            sc_rectangle.css('box-shadow', '');
+            sc_item.css('box-shadow', '');
+            if (sc_panel_side_fold_flag) {
+                sc_list.css('padding', '10px 12px 10px 11px');
+            } else {
+                sc_list.css('padding', '10px 11px 10px 10px');
+            }
+            sc_data_show.css('color', '#ffffff');
+            sc_button_item.css('background', 'rgba(255,255,255,0)');
+            sc_button_item.css('border', '1px solid #ffffff');
+            $(document).find('#sc_scrollbar_style').text(`
+            .sc_long_list::-webkit-scrollbar {
+                width: 6px;
+            }
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(255,255,255,0.2);
+                    border-radius: 6px;
+            }
+            .sc_long_list::-webkit-scrollbar-thumb {
+                background: rgba(255,255,255,0);
+            }
+            `);
+        } else if(sc_switch === 5) {
+            // 半透明（黑色0.5）
+            sc_rectangle.css('background-color', 'rgba(0,0,0,0.5)');
+            sc_rectangle.css('box-shadow', '');
+            sc_item.css('box-shadow', '');
+            if (sc_panel_side_fold_flag) {
+                sc_list.css('padding', '10px 12px 10px 11px');
+            } else {
+                sc_list.css('padding', '10px 12px 10px 10px');
+            }
+            sc_data_show.css('color', '#ffffff');
+            sc_button_item.css('background', 'rgba(255,255,255,0)');
+            sc_button_item.css('border', '1px solid #ffffff');
+            $(document).find('#sc_scrollbar_style').text(`
+            .sc_long_list::-webkit-scrollbar {
+                width: 6px;
+            }
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(255,255,255,0.2);
+                    border-radius: 6px;
+            }
+            .sc_long_list::-webkit-scrollbar-thumb {
+                background: rgba(255,255,255,0);
+            }
+            `);
+        } else {
+            // 白色
+            sc_switch = 0;
+            sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
+            sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
+            if (sc_panel_side_fold_flag) {
+                sc_list.css('padding', '10px 14px 10px 11px');
+            } else {
+                sc_list.css('padding', '10px 13px 10px 10px');
+            }
+
+            sc_data_show.css('color', '');
+            sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
+            sc_button_item.css('background-size', '350%');
+            sc_button_item.css('border', 0);
+            $(document).find('#sc_scrollbar_style').text(`
+            .sc_long_list::-webkit-scrollbar {
+                width: 6px;
+            }
+            .sc_long_list:hover::-webkit-scrollbar-thumb {
+                    background: rgba(204,204,204,0.5);
+                    border-radius: 6px;
+            }
+            .sc_long_list::-webkit-scrollbar-thumb {
+                background: rgba(204,204,204,0);
+            }
+            `);
+        }
+    }
+
+    // 记忆模式
+    function sc_memory_modify() {
+        let sc_btn_memory = $(document).find('.sc_button_memory');
+
+        if (sc_memory === 1) {
+            // 从[题记]切换到其他模式时，在题记房间中剔除当前房间
+            update_sc_switch_rooms('del');
+        } else if (sc_memory === 2) {
+            // 从[个记]切换到其他模式时，删除当前的个记配置
+            unsafeWindow.localStorage.removeItem(sc_self_memory_config_key);
+        } else if (sc_memory=== 3) {
+            // 从[全记]切换到其他模式时，删除全记配置
+            unsafeWindow.localStorage.removeItem('live_sc_memory_all_rooms_mode');
+            unsafeWindow.localStorage.removeItem('live_sc_all_memory_config');
+        }
+
+        sc_memory++;
+        if (sc_memory === 0) {
+            sc_btn_memory.text('没记');
+        } else if(sc_memory === 1) {
+            sc_btn_memory.text('题记');
+            update_sc_switch_rooms('add');
+            // 切换到题记的配置
+            let sc_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record');
+            if (sc_switch_record !== null && sc_switch_record !== 'null' && sc_switch_record !== '') {
+                sc_switch = parseInt(sc_switch_record, 10);
+                sc_switch_css();
+            }
+        } else if(sc_memory === 2) {
+            sc_btn_memory.text('个记');
+            // 保存个记的配置
+            sc_switch_store();
+            sc_fold_mode_store();
+            sc_panel_side_fold_flag_store();
+            sc_side_fold_simple_store();
+
+            const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
+            if (rect_circle.width === 0 && rect_circle.height === 0) {
+                const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
+                sc_panel_drag_store(rect_rectangle.left, rect_rectangle.top);
+            } else {
+                sc_panel_drag_store(rect_circle.left, rect_circle.top);
+            }
+        } else if(sc_memory=== 3) {
+            sc_btn_memory.text('全记');
+            unsafeWindow.localStorage.setItem('live_sc_memory_all_rooms_mode', sc_memory);
+            // 保存全记的配置
+            sc_switch_store();
+            sc_fold_mode_store();
+            sc_panel_side_fold_flag_store();
+            sc_side_fold_simple_store();
+
+            const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
+            if (rect_circle.width === 0 && rect_circle.height === 0) {
+                const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
+                sc_panel_drag_store(rect_rectangle.left, rect_rectangle.top);
+            } else {
+                sc_panel_drag_store(rect_circle.left, rect_circle.top);
+            }
+        } else {
+            sc_memory = 0;
+            sc_btn_memory.text('没记');
+        }
+    }
+
+    function sc_memory_show() {
+        let sc_circles = $(document).find('.sc_long_circle');
+        let sc_rectangles = $(document).find('.sc_long_rectangle');
+
+        if (sc_panel_fold_mode) {
+            sc_circles.each(function() {
+                if (sc_panel_drag_left >= 0) {
+                    $(this).css('left', sc_panel_drag_left + 'px');
+                }
+
+                if (sc_panel_drag_top >= 0) {
+                    $(this).css('top', sc_panel_drag_top + 'px');
+                }
+
+                $(this).hide();
+            });
+
+            sc_rectangles.each(function() {
+                if (sc_panel_drag_left >= 0) {
+                    $(this).css('left', sc_panel_drag_left + 'px');
+                }
+
+                if (sc_panel_drag_top >= 0) {
+                    $(this).css('top', sc_panel_drag_top + 'px');
+                }
+
+                if (sc_panel_fold_mode === 1 && !sc_panel_side_fold_simple) {
+                    $(document).find('.sc_data_show').show();
+                }
+
+                $(this).slideDown(500);
+            });
+
+            if (sc_panel_fold_mode === 1) { sc_sidefold(false); sc_btn_mode_apply(); }
+        } else {
+            if (sc_panel_side_fold_flag) { sc_sidefold(false); sc_btn_mode_apply(); }
+
+            sc_circles.each(function() {
+                if (sc_panel_drag_left >= 0) {
+                    $(this).css('left', sc_panel_drag_left + 'px');
+                }
+
+                if (sc_panel_drag_top >= 0) {
+                    $(this).css('top', sc_panel_drag_top + 'px');
+                }
+            });
+
+            if (sc_welt_hide_circle_half_flag) { sc_circle_welt_hide_half(sc_panel_drag_left, sc_panel_drag_top); }
+        }
+    }
+
+    // 导出
+    function sc_export() {
+        let sc_localstorage_json_export = unsafeWindow.localStorage.getItem(sc_localstorage_key);
+        if (sc_localstorage_json_export === null || sc_localstorage_json_export === 'null' || sc_localstorage_json_export === '[]' || sc_localstorage_json_export === '') {
+            return;
+        } else {
+            let sc_localstorage_export = JSON.parse(sc_localstorage_json_export);
+            let sc_export_str = '';
+            for (let j = 0; j < sc_localstorage_export.length; j++) {
+                let sc_export_timestamp = '[' + getTimestampConversion(sc_localstorage_export[j]["start_time"]) + ']';
+                let sc_export_uname = '[ ' + sc_localstorage_export[j]["user_info"]["uname"] + ' ]';
+                let sc_export_uid = '[ uid: ' + sc_localstorage_export[j]["uid"] + ' ]';
+                let sc_export_guard_level = sc_localstorage_export[j]["user_info"]["guard_level"];
+                let sc_export_guard = '';
+                if (sc_export_guard_level === 1) {
+                    sc_export_guard = '[总督]'
+                } else if (sc_export_guard_level === 2) {
+                    sc_export_guard = '[提督]';
+                } else if (sc_export_guard_level === 3) {
+                    sc_export_guard = '[舰长]';
+                } else {
+                    sc_export_guard = '[普通]';
+                }
+
+                let sc_export_price = '[ ￥' + sc_localstorage_export[j]["price"] + ' ]';
+                let sc_export_message = '[ ' + sc_localstorage_export[j]["message"] + ' ]';
+
+                sc_export_str += sc_export_timestamp + sc_export_guard + sc_export_uid + sc_export_uname + sc_export_price + ' : ' + sc_export_message + '\n\n';
+            }
+
+            // 创建一个Blob对象，将字符串放入其中
+            const sc_export_blob = new Blob([sc_export_str], { type: 'text/plain' });
+
+            // 创建一个下载链接
+            const sc_export_downloadLink = document.createElement('a');
+            sc_export_downloadLink.href = URL.createObjectURL(sc_export_blob);
+
+            // 设置文件名
+            sc_export_downloadLink.download = 'B站SC记录_' + sc_live_room_title + '_' + getTimestampConversion((new Date()).getTime()) + '.txt';
+
+            // 将链接添加到页面中，模拟点击下载
+            document.body.appendChild(sc_export_downloadLink);
+            sc_export_downloadLink.click();
+
+            // 移除链接
+            document.body.removeChild(sc_export_downloadLink);
+        }
+    }
+
+    function sc_startDragging(e) {
+        if (!sc_panel_allow_drag_flag) {
+            return;
+        }
+
+        e = e || unsafeWindow.event;
+
+        let sc_drag_target_classname = e.target.className;
+        if (sc_panel_fold_mode === 1 && sc_drag_target_classname !== 'sc_long_list' && sc_drag_target_classname !== 'sc_data_show' && sc_drag_target_classname !== 'sc_long_buttons' && !sc_drag_target_classname.includes('sc_button_item')) {
+            // 侧折模式下，禁止用SC拖拽
+            return;
+        }
+
+        if (e.button === 0) {
+            sc_isDragging = true;
+            sc_isClickAllowed = true;
+
+            const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
+            if (rect_circle.width === 0 && rect_circle.height === 0) {
+                const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
+                sc_offsetX = e.clientX - rect_rectangle.left;
+                sc_offsetY = e.clientY - rect_rectangle.top;
+            } else {
+                sc_offsetX = e.clientX - rect_circle.left;
+                sc_offsetY = e.clientY - rect_circle.top;
+            }
+
+            sc_drag_start = (new Date()).getTime();
+        }
+    }
+
+    function sc_stopDragging() {
+        if (!sc_panel_allow_drag_flag) {
+            return;
+        }
+
+        if (!sc_isClickAllowed) {
+            const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
+            if (rect_circle.width === 0 && rect_circle.height === 0) {
+                const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
+                sc_panel_drag_store(rect_rectangle.left, rect_rectangle.top);
+                if (sc_welt_hide_circle_half_flag) { sc_circle_welt_hide_half(rect_rectangle.left, rect_rectangle.top); }
+            } else {
+                sc_panel_drag_store(rect_circle.left, rect_circle.top);
+                if (sc_welt_hide_circle_half_flag) { sc_circle_welt_hide_half(rect_circle.left, rect_circle.top); }
+            }
+        }
+
+        sc_isDragging = false;
+    }
+
+    function sc_drag(e) {
+        if (!sc_panel_allow_drag_flag) {
+            return;
+        }
+
+        e = e || unsafeWindow.event;
+        if (sc_isDragging && ((new Date()).getTime() - sc_drag_start) > 30) {
+            let sc_elements = $(document).find('.sc_drag_div');
+            sc_elements.each(function() {
+                const rect = this.getBoundingClientRect();
+
+                const maxX = unsafeWindow.innerWidth - rect.width;
+                const maxY = unsafeWindow.innerHeight - rect.height;
+
+                let x = Math.min(maxX, Math.max(0, e.clientX - sc_offsetX)) + 0.5; // 这个0.5交给浏览器吧，至少chrome上是完美的
+                let y = Math.min(maxY, Math.max(0, e.clientY - sc_offsetY));
+
+                this.style.left = x + 'px';
+                this.style.top = y + 'px';
+            });
+
+            sc_isClickAllowed = false;
+
+            if (e.clientY < 0 || e.clientX < 0 || e.clientY >= unsafeWindow.innerHeight || e.clientX >= unsafeWindow.innerWidth - 5) {
+                // 页面外时触发 mouseup 事件的逻辑
+                sc_isDragging = false;
+                sc_stopDragging();
+            }
+        }
+    }
+
+    function sc_after_click_func_btn_apply(click_page_x) {
+        if (sc_panel_side_fold_flag) {
+            let sc_rectangle_model = document.getElementsByClassName('sc_long_rectangle');
+            let sc_rect_left = $(sc_rectangle_model).position().left;
+
+            if (click_page_x < sc_rect_left || click_page_x - sc_rect_left > 72) {
+                let sc_btn_model = document.getElementsByClassName('sc_long_buttons');
+
+                $(sc_btn_model).slideUp(500, () => {
+                    sc_rectangle_is_slide_up = false;
+                });
+
+                if (!sc_panel_side_fold_simple) {
+                    $(sc_rectangle_model).css('border-bottom', '');
+                }
+            }
+
+            if (!sc_panel_side_fold_simple && sc_func_btn_mode === 1) {
+                $(sc_rectangle_model).css('border-bottom', '');
+            }
+        }
+    }
+
+    function update_sc_item(sc_data) {
+        // 追加SC 显示
+        let sc_background_bottom_color = sc_data["background_bottom_color"];
+        let sc_background_image = sc_data["background_image"];
+        let sc_background_color = sc_data["background_color"];
+        let sc_uid = sc_data["uid"];
+        let sc_user_info_face = sc_data["user_info"]["face"];
+        let sc_user_info_face_frame = sc_data["user_info"]["face_frame"];
+        let sc_user_info_uname = sc_data["user_info"]["uname"];
+        let sc_price = sc_data["price"];
+        let sc_message = sc_data["message"];
+        let sc_start_timestamp = sc_data["start_time"];
+
+        let sc_medal_flag = false;
+        let sc_medal_color = '';
+        let sc_medal_name = '';
+        let sc_medal_level = 0;
+
+        if (sc_data["medal_info"] && sc_data["medal_info"]["anchor_roomid"]) {
+            sc_medal_flag = true;
+            sc_medal_color = sc_data["medal_info"]["medal_color"];
+            sc_medal_name = sc_data["medal_info"]["medal_name"];
+            sc_medal_level = sc_data["medal_info"]["medal_level"];
+        }
+
+        let sc_background_image_html = '';
+        if (sc_background_image !== '') {
+            sc_background_image_html = 'background-image: url('+ sc_background_image +');';
+        }
+
+        let sc_font_color = '#666666';
+        let sc_font_color_data = sc_data["user_info"]["name_color"] ?? '#666666';
+
+        let sc_start_time = getTimestampConversion(sc_start_timestamp);
+        let sc_diff_time = getTimestampDiff(sc_start_timestamp);
+
+        let sc_user_info_face_img = '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">';
+        let sc_user_info_face_frame_img = '';
+        if (sc_user_info_face_frame !== '') {
+            sc_user_info_face_img = '<img src="'+ sc_user_info_face +'" height="35" width="35" style="border-radius: 20px; float: left; position: absolute; z-index: 1;top: 3px;left: 2px;">';
+            sc_user_info_face_frame_img = '<img src="'+ sc_user_info_face_frame +'" height="40" width="40" style="float: left; position: absolute; z-index: 2;">';
+        }
+
+        let box_shadow_css = '';
+        if (sc_switch === 0 || sc_switch === 2 || sc_switch === 3) {
+            box_shadow_css = 'box-shadow: rgba(0, 0, 0, 0.5) 2px 2px 2px;';
+        }
+
+        let sc_start_time_display = '';
+        if (!sc_start_time_show_flag) {
+            sc_start_time_display = 'display: none;';
+        }
+        let metal_and_start_time_html = '<div class="sc_start_time" style="height: 20px; padding-left: 5px;'+ sc_start_time_display +'"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>';
+        if (sc_medal_flag) {
+            metal_and_start_time_html = '<div style="display: inline-flex;"><div class="fans_medal_item" style="background-color: '+ sc_medal_color +';border: 1px solid '+ sc_medal_color +';"><div class="fans_medal_label"><span class="fans_medal_content">'+ sc_medal_name +'</span></div><div class="fans_medal_level">'+ sc_medal_level +'</div></div>' +
+                '<div class="sc_start_time" style="height: 20px; padding-left: 5px;'+ sc_start_time_display +'"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">' + sc_start_time + '</span></div></div>'
+        }
+
+        let sc_msg_item_style_width = '';
+        let sc_msg_item_style_border_radius = 'border-radius: 8px 8px 6px 6px;';
+        let sc_msg_body_style_display = '';
+        let sc_msg_head_style_border_radius = 'border-radius: 6px 6px 0px 0px;';
+        let sc_msg_head_left_style_display = '';
+        let sc_msg_head_right_style_display = '';
+        if (sc_panel_side_fold_flag) {
+            sc_msg_item_style_width = 'width: 50px;';
+            sc_msg_item_style_border_radius = 'border-radius: 8px;';
+            sc_msg_body_style_display = 'display: none;';
+            sc_msg_head_style_border_radius = 'border-radius: 6px;';
+            sc_msg_head_left_style_display = 'display: none;';
+            sc_msg_head_right_style_display = 'display: none;';
+        }
+
+        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 1s linear forwards;'+ sc_msg_item_style_border_radius + box_shadow_css +'">'+
+            '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center;'+ sc_msg_head_style_border_radius +'">'+
+            '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
+            sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
+            '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;'+ sc_msg_head_left_style_display +'">'+
+            metal_and_start_time_html+
+            '<div class="sc_uname_div" style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((sc_rectangle_width / 2) + 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;" data-color="'+ sc_font_color_data +'">' + sc_user_info_uname + '</span></div>'+
+            '</div>'+
+            '<div class="sc_msg_head_right" style="float: right; box-sizing: border-box; height: 40px;'+ sc_msg_head_right_style_display +'">'+
+            '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right;">￥'+ sc_price +'</span></div>'+
+            '<div style="height: 20px; color: #666666" data-html2canvas-ignore><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span></div>'+
+            '</div>'+
+            '</div>'+
+            '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;'+ sc_msg_body_style_display +'"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+
+            '</div>';
+
+        $(document).find('.sc_long_list').prepend(sc_item_html);
+
+        sc_custom_config_apply('sc_' + sc_uid + '_' + sc_start_timestamp);
+
+        sc_side_fold_custom_first_class = 'sc_' + sc_uid + '_' + sc_start_timestamp;
+
+    }
+
+    function store_sc_item(sc_data) {
+        check_and_join_live_sc_room();
+        // 追加SC 存储
+        let sc_localstorage = [];
+        let sc_sid_localstorage = [];
+        let sid = String(sc_data["id"]) + '_' + String(sc_data["uid"]) + '_' + String(sc_data["price"]);
+        let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
+
+        if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
+            sc_localstorage.push(sc_data);
+            sc_sid_localstorage.push(sid);
+            // 保存/更新sc_keep_time （最后sc的时间戳）
+            unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
+
+            // 追加存储
+            unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
+            unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
+
+            return true;
+        } else {
+            sc_localstorage = JSON.parse(sc_localstorage_json);
+            sc_sid_localstorage = JSON.parse(unsafeWindow.localStorage.getItem(sc_sid_localstorage_key));
+
+            if (sc_sid_localstorage.includes(sid)) {
+                return false;
+            } else {
+                sc_localstorage.push(sc_data);
+                sc_sid_localstorage.push(sid);
+                // 保存/更新sc_keep_time （最后sc的时间戳）
+                unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
+
+                // 追加存储
+                unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
+                unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
+
+                return true;
+            }
+        }
+    }
+
+    function update_rank_count(n_count, n_online_count) {
+        if (n_online_count) {
+            high_energy_num = n_online_count;
+        } else {
+            n_online_count = high_energy_num;
+        }
+
+        // SC记录板的
+        if (n_count > n_online_count) {
+            $(document).find('.sc_high_energy_num_left').text('高能：');
+            $(document).find('.sc_high_energy_num_right').text(n_count);
+            $(document).find('.sc_data_show_label').attr('title', '');
+
+            if (!sc_update_date_guard_once) {
+                const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                if (rank_data_show_div.length) {
+                    $(document).find('.sc_captain_num_right').text(rank_data_show_div.last().text().match(/\d+/) ?? 0);
+                    sc_update_date_guard_once = true;
+                }
+            }
+        } else {
+            $(document).find('.sc_high_energy_num_left').text('同接：');
+            $(document).find('.sc_high_energy_num_right').text(n_count);
+            $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ n_count + '/' + n_online_count +') = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
+        }
+
+        // 页面的
+        if (data_show_top_flag) {
+            const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (rank_data_show_div.length) {
+                if (n_count > n_online_count) {
+                    rank_data_show_div.first().text('高能用户(' + n_count + ')');
+                    rank_data_show_div.first().attr('title', '');
+                } else {
+                    rank_data_show_div.first().text('高能用户(' + n_count + '/' + n_online_count + ')');
+                    rank_data_show_div.first().attr('title', '同接/高能 = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
+                }
+            }
+        }
+
+        if (data_show_bottom_flag) {
+            const sc_data_show_bottom_rank_num_div = $(document).find('#sc_data_show_bottom_rank_num');
+            if (sc_data_show_bottom_rank_num_div.length) {
+                if (n_count > n_online_count) {
+                    sc_data_show_bottom_rank_num_div.text('高能：'+ n_count);
+                    sc_data_show_bottom_rank_num_div.attr('title', '');
+                } else {
+                    sc_data_show_bottom_rank_num_div.text('同接：'+ n_count);
+                    sc_data_show_bottom_rank_num_div.attr('title', '同接/高能('+ n_count + '/' + n_online_count +') = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
+                }
+            } else {
+                const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                if (rank_data_show_div.length) {
+                    const guard_text = rank_data_show_div.last().text();
+
+                    let sc_data_show_bottom_div_color = '#ffffff';
+                    const chat_control_panel_vm_div = $(document).find('#chat-control-panel-vm');
+                    if (chat_control_panel_vm_div.length) {
+                        const chat_control_panel_vm_div_bg = chat_control_panel_vm_div.css('background-image');
+                        if (!chat_control_panel_vm_div_bg || chat_control_panel_vm_div_bg === 'none') {
+                            sc_data_show_bottom_div_color = '#666666';
+                        }
+                    }
+
+                    if (n_count > n_online_count) {
+                        $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">高能：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
+                    } else {
+                        $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" title="'+ (n_count / n_online_count * 100).toFixed(2) +'%" style="width: 100%;margin-bottom: 5px;">同接：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
+                    }
+                }
+            }
+        }
+    }
+
+    function sc_fetch_and_show() {
+        // 抓取SC
+        fetch(sc_url).then(response => {
+            return response.json();
+        }).then(ret => {
+            let sc_catch = [];
+            if (ret.code === 0) {
+                // 高能数
+                high_energy_num = ret.data.room_rank_info.user_rank_entry.user_contribution_rank_entry?.count || 0;
+
+                // 舰长数
+                let captain_num = ret.data.guard_info.count;
+                $(document).find('.sc_captain_num_right').text(captain_num);
+
+                sc_live_room_title = ret.data.anchor_info.base_info.uname + '_' + ret.data.room_info.title;
+
+                sc_catch = ret.data.super_chat_info.message_list;
+            }
+
+            // 追加到localstorage 和 SC显示板
+            let sc_localstorage = [];
+            let sc_sid_localstorage = [];
+            let diff_arr_new_sc = [];
+            let sc_add_arr = [];
+            let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
+            if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
+                diff_arr_new_sc = sc_catch;
+            } else {
+                sc_localstorage = JSON.parse(sc_localstorage_json);
+                sc_sid_localstorage = JSON.parse(unsafeWindow.localStorage.getItem(sc_sid_localstorage_key));
+                diff_arr_new_sc = sc_catch.filter(v => {
+                    let sid = String(v.id) + '_' + String(v.uid) + '_' + String(v.price);
+
+                    return !sc_sid_localstorage.includes(sid);
+                });
+            }
+
+            diff_arr_new_sc = diff_arr_new_sc.sort((a, b) => a.start_time - b.start_time);
+
+            if (sc_isListEmpty) {
+                // 一开始进入
+                sc_add_arr = sc_localstorage.concat(diff_arr_new_sc);
+
+                if (diff_arr_new_sc.length) {
+                    // 有抓取到实时已经存在的
+                    sc_custom_config_start_class_by_fetch(diff_arr_new_sc);
+                }
+
+                if (!diff_arr_new_sc.length && sc_localstorage.length) {
+                    // 没抓取到实时已经存在的，但有存储的
+                    sc_custom_config_start_class_by_store(sc_localstorage);
+                }
+
+            } else {
+                // 实时
+                sc_add_arr = diff_arr_new_sc;
+            }
+
+            if (sc_add_arr.length) {
+                for (let i = 0; i < sc_add_arr.length; i++){
+                    // 追加到SC显示板
+                    update_sc_item(sc_add_arr[i]);
+                }
+
+                // 追加到localstorage（存储就不用GM_setValue了，直接localstorage，控制台就可以看到）
+                if (diff_arr_new_sc.length) {
+                    // 加入记录组
+                    check_and_join_live_sc_room();
+
+                    for (let d = 0; d < diff_arr_new_sc.length; d++) {
+                        sc_localstorage.push(diff_arr_new_sc[d]);
+                        sc_sid_localstorage.push(String(diff_arr_new_sc[d]["id"]) + '_' + String(diff_arr_new_sc[d]["uid"]) + '_' + String(diff_arr_new_sc[d]["price"]));
+                    }
+
+                    // 保存/更新sc_keep_time （最后sc的时间戳）
+                    unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
+
+                    // 追加存储
+                    unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
+                    unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
+                }
+
+                sc_isListEmpty = false;
+            }
+        }).catch(error => {
+            sc_catch_log('请求api失败！抓取已存在的SC失败！请刷新页面来解决~');
+            let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
+            if (sc_localstorage_json !== null && sc_localstorage_json !== 'null' && sc_localstorage_json !== '[]' && sc_localstorage_json !== '') {
+                if (sc_isListEmpty) {
+                    let sc_localstorage = JSON.parse(sc_localstorage_json);
+                    if (sc_localstorage.length) {
+                        sc_custom_config_start_class_by_store(sc_localstorage);
+
+                        for (let r = 0; r < sc_localstorage.length; r++){
+                            // 追加到SC显示板
+                            update_sc_item(sc_localstorage[r]);
+                        }
+
+                        sc_isListEmpty = false;
+                    }
+                }
+            }
+        });
     }
 
     function sc_process_start() {
@@ -619,6 +2188,64 @@
                 align-items: center;
                 justify-content: center;
             }
+
+            @keyframes sc_circle_hide_x_left {
+                0%{transform: translateX(0);}
+                100%{transform: translateX(-50%);}
+            }
+            @keyframes sc_circle_hide_x_right {
+                0%{transform: translateX(0);}
+                100%{transform: translateX(50%);}
+            }
+            @keyframes sc_circle_hide_y_top {
+                0%{transform: translateY(0);}
+                100%{transform: translateY(-50%);}
+            }
+            @keyframes sc_circle_hide_y_bottom {
+                0%{transform: translateY(0);}
+                100%{transform: translateY(50%);}
+            }
+            .sc_circle_x_left_hide_animate {
+                animation: sc_circle_hide_x_left .2s linear forwards;
+            }
+            .sc_circle_x_right_hide_animate {
+                animation: sc_circle_hide_x_right .2s linear forwards;
+            }
+            .sc_circle_y_top_hide_animate {
+                animation: sc_circle_hide_y_top .2s linear forwards;
+            }
+            .sc_circle_y_bottom_hide_animate {
+                animation: sc_circle_hide_y_bottom .2s linear forwards;
+            }
+
+            @keyframes sc_circle_show_x_left {
+                0%{transform: translateX(-50%);}
+                100%{transform: translateX(0);}
+            }
+            @keyframes sc_circle_show_x_right {
+                0%{transform: translateX(50%);}
+                100%{transform: translateX(0);}
+            }
+            @keyframes sc_circle_show_y_top {
+                0%{transform: translateY(-50%);}
+                100%{transform: translateY(0);}
+            }
+            @keyframes sc_circle_show_y_bottom {
+                0%{transform: translateY(50%);}
+                100%{transform: translateY(0);}
+            }
+            .sc_circle_x_left_show_animate {
+                animation: sc_circle_show_x_left .2s linear forwards;
+            }
+            .sc_circle_x_right_show_animate {
+                animation: sc_circle_show_x_right .2s linear forwards;
+            }
+            .sc_circle_y_top_show_animate {
+                animation: sc_circle_show_y_top .2s linear forwards;
+            }
+            .sc_circle_y_bottom_show_animate {
+                animation: sc_circle_show_y_bottom .2s linear forwards;
+            }
         `;
         document.head.appendChild(sc_other_style);
 
@@ -631,26 +2258,12 @@
         document.body.appendChild(sc_circleContainer);
         document.body.appendChild(sc_rectangleContainer);
 
-        let sc_isDragging = false;
-        let sc_isClickAllowed = true;
-        let sc_drag_start = 0; // 兼容有的时候点击触发拖拽的情况
-        let sc_offsetX = 0;
-        let sc_offsetY = 0;
-        let sc_isListEmpty = true;
-        let sc_isFullscreen = false;
-
         // Set initial position
         sc_circleContainer.style.top = `${unsafeWindow.innerHeight / 4}px`;
 
         $(document).on('mousedown', '.sc_drag_div', sc_startDragging);
         $(document).on('mousemove', sc_drag);
         $(document).on('mouseup', '.sc_drag_div', sc_stopDragging);
-
-        // 让全屏直播的情况下也显示
-        live_player_div.addEventListener('fullscreenchange', sc_handleFullscreenChange);
-        live_player_div.addEventListener('webkitfullscreenchange', sc_handleFullscreenChange);
-        live_player_div.addEventListener('mozfullscreenchange', sc_handleFullscreenChange);
-        live_player_div.addEventListener('MSFullscreenChange', sc_handleFullscreenChange);
 
         function sc_handleFullscreenChange() {
             if (document.fullscreenElement ||
@@ -709,73 +2322,27 @@
             }
         }
 
-        function sc_startDragging(e) {
-            if (!sc_panel_allow_drag_flag) {
-                return;
-            }
-
-            e = e || unsafeWindow.event;
-            sc_isDragging = true;
-            sc_isClickAllowed = true;
-            const rect = e.target.getBoundingClientRect();
-            sc_offsetX = e.clientX - rect.left;
-            sc_offsetY = e.clientY - rect.top;
-            sc_drag_start = (new Date()).getTime();
-        }
-
-        function sc_drag(e) {
-            if (!sc_panel_allow_drag_flag) {
-                return;
-            }
-
-            e = e || unsafeWindow.event;
-            if (sc_isDragging && ((new Date()).getTime() - sc_drag_start) > 30) {
-                let sc_elements = $(document).find('.sc_drag_div');
-                sc_elements.each(function() {
-                    const rect = this.getBoundingClientRect();
-
-                    const maxX = unsafeWindow.innerWidth - rect.width;
-                    const maxY = unsafeWindow.innerHeight - rect.height;
-
-                    let x = Math.min(maxX, Math.max(0, e.clientX - sc_offsetX)) + 0.5; // 这个0.5交给浏览器吧，至少chrome上是完美的
-                    let y = Math.min(maxY, Math.max(0, e.clientY - sc_offsetY));
-
-                    $(this).css('left', x + 'px');
-                    $(this).css('top' , y + 'px');
-                });
-
-                sc_isClickAllowed = false;
-
-                if (e.clientY < 0 || e.clientX < 0 || e.clientY >= unsafeWindow.innerHeight || e.clientX >= unsafeWindow.innerWidth - 5) {
-                    // 页面外时触发 mouseup 事件的逻辑
-                    sc_stopDragging();
-                }
-            }
-        }
-
-        function sc_stopDragging() {
-            if (!sc_panel_allow_drag_flag) {
-                return;
-            }
-
-            if (!sc_isClickAllowed) {
-                const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
-                if (rect_circle.width === 0 && rect_circle.height === 0) {
-                    const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
-                    sc_panel_drag_store(rect_rectangle.left, rect_rectangle.top);
-                } else {
-                    sc_panel_drag_store(rect_circle.left, rect_circle.top);
-                }
-            }
-
-            sc_isDragging = false;
-        }
+        // 让全屏直播的情况下也显示
+        live_player_div.addEventListener('fullscreenchange', sc_handleFullscreenChange);
+        live_player_div.addEventListener('webkitfullscreenchange', sc_handleFullscreenChange);
+        live_player_div.addEventListener('mozfullscreenchange', sc_handleFullscreenChange);
+        live_player_div.addEventListener('MSFullscreenChange', sc_handleFullscreenChange);
 
         $(document).on('click', '.sc_long_circle', () => {
             if (sc_isClickAllowed) {
                 let xPos = 0;
                 let yPos = 0;
                 let sc_circles = $(document).find('.sc_long_circle');
+
+                sc_circles.removeClass('sc_circle_x_left_hide_animate');
+                sc_circles.removeClass('sc_circle_x_right_hide_animate');
+                sc_circles.removeClass('sc_circle_y_top_hide_animate');
+                sc_circles.removeClass('sc_circle_y_bottom_hide_animate');
+                sc_circles.removeClass('sc_circle_x_left_show_animate');
+                sc_circles.removeClass('sc_circle_x_right_show_animate');
+                sc_circles.removeClass('sc_circle_y_top_show_animate');
+                sc_circles.removeClass('sc_circle_y_bottom_show_animate');
+
                 sc_circles.each(function() {
                     let rect = this.getBoundingClientRect();
                     xPos = rect.left;
@@ -808,6 +2375,7 @@
 
                     $(document).find('.sc_long_buttons').show();
                     $(document).find('.sc_data_show').show();
+
                     $(this).slideDown(500);
                 });
 
@@ -820,15 +2388,49 @@
         });
 
         $(document).on('mouseenter', '.sc_long_circle', () => {
-            $(document).find('.sc_long_circle').css('border', '3px solid rgba(255,255,255,0.5)');
+            let sc_circles = $(document).find('.sc_long_circle');
+            sc_circles.css('border', '3px solid rgba(255,255,255,0.5)');
+
+            let sc_circles_animate_class = sc_circles.attr('class').split(' ').find((scClassName) => { return scClassName !== 'sc_long_circle' && scClassName !== 'sc_drag_div'; });
+            if (sc_circles_animate_class === 'sc_circle_x_left_hide_animate') {
+                sc_circles.removeClass('sc_circle_x_right_show_animate');
+                sc_circles.removeClass('sc_circle_y_top_show_animate');
+                sc_circles.removeClass('sc_circle_y_bottom_show_animate');
+                sc_circles.addClass('sc_circle_x_left_show_animate');
+            } else if (sc_circles_animate_class === 'sc_circle_x_right_hide_animate') {
+                sc_circles.removeClass('sc_circle_x_left_show_animate');
+                sc_circles.removeClass('sc_circle_y_top_show_animate');
+                sc_circles.removeClass('sc_circle_y_bottom_show_animate');
+                sc_circles.addClass('sc_circle_x_right_show_animate');
+            } else if (sc_circles_animate_class === 'sc_circle_y_top_hide_animate') {
+                sc_circles.removeClass('sc_circle_x_left_show_animate');
+                sc_circles.removeClass('sc_circle_x_right_show_animate');
+                sc_circles.removeClass('sc_circle_y_bottom_show_animate');
+                sc_circles.addClass('sc_circle_y_top_show_animate');
+            } else if (sc_circles_animate_class === 'sc_circle_y_bottom_hide_animate') {
+                sc_circles.removeClass('sc_circle_x_left_show_animate');
+                sc_circles.removeClass('sc_circle_x_right_show_animate');
+                sc_circles.removeClass('sc_circle_y_top_show_animate');
+                sc_circles.addClass('sc_circle_y_bottom_show_animate');
+            }
+
+            sc_circles.removeClass('sc_circle_x_left_hide_animate');
+            sc_circles.removeClass('sc_circle_x_right_hide_animate');
+            sc_circles.removeClass('sc_circle_y_top_hide_animate');
+            sc_circles.removeClass('sc_circle_y_bottom_hide_animate');
         });
 
         $(document).on('mouseleave', '.sc_long_circle', () => {
-            $(document).find('.sc_long_circle').css('border', '2px solid #ffffff');
+            let sc_circles = $(document).find('.sc_long_circle');
+            sc_circles.css('border', '2px solid #ffffff');
+            sc_circles.removeClass('sc_circle_x_left_show_animate');
+            sc_circles.removeClass('sc_circle_x_right_show_animate');
+            sc_circles.removeClass('sc_circle_y_top_show_animate');
+            sc_circles.removeClass('sc_circle_y_bottom_show_animate');
+
+            if (sc_welt_hide_circle_half_flag) { sc_circle_welt_hide_half(sc_circles.position().left, sc_circles.position().top); }
         });
 
-        let sc_rectangle_is_slide_down = false;
-        let sc_rectangle_is_slide_up = false;
         // 优化回弹问题
         $(document).on('mouseenter', '.sc_long_rectangle, .sc_long_buttons, .sc_data_show', () => {
 
@@ -1060,730 +2662,6 @@
             }
         });
 
-        // 折叠/展开单个消息
-        function sc_toggle_msg_body() {
-            let this_sc_item_class_arr = $(this).attr('class').split(' ');
-            let this_sc_item_dynamic_className = this_sc_item_class_arr.find((scClassName) => { return scClassName !== 'sc_long_item'; });
-            let this_sc_msg_body = $('.' + this_sc_item_dynamic_className).find('.sc_msg_body');
-            let this_sc_item_bg_color = $('.' + this_sc_item_dynamic_className).css('background-color');
-            if (this_sc_msg_body.is(":visible")) {
-                this_sc_msg_body.slideUp(200);
-                $('.' + this_sc_item_dynamic_className).css('border-radius', '8px');
-                this_sc_msg_body.prev().css('border-radius', '6px');
-                $('.' + this_sc_item_dynamic_className).find('.sc_value_font').css('color', this_sc_item_bg_color);
-                $('.' + this_sc_item_dynamic_className).attr('data-fold', '1');
-            } else {
-                $('.' + this_sc_item_dynamic_className).css('border-radius', '8px 8px 6px 6px');
-                this_sc_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
-                this_sc_msg_body.slideDown(200);
-                $('.' + this_sc_item_dynamic_className).find('.sc_value_font').css('color', '');
-                $('.' + this_sc_item_dynamic_className).attr('data-fold', '0');
-            }
-        }
-
-        // 侧折显示板
-        function sc_sidefold(flag = true) {
-            $(document).find('.sc_long_rectangle').css('width', '72px');
-            $(document).find('.sc_long_list').css('padding-left', '11px');
-            $(document).find('.sc_long_item').css('width', '50px');
-            $(document).find('.sc_long_item').css('height', '50px');
-            let sc_btn_item = $(document).find('.sc_button_item');
-            sc_btn_item.css('margin-top', '6px');
-            sc_btn_item.css('margin-bottom', '0px');
-            sc_btn_item.css('margin-right', '0px');
-
-            let sc_btn_sidefold = $(document).find('.sc_button_sidefold');
-            sc_btn_sidefold.addClass('sc_button_foldback');
-            sc_btn_sidefold.removeClass('sc_button_sidefold');
-            sc_btn_sidefold.text('展开');
-
-            let sc_data_show = $(document).find('.sc_data_show');
-            sc_data_show.css('margin-bottom', '15px');
-            sc_data_show.css('height', '70px');
-
-            $(document).find('.sc_label_data_br').show();
-
-            let sc_label_high_energy_left = $(document).find('.sc_high_energy_num_left');
-            let sc_label_high_energy_right = $(document).find('.sc_high_energy_num_right');
-            let sc_label_captain_left = $(document).find('.sc_captain_num_left');
-            let sc_label_captain_right = $(document).find('.sc_captain_num_right');
-            let sc_label_num_br3 = $(document).find('.sc_label_num_br3');
-            let clone_sc_label_captain_right = sc_label_captain_right.last().clone(true);
-            let clone_sc_label_num_br3 = sc_label_num_br3.last().clone(true);
-            clone_sc_label_captain_right.css('float', 'none');
-            sc_data_show.append(clone_sc_label_num_br3);
-            sc_data_show.append(clone_sc_label_captain_right);
-            sc_label_captain_right.remove();
-            sc_label_num_br3.remove();
-            sc_label_high_energy_left.css('float', 'right');
-            sc_label_high_energy_right.css('float', 'none');
-            sc_label_captain_left.css('margin-top', '10px');
-
-            let sc_long_rectangle = $(document).find('.sc_long_rectangle');
-            let sc_long_buttons = $(document).find('.sc_long_buttons');
-            let clone_sc_data_show = sc_data_show.last().clone(true);
-            let clone_sc_long_buttons = sc_long_buttons.last().clone(true);
-            clone_sc_long_buttons.hide();
-            if (sc_panel_side_fold_simple) {
-                clone_sc_data_show.hide();
-            } else {
-                sc_long_rectangle.css('border-bottom', '');
-            }
-            sc_long_rectangle.append(clone_sc_data_show);
-            sc_long_rectangle.append(clone_sc_long_buttons);
-            sc_data_show.remove();
-            sc_long_buttons.remove();
-
-            sc_side_fold_in_all();
-
-            sc_panel_fold_mode = 1;
-            sc_panel_side_fold_flag = true;
-
-            if (flag) {
-                if (unsafeWindow.innerHeight - sc_long_rectangle.position().top < sc_panel_high + 280) {
-                    sc_long_rectangle.each(function() {
-                        $(this).css('top', unsafeWindow.innerHeight - sc_panel_high - 280);
-                    });
-                }
-
-                sc_fold_mode_store();
-                sc_panel_side_fold_flag_store();
-            }
-
-            sc_btn_mode_apply();
-
-            sc_custom_config_apply(sc_side_fold_custom_first_class);
-        }
-
-        // 侧折后恢复展开显示板
-        function sc_foldback() {
-            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class)); }
-            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
-
-            $(document).find('.sc_long_rectangle').css('width', sc_rectangle_width + 'px');
-            $(document).find('.sc_long_list').css('padding-left', '10px');
-            $(document).find('.sc_long_item').css('width', '');
-            $(document).find('.sc_long_item').css('height', '');
-            let sc_btn_item = $(document).find('.sc_button_item');
-            sc_btn_item.css('margin-top', '15px');
-            sc_btn_item.css('margin-bottom', '15px');
-            sc_btn_item.css('margin-right', '7px');
-            $(document).find('.sc_button_min').css('margin-right', '0px');
-
-            let sc_btn_foldback = $(document).find('.sc_button_foldback');
-            sc_btn_foldback.addClass('sc_button_sidefold');
-            sc_btn_foldback.removeClass('sc_button_foldback');
-            sc_btn_foldback.text('侧折');
-
-            let sc_data_show = $(document).find('.sc_data_show');
-            sc_data_show.css('margin-bottom', '20px');
-            sc_data_show.css('height', '20px');
-
-            $(document).find('.sc_label_data_br').hide();
-
-            let sc_label_high_energy_left = $(document).find('.sc_high_energy_num_left');
-            let sc_label_high_energy_right = $(document).find('.sc_high_energy_num_right');
-            let sc_label_captain_left = $(document).find('.sc_captain_num_left');
-            let sc_label_captain_right = $(document).find('.sc_captain_num_right');
-            let sc_label_num_br3 = $(document).find('.sc_label_num_br3');
-            let clone_sc_label_captain_left = sc_label_captain_left.last().clone(true);
-            let clone_sc_label_num_br3 = sc_label_num_br3.last().clone(true);
-            clone_sc_label_captain_left.css('margin-top', '0px');
-            sc_data_show.append(clone_sc_label_num_br3);
-            sc_data_show.append(clone_sc_label_captain_left);
-            sc_label_captain_left.remove();
-            sc_label_num_br3.remove();
-            sc_label_high_energy_left.css('float', 'left');
-            sc_label_high_energy_right.css('float', 'left');
-            sc_label_captain_right.css('float', 'right');
-
-            let sc_long_rectangle = $(document).find('.sc_long_rectangle');
-            let sc_long_buttons = $(document).find('.sc_long_buttons');
-            let clone_sc_data_show = sc_data_show.last().clone(true);
-            let clone_sc_long_buttons = sc_long_buttons.last().clone(true);
-            sc_long_rectangle.css('border-bottom', '10px solid transparent');
-            sc_long_rectangle.prepend(clone_sc_data_show);
-            sc_long_rectangle.prepend(clone_sc_long_buttons);
-            sc_data_show.remove();
-            sc_long_buttons.remove();
-
-            if (unsafeWindow.innerWidth - sc_long_rectangle.position().left < sc_rectangle_width) {
-                sc_long_rectangle.each(function() {
-                    $(this).css('left', unsafeWindow.innerWidth - sc_rectangle_width - 15);
-                });
-            }
-
-            sc_side_fold_out_all();
-
-            sc_panel_fold_mode = 2;
-            sc_panel_side_fold_flag = false;
-
-            sc_fold_mode_store();
-            sc_panel_side_fold_flag_store();
-
-            sc_menu();
-        }
-
-        // 折叠显示板
-        function sc_minimize() {
-            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class)); }
-            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
-
-            $(document).find('.sc_long_circle').show();
-            $(document).find('.sc_long_rectangle').hide();
-            $(document).find('.sc_long_buttons').hide(); // 优化回弹问题
-
-            sc_panel_fold_mode = 0;
-
-            sc_fold_mode_store();
-        }
-
-        // 切换主题
-        function sc_switch_css(flag = false) {
-            if (flag) {
-                sc_switch++;
-
-                // 记录主题
-                sc_switch_store();
-            }
-
-            let sc_rectangle = $(document).find('.sc_long_rectangle');
-            let sc_item = $(document).find('.sc_long_item');
-            let sc_list = $(document).find('.sc_long_list');
-            let sc_data_show = $(document).find('.sc_data_show');
-            let sc_button_item = $(document).find('.sc_button_item');
-
-            if (sc_switch === 0) {
-                // 白色
-                sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
-                sc_rectangle.css('box-shadow', '2px 2px 5px black');
-                sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                if (sc_panel_side_fold_flag) {
-                    sc_list.css('padding', '10px 14px 10px 11px');
-                } else {
-                    sc_list.css('padding', '10px 13px 10px 10px');
-                }
-                sc_data_show.css('color', '');
-                sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
-                sc_button_item.css('background-size', '350%');
-                sc_button_item.css('border', 0);
-                $(document).find('#sc_scrollbar_style').text(`
-            .sc_long_list::-webkit-scrollbar {
-                width: 6px;
-            }
-            .sc_long_list:hover::-webkit-scrollbar-thumb {
-                    background: rgba(204,204,204,0.5);
-                    border-radius: 6px;
-            }
-            .sc_long_list::-webkit-scrollbar-thumb {
-                background: rgba(204,204,204,0);
-            }
-            `);
-            } else if(sc_switch === 1) {
-                // 透明
-                sc_rectangle.css('background-color', 'rgba(255,255,255,0)');
-                sc_rectangle.css('box-shadow', '');
-                sc_item.css('box-shadow', '');
-                if (sc_panel_side_fold_flag){
-                    sc_list.css('padding', '10px 12px 10px 11px');
-                } else {
-                    sc_list.css('padding', '10px 11px 10px 10px');
-                }
-                sc_data_show.css('color', '#ffffff');
-                sc_button_item.css('background', 'rgba(255,255,255,0)');
-                sc_button_item.css('border', '1px solid #ffffff');
-                $(document).find('#sc_scrollbar_style').text(`
-            .sc_long_list::-webkit-scrollbar {
-                width: 6px;
-            }
-            .sc_long_list:hover::-webkit-scrollbar-thumb {
-                    background: rgba(255,255,255,0.1);
-                    border-radius: 6px;
-            }
-            .sc_long_list::-webkit-scrollbar-thumb {
-                background: rgba(255,255,255,0);
-            }
-            `);
-            } else if(sc_switch === 2) {
-                // 半透明（白0.1）
-                sc_rectangle.css('background-color', 'rgba(255,255,255,0.1)');
-                sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                if (sc_panel_side_fold_flag) {
-                    sc_list.css('padding', '10px 14px 10px 11px');
-                } else {
-                    sc_list.css('padding', '10px 13px 10px 10px');
-                }
-                sc_data_show.css('color', '#ffffff');
-                sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
-                sc_button_item.css('background-size', '350%');
-                sc_button_item.css('border', 0);
-                $(document).find('#sc_scrollbar_style').text(`
-            .sc_long_list::-webkit-scrollbar {
-                width: 6px;
-            }
-            .sc_long_list:hover::-webkit-scrollbar-thumb {
-                    background: rgba(204,204,204,0.2);
-                    border-radius: 6px;
-            }
-            .sc_long_list::-webkit-scrollbar-thumb {
-                background: rgba(204,204,204,0);
-            }
-            `);
-            } else if(sc_switch === 3) {
-                // 半透明（白0.5）
-                sc_rectangle.css('background-color', 'rgba(255,255,255,0.5)');
-                sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                if (sc_panel_side_fold_flag) {
-                    sc_list.css('padding', '10px 14px 10px 11px');
-                } else {
-                    sc_list.css('padding', '10px 13px 10px 10px');
-                }
-                sc_data_show.css('color', '');
-                sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
-                sc_button_item.css('background-size', '350%');
-                sc_button_item.css('border', 0);
-                $(document).find('#sc_scrollbar_style').text(`
-            .sc_long_list::-webkit-scrollbar {
-                width: 6px;
-            }
-            .sc_long_list:hover::-webkit-scrollbar-thumb {
-                    background: rgba(204,204,204,0.5);
-                    border-radius: 6px;
-            }
-            .sc_long_list::-webkit-scrollbar-thumb {
-                background: rgba(204,204,204,0);
-            }
-            `);
-            } else if(sc_switch === 4) {
-                // 半透明（黑色0.1）
-                sc_rectangle.css('background-color', 'rgba(0,0,0,0.1)');
-                sc_rectangle.css('box-shadow', '');
-                sc_item.css('box-shadow', '');
-                if (sc_panel_side_fold_flag) {
-                    sc_list.css('padding', '10px 12px 10px 11px');
-                } else {
-                    sc_list.css('padding', '10px 11px 10px 10px');
-                }
-                sc_data_show.css('color', '#ffffff');
-                sc_button_item.css('background', 'rgba(255,255,255,0)');
-                sc_button_item.css('border', '1px solid #ffffff');
-                $(document).find('#sc_scrollbar_style').text(`
-            .sc_long_list::-webkit-scrollbar {
-                width: 6px;
-            }
-            .sc_long_list:hover::-webkit-scrollbar-thumb {
-                    background: rgba(255,255,255,0.2);
-                    border-radius: 6px;
-            }
-            .sc_long_list::-webkit-scrollbar-thumb {
-                background: rgba(255,255,255,0);
-            }
-            `);
-            } else if(sc_switch === 5) {
-                // 半透明（黑色0.5）
-                sc_rectangle.css('background-color', 'rgba(0,0,0,0.5)');
-                sc_rectangle.css('box-shadow', '');
-                sc_item.css('box-shadow', '');
-                if (sc_panel_side_fold_flag) {
-                    sc_list.css('padding', '10px 12px 10px 11px');
-                } else {
-                    sc_list.css('padding', '10px 12px 10px 10px');
-                }
-                sc_data_show.css('color', '#ffffff');
-                sc_button_item.css('background', 'rgba(255,255,255,0)');
-                sc_button_item.css('border', '1px solid #ffffff');
-                $(document).find('#sc_scrollbar_style').text(`
-            .sc_long_list::-webkit-scrollbar {
-                width: 6px;
-            }
-            .sc_long_list:hover::-webkit-scrollbar-thumb {
-                    background: rgba(255,255,255,0.2);
-                    border-radius: 6px;
-            }
-            .sc_long_list::-webkit-scrollbar-thumb {
-                background: rgba(255,255,255,0);
-            }
-            `);
-            } else {
-                // 白色
-                sc_switch = 0;
-                sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
-                sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-                if (sc_panel_side_fold_flag) {
-                    sc_list.css('padding', '10px 14px 10px 11px');
-                } else {
-                    sc_list.css('padding', '10px 13px 10px 10px');
-                }
-
-                sc_data_show.css('color', '');
-                sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
-                sc_button_item.css('background-size', '350%');
-                sc_button_item.css('border', 0);
-                $(document).find('#sc_scrollbar_style').text(`
-            .sc_long_list::-webkit-scrollbar {
-                width: 6px;
-            }
-            .sc_long_list:hover::-webkit-scrollbar-thumb {
-                    background: rgba(204,204,204,0.5);
-                    border-radius: 6px;
-            }
-            .sc_long_list::-webkit-scrollbar-thumb {
-                background: rgba(204,204,204,0);
-            }
-            `);
-            }
-        }
-
-        // 记忆存储
-        function update_sc_memory_config(config_item_name, config_item_val, type = 'self') {
-            let sc_memory_config_key = sc_self_memory_config_key
-            if (type === 'all') {
-                sc_memory_config_key = 'live_sc_all_memory_config';
-            }
-
-            let sc_memory_config = {};
-            let sc_memory_config_json = unsafeWindow.localStorage.getItem(sc_memory_config_key);
-            if (sc_memory_config_json !== null && sc_memory_config_json !== 'null' && sc_memory_config_json !== '[]' && sc_memory_config_json !== '{}' && sc_memory_config_json !== '') {
-                sc_memory_config = JSON.parse(sc_memory_config_json);
-            }
-
-            if (config_item_name === 'sc_panel_drag' && Array.isArray(config_item_val)) {
-                sc_memory_config['sc_panel_drag_left'] = config_item_val[0] ?? -1;
-                sc_memory_config['sc_panel_drag_top'] = config_item_val[1] ?? -1;
-            } else {
-                sc_memory_config[config_item_name] = config_item_val;
-            }
-
-            unsafeWindow.localStorage.setItem(sc_memory_config_key, JSON.stringify(sc_memory_config));
-        }
-
-        function sc_switch_store() {
-            if (sc_memory === 1) {
-                // 题记
-                unsafeWindow.localStorage.setItem('live_sc_switch_record', sc_switch);
-            } else if (sc_memory === 2) {
-                // 个记
-                update_sc_memory_config('sc_switch', sc_switch, 'self');
-            } else if (sc_memory === 3) {
-                // 全记
-                update_sc_memory_config('sc_switch', sc_switch, 'all');
-            }
-        }
-
-        function sc_fold_mode_store() {
-            if (sc_memory === 2) {
-                // 个记
-                update_sc_memory_config('sc_panel_fold_mode', sc_panel_fold_mode, 'self');
-            } else if (sc_memory === 3) {
-                // 全记
-                update_sc_memory_config('sc_panel_fold_mode', sc_panel_fold_mode, 'all');
-            }
-        }
-
-        function sc_panel_side_fold_flag_store() {
-            if (sc_memory === 2) {
-                // 个记
-                update_sc_memory_config('sc_panel_side_fold_flag', sc_panel_side_fold_flag, 'self');
-            } else if (sc_memory === 3) {
-                // 全记
-                update_sc_memory_config('sc_panel_side_fold_flag', sc_panel_side_fold_flag, 'all');
-            }
-        }
-
-        function sc_side_fold_simple_store() {
-            if (sc_memory === 2) {
-                // 个记
-                update_sc_memory_config('sc_panel_side_fold_simple', sc_panel_side_fold_simple, 'self');
-            } else if (sc_memory === 3) {
-                // 全记
-                update_sc_memory_config('sc_panel_side_fold_simple', sc_panel_side_fold_simple, 'all');
-            }
-        }
-
-        function sc_panel_drag_store(sc_panel_drag_left_val, sc_panel_drag_top_val) {
-            if (sc_panel_drag_left_val <= 0) {
-                sc_panel_drag_left_val = 0;
-            }
-            if (sc_panel_drag_top_val <= 0) {
-                sc_panel_drag_top_val = 0;
-            }
-            if (sc_panel_drag_left_val >= unsafeWindow.innerWidth) {
-                if (sc_panel_fold_mode === 1) {
-                    sc_panel_drag_left_val = unsafeWindow.innerWidth - 72;
-                } else {
-                    sc_panel_drag_left_val = unsafeWindow.innerWidth - sc_rectangle_width;
-                }
-            }
-            if (sc_panel_drag_top_val >= unsafeWindow.innerHeight) {
-                sc_panel_drag_top_val = unsafeWindow.innerHeight - sc_panel_high;
-            }
-
-            if (sc_memory === 2) {
-                // 个记
-                update_sc_memory_config('sc_panel_drag', [sc_panel_drag_left_val, sc_panel_drag_top_val], 'self');
-            } else if (sc_memory === 3) {
-                // 全记
-                update_sc_memory_config('sc_panel_drag', [sc_panel_drag_left_val, sc_panel_drag_top_val], 'all');
-            }
-        }
-
-        function sc_func_btn_mode_store() {
-            if (sc_memory === 2) {
-                // 个记
-                update_sc_memory_config('sc_func_btn_mode', sc_func_btn_mode, 'self');
-            } else if (sc_memory === 3) {
-                // 全记
-                update_sc_memory_config('sc_func_btn_mode', sc_func_btn_mode, 'all');
-            }
-        }
-
-        function sc_data_show_bottom_store() {
-            if (sc_memory === 2) {
-                // 个记
-                update_sc_memory_config('data_show_bottom_flag', data_show_bottom_flag, 'self');
-            } else if (sc_memory === 3) {
-                // 全记
-                update_sc_memory_config('data_show_bottom_flag', data_show_bottom_flag, 'all');
-            }
-        }
-
-        function sc_panel_allow_drag_store() {
-            if (sc_memory === 2) {
-                // 个记
-                update_sc_memory_config('sc_panel_allow_drag_flag', sc_panel_allow_drag_flag, 'self');
-            } else if (sc_memory === 3) {
-                // 全记
-                update_sc_memory_config('sc_panel_allow_drag_flag', sc_panel_allow_drag_flag, 'all');
-            }
-        }
-
-        function sc_side_fold_custom_config_store() {
-            if (sc_memory === 2) {
-                // 个记
-                update_sc_memory_config('sc_side_fold_custom_config', sc_side_fold_custom_config, 'self');
-                update_sc_memory_config('sc_side_fold_custom_time', sc_side_fold_custom_time, 'self');
-            } else if (sc_memory === 3) {
-                // 全记
-                update_sc_memory_config('sc_side_fold_custom_config', sc_side_fold_custom_config, 'all');
-                update_sc_memory_config('sc_side_fold_custom_time', sc_side_fold_custom_time, 'all');
-            }
-        }
-
-        function update_sc_switch_rooms(type = 'add') {
-            let sc_switch_memory_rooms = [];
-            let sc_switch_memory_rooms_json = unsafeWindow.localStorage.getItem('live_sc_switch_memory_rooms');
-            if (sc_switch_memory_rooms_json !== null && sc_switch_memory_rooms_json !== 'null' && sc_switch_memory_rooms_json !== '[]' && sc_switch_memory_rooms_json !== '') {
-                sc_switch_memory_rooms = JSON.parse(sc_switch_memory_rooms_json);
-            }
-
-            if (type === 'add') {
-                sc_switch_memory_rooms.push(room_id);
-            } else {
-                sc_switch_memory_rooms = sc_switch_memory_rooms.filter(item => item !== room_id);
-            }
-
-            unsafeWindow.localStorage.setItem('live_sc_switch_memory_rooms', JSON.stringify(sc_switch_memory_rooms));
-        }
-
-        // 记忆模式
-        function sc_memory_modify() {
-            let sc_btn_memory = $(document).find('.sc_button_memory');
-
-            if (sc_memory === 1) {
-                // 从[题记]切换到其他模式时，在题记房间中剔除当前房间
-                update_sc_switch_rooms('del');
-            } else if (sc_memory === 2) {
-                // 从[个记]切换到其他模式时，删除当前的个记配置
-                unsafeWindow.localStorage.removeItem(sc_self_memory_config_key);
-            } else if (sc_memory=== 3) {
-                // 从[全记]切换到其他模式时，删除全记配置
-                unsafeWindow.localStorage.removeItem('live_sc_memory_all_rooms_mode');
-                unsafeWindow.localStorage.removeItem('live_sc_all_memory_config');
-            }
-
-            sc_memory++;
-            if (sc_memory === 0) {
-                sc_btn_memory.text('没记');
-            } else if(sc_memory === 1) {
-                sc_btn_memory.text('题记');
-                update_sc_switch_rooms('add');
-                // 切换到题记的配置
-                let sc_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record');
-                if (sc_switch_record !== null && sc_switch_record !== 'null' && sc_switch_record !== '') {
-                    sc_switch = parseInt(sc_switch_record, 10);
-                    sc_switch_css();
-                }
-            } else if(sc_memory === 2) {
-                sc_btn_memory.text('个记');
-                // 保存个记的配置
-                sc_switch_store();
-                sc_fold_mode_store();
-                sc_panel_side_fold_flag_store();
-                sc_side_fold_simple_store();
-
-                const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
-                if (rect_circle.width === 0 && rect_circle.height === 0) {
-                    const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
-                    sc_panel_drag_store(rect_rectangle.left, rect_rectangle.top);
-                } else {
-                    sc_panel_drag_store(rect_circle.left, rect_circle.top);
-                }
-            } else if(sc_memory=== 3) {
-                sc_btn_memory.text('全记');
-                unsafeWindow.localStorage.setItem('live_sc_memory_all_rooms_mode', sc_memory);
-                // 保存全记的配置
-                sc_switch_store();
-                sc_fold_mode_store();
-                sc_panel_side_fold_flag_store();
-                sc_side_fold_simple_store();
-
-                const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
-                if (rect_circle.width === 0 && rect_circle.height === 0) {
-                    const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
-                    sc_panel_drag_store(rect_rectangle.left, rect_rectangle.top);
-                } else {
-                    sc_panel_drag_store(rect_circle.left, rect_circle.top);
-                }
-            } else {
-                sc_memory = 0;
-                sc_btn_memory.text('没记');
-            }
-        }
-
-        // 按钮模式选择
-        function sc_btn_mode_apply() {
-
-            if (sc_panel_side_fold_flag) {
-                if (sc_func_btn_mode === 0) {
-                    // 侧折模式下显示所有的按钮
-                    sc_menu();
-                } else if (sc_func_btn_mode === 1) {
-                    // 侧折模式下隐藏所有的按钮
-                    $(document).find('.sc_button_item').hide();
-                } else if (sc_func_btn_mode === 2) {
-                    // 侧折模式下按钮的极简模式
-                    $(document).find('.sc_button_item').hide();
-                    $(document).find('.sc_button_menu').show();
-                    $(document).find('.sc_button_min').show();
-                } else if (sc_func_btn_mode === 3) {
-                    // 侧折模式下只显示折叠按钮
-                    $(document).find('.sc_button_item').hide();
-                    $(document).find('.sc_button_min').show();
-                } else if (sc_func_btn_mode === 4) {
-                    // 侧折模式下只显示菜单按钮
-                    $(document).find('.sc_button_item').hide();
-                    $(document).find('.sc_button_menu').show();
-                }
-
-                sc_rectangle_is_slide_down = false;
-            }
-
-        }
-
-        function sc_memory_show() {
-            let sc_circles = $(document).find('.sc_long_circle');
-            let sc_rectangles = $(document).find('.sc_long_rectangle');
-
-            if (sc_panel_fold_mode) {
-                sc_circles.each(function() {
-                    if (sc_panel_drag_left >= 0) {
-                        $(this).css('left', sc_panel_drag_left + 'px');
-                    }
-
-                    if (sc_panel_drag_top >= 0) {
-                        $(this).css('top', sc_panel_drag_top + 'px');
-                    }
-
-                    $(this).hide();
-                });
-
-                sc_rectangles.each(function() {
-                    if (sc_panel_drag_left >= 0) {
-                        $(this).css('left', sc_panel_drag_left + 'px');
-                    }
-
-                    if (sc_panel_drag_top >= 0) {
-                        $(this).css('top', sc_panel_drag_top + 'px');
-                    }
-
-                    if (sc_panel_fold_mode === 1 && !sc_panel_side_fold_simple) {
-                        $(document).find('.sc_data_show').show();
-                    }
-
-                    $(this).slideDown(500);
-                });
-
-                if (sc_panel_fold_mode === 1) { sc_sidefold(false); sc_btn_mode_apply(); }
-            } else {
-                if (sc_panel_side_fold_flag) { sc_sidefold(false); sc_btn_mode_apply(); }
-
-                sc_circles.each(function() {
-                    if (sc_panel_drag_left >= 0) {
-                        $(this).css('left', sc_panel_drag_left + 'px');
-                    }
-
-                    if (sc_panel_drag_top >= 0) {
-                        $(this).css('top', sc_panel_drag_top + 'px');
-                    }
-                });
-            }
-        }
-
-        // 导出
-        function sc_export() {
-            let sc_localstorage_json_export = unsafeWindow.localStorage.getItem(sc_localstorage_key);
-            if (sc_localstorage_json_export === null || sc_localstorage_json_export === 'null' || sc_localstorage_json_export === '[]' || sc_localstorage_json_export === '') {
-                return;
-            } else {
-                let sc_localstorage_export = JSON.parse(sc_localstorage_json_export);
-                let sc_export_str = '';
-                for (let j = 0; j < sc_localstorage_export.length; j++) {
-                    let sc_export_timestamp = '[' + getTimestampConversion(sc_localstorage_export[j]["start_time"]) + ']';
-                    let sc_export_uname = '[ ' + sc_localstorage_export[j]["user_info"]["uname"] + ' ]';
-                    let sc_export_uid = '[ uid: ' + sc_localstorage_export[j]["uid"] + ' ]';
-                    let sc_export_guard_level = sc_localstorage_export[j]["user_info"]["guard_level"];
-                    let sc_export_guard = '';
-                    if (sc_export_guard_level === 1) {
-                        sc_export_guard = '[总督]'
-                    } else if (sc_export_guard_level === 2) {
-                        sc_export_guard = '[提督]';
-                    } else if (sc_export_guard_level === 3) {
-                        sc_export_guard = '[舰长]';
-                    } else {
-                        sc_export_guard = '[普通]';
-                    }
-
-                    let sc_export_price = '[ ￥' + sc_localstorage_export[j]["price"] + ' ]';
-                    let sc_export_message = '[ ' + sc_localstorage_export[j]["message"] + ' ]';
-
-                    sc_export_str += sc_export_timestamp + sc_export_guard + sc_export_uid + sc_export_uname + sc_export_price + ' : ' + sc_export_message + '\n\n';
-                }
-
-                // 创建一个Blob对象，将字符串放入其中
-                const sc_export_blob = new Blob([sc_export_str], { type: 'text/plain' });
-
-                // 创建一个下载链接
-                const sc_export_downloadLink = document.createElement('a');
-                sc_export_downloadLink.href = URL.createObjectURL(sc_export_blob);
-
-                // 设置文件名
-                sc_export_downloadLink.download = 'B站SC记录_' + sc_live_room_title + '_' + getTimestampConversion((new Date()).getTime()) + '.txt';
-
-                // 将链接添加到页面中，模拟点击下载
-                document.body.appendChild(sc_export_downloadLink);
-                sc_export_downloadLink.click();
-
-                // 移除链接
-                document.body.removeChild(sc_export_downloadLink);
-            }
-        }
-
-        // 显示所有按钮
-        function sc_menu() {
-            $(document).find('.sc_button_item').show();
-            $(document).find('.sc_button_menu').hide();
-        }
-
         let sc_custom_modal_style = document.createElement('style');
         sc_custom_modal_style.textContent = `
             .sc_custom_config_modal {
@@ -1846,6 +2724,7 @@
                 margin-top: 30px;
             }
 
+            .sc_custom_checkbox_div,
             .sc_custom_input_div {
                 display: none;
                 text-align: center;
@@ -1854,6 +2733,7 @@
 
             .sc_custom_form {
                 margin-top: 30px;
+                text-align: right;
             }
 
             #sc_custom_confirm_btn {
@@ -1887,13 +2767,17 @@
                            <label for="sc_custom_open_option">第一个SC保持展开</label>
 
                            <input type="radio" id="sc_custom_time_option" name="sc_custom_option" value="2" />
-                           <label for="sc_custom_time_option">第一个SC展开时间自定义</label>
+                           <label for="sc_custom_time_option">第一个SC不保持展开</label>
+                       </div>
+                       <div class="sc_custom_checkbox_div sc_custom_checkbox_div_default">
+                           <input type="checkbox" id="sc_custom_each_same_time_input" />
+                           <label for="sc_custom_each_same_time_input">确保每个实时SC都有相同的展开时间</label>
+                       </div>
+                       <div class="sc_custom_input_div sc_custom_input_div_default">
+                           <label for="sc_custom_time_input">展开时间设定 (5-150/秒)：</label>
+                           <input type="number" id="sc_custom_time_input" min="5" max="150" value="10" />
                        </div>
                    </form>
-                   <div class="sc_custom_input_div">
-                       <label for="sc_custom_time_input">展开时间设定 (5-150/秒)：</label>
-                       <input type="number" id="sc_custom_time_input" min="5" max="150" value="10" />
-                   </div>
                    <div class="sc_custom_btn_div">
                        <button id="sc_custom_cancel_btn" class="sc_custom_modal_btn">取消</button>
                        <button id="sc_custom_confirm_btn" class="sc_custom_modal_btn">确定</button>
@@ -1919,13 +2803,17 @@
                            <label for="sc_custom_open_option_fullscreen">第一个SC保持展开</label>
 
                            <input type="radio" id="sc_custom_time_option_fullscreen" name="sc_custom_option_fullscreen" value="2" />
-                           <label for="sc_custom_time_option_fullscreen">第一个SC展开时间自定义</label>
+                           <label for="sc_custom_time_option_fullscreen">第一个SC不保持展开</label>
+                       </div>
+                       <div class="sc_custom_checkbox_div sc_custom_checkbox_div_fullscreen">
+                           <input type="checkbox" id="sc_custom_each_same_time_input_fullscreen" />
+                           <label for="sc_custom_each_same_time_input">确保每个实时SC都有相同的展开时间</label>
+                       </div>
+                       <div class="sc_custom_input_div sc_custom_input_div_fullscreen">
+                           <label for="sc_custom_time_input_fullscreen">展开时间设定 (5-150/秒)：</label>
+                           <input type="number" id="sc_custom_time_input_fullscreen" min="5" max="150" value="10" />
                        </div>
                    </form>
-                   <div class="sc_custom_input_div">
-                       <label for="sc_custom_time_input_fullscreen">展开时间设定 (5-150/秒)：</label>
-                       <input type="number" id="sc_custom_time_input_fullscreen" min="5" max="150" value="10" />
-                   </div>
                    <div class="sc_custom_btn_div_fullscreen">
                        <button id="sc_custom_cancel_btn_fullscreen" class="sc_custom_modal_btn">取消</button>
                        <button id="sc_custom_confirm_btn_fullscreen" class="sc_custom_modal_btn">确定</button>
@@ -1943,20 +2831,67 @@
             sc_close_custom_modal();
         });
 
+        $(document).on('change', '#sc_custom_each_same_time_input', function() {
+            let sc_custom_select_val = $(document).find('.sc_custom_radio_group input[name="sc_custom_option"]:checked').val();
+            if (sc_custom_select_val === '1') {
+                if ($(this).is(':checked')) {
+                    $(document).find('.sc_custom_input_div').show();
+                } else {
+                    $(document).find('.sc_custom_input_div').hide();
+                }
+            }
+        });
+
+        $(document).on('change', '#sc_custom_each_same_time_input_fullscreen', function() {
+            let sc_custom_select_val = $(document).find('.sc_custom_radio_group_fullscreen input[name="sc_custom_option_fullscreen"]:checked').val();
+            if (sc_custom_select_val === '1') {
+                if ($(this).is(':checked')) {
+                    $(document).find('.sc_custom_input_div').show();
+                } else {
+                    $(document).find('.sc_custom_input_div').hide();
+                }
+            }
+        });
+
         $(document).on('click', '#sc_custom_confirm_btn', function(e) {
             let sc_custom_select_val = $(document).find('.sc_custom_radio_group input[name="sc_custom_option"]:checked').val();
 
-            if (sc_custom_select_val === '0') {
+            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
 
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class)); }
-                if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+            if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+            if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+            if (sc_custom_select_val === '0') {
+                sc_side_fold_custom_each_same_time_flag = false;
+                sc_side_fold_custom_auto_run_flag = false;
 
             } else if (sc_custom_select_val === '1') {
+                sc_side_fold_custom_each_same_time_flag = $(document).find('#sc_custom_each_same_time_input').is(':checked');
 
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out($('.' + sc_side_fold_custom_first_class)); }
-                if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+                if (sc_side_fold_custom_each_same_time_flag) {
+                    let sc_custom_config_time = $(document).find('#sc_custom_time_input').val();
+                    sc_custom_config_time = parseInt(sc_custom_config_time, 10);
+
+                    if (sc_custom_config_time >= 5 && sc_custom_config_time <= 150) {
+                        sc_side_fold_custom_time = sc_custom_config_time;
+                    } else {
+
+                        if (sc_custom_config_time < 5) {
+                            sc_side_fold_custom_time = 5;
+                        } else if (sc_custom_config_time > 150) {
+                            sc_side_fold_custom_time = 150;
+                        } else {
+                            sc_side_fold_custom_time = 10;
+                        }
+                    }
+                }
+
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
 
             } else if (sc_custom_select_val === '2') {
+                sc_side_fold_custom_each_same_time_flag = $(document).find('#sc_custom_each_same_time_input').is(':checked');
+
                 let sc_custom_config_time = $(document).find('#sc_custom_time_input').val();
                 sc_custom_config_time = parseInt(sc_custom_config_time, 10);
 
@@ -1974,13 +2909,16 @@
                 }
 
                 if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
-                    sc_trigger_item_side_fold_out($('.' + sc_side_fold_custom_first_class));
+                    sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class);
 
-                    sc_side_fold_custom_first_timeout_id = setTimeout(function() {
-                        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
-                            sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class));
-                        }
-                    }, sc_side_fold_custom_time * 1000);
+                    if (!sc_side_fold_custom_each_same_time_flag) {
+                        sc_side_fold_custom_first_timeout_id = setTimeout(function() {
+                            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                                sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class);
+                            }
+                        }, sc_side_fold_custom_time * 1000);
+                    }
+
                 }
             }
 
@@ -1994,17 +2932,42 @@
         $(document).on('click', '#sc_custom_confirm_btn_fullscreen', function(e) {
             let sc_custom_select_val = $(document).find('.sc_custom_radio_group_fullscreen input[name="sc_custom_option_fullscreen"]:checked').val();
 
-            if (sc_custom_select_val === '0') {
+            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
 
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class)); }
-                if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+            if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+            if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+            if (sc_custom_select_val === '0') {
+                sc_side_fold_custom_each_same_time_flag = false;
+                sc_side_fold_custom_auto_run_flag = false;
 
             } else if (sc_custom_select_val === '1') {
+                sc_side_fold_custom_each_same_time_flag = $(document).find('#sc_custom_each_same_time_input_fullscreen').is(':checked');
 
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out($('.' + sc_side_fold_custom_first_class)); }
-                if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+                if (sc_side_fold_custom_each_same_time_flag) {
+                    let sc_custom_config_time = $(document).find('#sc_custom_time_input_fullscreen').val();
+                    sc_custom_config_time = parseInt(sc_custom_config_time, 10);
+
+                    if (sc_custom_config_time >= 5 && sc_custom_config_time <= 150) {
+                        sc_side_fold_custom_time = sc_custom_config_time;
+                    } else {
+
+                        if (sc_custom_config_time < 5) {
+                            sc_side_fold_custom_time = 5;
+                        } else if (sc_custom_config_time > 150) {
+                            sc_side_fold_custom_time = 150;
+                        } else {
+                            sc_side_fold_custom_time = 10;
+                        }
+                    }
+                }
+
+                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
 
             } else if (sc_custom_select_val === '2') {
+                sc_side_fold_custom_each_same_time_flag = $(document).find('#sc_custom_each_same_time_input_fullscreen').is(':checked');
+
                 let sc_custom_config_time = $(document).find('#sc_custom_time_input_fullscreen').val();
                 sc_custom_config_time = parseInt(sc_custom_config_time, 10);
 
@@ -2022,13 +2985,16 @@
                 }
 
                 if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
-                    sc_trigger_item_side_fold_out($('.' + sc_side_fold_custom_first_class));
+                    sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class);
 
-                    sc_side_fold_custom_first_timeout_id = setTimeout(function() {
-                        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
-                            sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class));
-                        }
-                    }, sc_side_fold_custom_time * 1000);
+                    if (!sc_side_fold_custom_each_same_time_flag) {
+                        sc_side_fold_custom_first_timeout_id = setTimeout(function() {
+                            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                                sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class);
+                            }
+                        }, sc_side_fold_custom_time * 1000);
+                    }
+
                 }
             }
 
@@ -2040,9 +3006,21 @@
         });
 
         $(document).on('change', '.sc_custom_radio_group input[type="radio"], .sc_custom_radio_group_fullscreen input[type="radio"]', function () {
-            if ($(this).val() === '2') {
+            if ($(this).val() === '1') {
+                $(document).find('.sc_custom_checkbox_div').show();
+                $(document).find('.sc_custom_input_div').hide();
+                if ($(document).find('#sc_custom_each_same_time_input').is(':checked')) {
+                    $(document).find('.sc_custom_input_div_default').show();
+                }
+
+                if ($(document).find('#sc_custom_each_same_time_input_fullscreen').is(':checked')) {
+                    $(document).find('.sc_custom_input_div_fullscreen').show();
+                }
+            } else if ($(this).val() === '2') {
+                $(document).find('.sc_custom_checkbox_div').show();
                 $(document).find('.sc_custom_input_div').show();
             } else {
+                $(document).find('.sc_custom_checkbox_div').hide();
                 $(document).find('.sc_custom_input_div').hide();
             }
         });
@@ -2114,6 +3092,30 @@
         sc_func_button11.innerHTML = '展开记录板即切换展开模式';
         sc_func_button11.style.marginBottom = '2px';
 
+        let sc_func_button12 = document.createElement('button');
+        sc_func_button12.className = 'sc_func_btn';
+        sc_func_button12.id = 'sc_circle_welt_hide_half_true_btn';
+        sc_func_button12.innerHTML = '设置小图标在贴边后半隐藏';
+        sc_func_button12.style.marginBottom = '2px';
+
+        let sc_func_button13 = document.createElement('button');
+        sc_func_button13.className = 'sc_func_btn';
+        sc_func_button13.id = 'sc_circle_welt_hide_half_false_btn';
+        sc_func_button13.innerHTML = '取消小图标在贴边后半隐藏';
+        sc_func_button13.style.marginBottom = '2px';
+
+        let sc_func_button14 = document.createElement('button');
+        sc_func_button14.className = 'sc_func_btn';
+        sc_func_button14.id = 'sc_func_item_show_time_btn';
+        sc_func_button14.innerHTML = '显示醒目留言发送具体时间';
+        sc_func_button14.style.marginBottom = '2px';
+
+        let sc_func_button15 = document.createElement('button');
+        sc_func_button15.className = 'sc_func_btn';
+        sc_func_button15.id = 'sc_func_item_hide_time_btn';
+        sc_func_button15.innerHTML = '隐藏醒目留言发送具体时间';
+        sc_func_button15.style.marginBottom = '2px';
+
         let sc_func_br1 = document.createElement('br');
         let sc_func_br2 = document.createElement('br');
         let sc_func_br3 = document.createElement('br');
@@ -2124,6 +3126,10 @@
         let sc_func_br8 = document.createElement('br');
         let sc_func_br9 = document.createElement('br');
         let sc_func_br10 = document.createElement('br');
+        let sc_func_br11 = document.createElement('br');
+        let sc_func_br12 = document.createElement('br');
+        let sc_func_br13 = document.createElement('br');
+        let sc_func_br14 = document.createElement('br');
 
         let sc_func_context_menu = document.createElement('div');
         sc_func_context_menu.id = 'sc_context_menu_func_body';
@@ -2156,6 +3162,14 @@
         sc_func_context_menu.appendChild(sc_func_button10);
         sc_func_context_menu.appendChild(sc_func_br10);
         sc_func_context_menu.appendChild(sc_func_button11);
+        sc_func_context_menu.appendChild(sc_func_br11);
+        sc_func_context_menu.appendChild(sc_func_button12);
+        sc_func_context_menu.appendChild(sc_func_br12);
+        sc_func_context_menu.appendChild(sc_func_button13);
+        sc_func_context_menu.appendChild(sc_func_br13);
+        sc_func_context_menu.appendChild(sc_func_button14);
+        sc_func_context_menu.appendChild(sc_func_br14);
+        sc_func_context_menu.appendChild(sc_func_button15);
 
         // 将功能的右键菜单添加到body中
         document.body.appendChild(sc_func_context_menu);
@@ -2300,28 +3314,58 @@
             open_and_close_sc_modal('已设置 展开记录板即切换展开模式 ✓', '#A7C9D3', e, 1);
         });
 
-        function sc_after_click_func_btn_apply(click_page_x) {
-            if (sc_panel_side_fold_flag) {
-                let sc_rectangle_model = document.getElementsByClassName('sc_long_rectangle');
-                let sc_rect_left = $(sc_rectangle_model).position().left;
+        $(document).on('click', '#sc_circle_welt_hide_half_true_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
 
-                if (click_page_x < sc_rect_left || click_page_x - sc_rect_left > 72) {
-                    let sc_btn_model = document.getElementsByClassName('sc_long_buttons');
+            sc_welt_hide_circle_half_flag = true;
+            sc_welt_hide_circle_half_store();
+            sc_circle_welt_hide_half();
 
-                    $(sc_btn_model).slideUp(500, () => {
-                        sc_rectangle_is_slide_up = false;
-                    });
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 小图标在贴边后半隐藏 ✓', '#A7C9D3', e, 1);
+        });
 
-                    if (!sc_panel_side_fold_simple) {
-                        $(sc_rectangle_model).css('border-bottom', '');
-                    }
-                }
+        $(document).on('click', '#sc_circle_welt_hide_half_false_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
 
-                if (!sc_panel_side_fold_simple && sc_func_btn_mode === 1) {
-                    $(sc_rectangle_model).css('border-bottom', '');
-                }
-            }
-        }
+            sc_welt_hide_circle_half_flag = false;
+            sc_welt_hide_circle_half_store();
+
+            let sc_circles = $(document).find('.sc_long_circle');
+            sc_circles.removeClass('sc_circle_x_left_hide_animate');
+            sc_circles.removeClass('sc_circle_x_right_hide_animate');
+            sc_circles.removeClass('sc_circle_y_top_hide_animate');
+            sc_circles.removeClass('sc_circle_y_bottom_hide_animate');
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 取消小图标在贴边后半隐藏 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_item_show_time_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            $(document).find('.sc_start_time').show();
+            sc_start_time_show_flag = true;
+            sc_start_time_show_store();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 显示醒目留言发送具体时间 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_item_hide_time_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            $(document).find('.sc_start_time').hide();
+            sc_start_time_show_flag = false;
+            sc_start_time_show_store();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 隐藏醒目留言发送具体时间 ✓', '#A7C9D3', e, 1);
+        });
 
         // 创建一个自定义右键菜单
         let sc_copy_button1 = document.createElement('button');
@@ -2420,6 +3464,7 @@
                 tmp_sc_item.height(current_sc_div.clientHeight);
                 tmp_sc_item.css('animation', '');
                 tmp_sc_item.find('.sc_font_color').css('color', '#000000');
+                tmp_sc_item.find('.sc_start_time').show();
 
                 if (sc_copy_btn_id === 'sc_copy_no_time_btn') {
                     tmp_sc_item.find('.sc_start_time').hide();
@@ -2522,8 +3567,8 @@
             if (unsafeWindow.innerWidth - e.clientX <= 200) {
                 e.clientX = unsafeWindow.innerWidth - 200;
             }
-            if (unsafeWindow.innerHeight - e.clientY <= 300) {
-                e.clientY = unsafeWindow.innerHeight - 300;
+            if (unsafeWindow.innerHeight - e.clientY <= 450) {
+                e.clientY = unsafeWindow.innerHeight - 450;
             }
             $(document).find('#' + the_sc_ctx_menu_id).css('left', e.clientX + 'px');
             $(document).find('#' + the_sc_ctx_menu_id).css('top', e.clientY + 'px');
@@ -2532,497 +3577,11 @@
             clearTimeout(sc_context_func_menu_timeout_id);
         });
 
-        function open_and_close_sc_modal(show_str, show_color, e, mode = 0) {
-            $(document).find('.sc_long_rectangle').css('cursor', 'grab');
-            let sc_copy_modal = document.createElement('div');
-            sc_copy_modal.className = 'sc_cp_mod';
-            sc_copy_modal.style.position = 'fixed';
-            sc_copy_modal.style.display = 'none';
-            sc_copy_modal.style.color = show_color;
-            sc_copy_modal.style.textAlign = 'center';
-            sc_copy_modal.style.backgroundColor = '#ffffff';
-            sc_copy_modal.style.border = 0;
-            sc_copy_modal.style.boxShadow = '0 0 3px rgba(0, 0, 0, 0.3)';
-            sc_copy_modal.innerHTML = show_str;
-            sc_copy_modal.style.zIndex = 3333;
-
-            if (mode === 0) {
-                sc_copy_modal.style.width = '30px';
-                sc_copy_modal.style.height = '30px';
-                sc_copy_modal.style.lineHeight = '30px';
-                sc_copy_modal.style.borderRadius = '50%';
-                sc_copy_modal.style.left = e.clientX + 10 + 'px';
-                sc_copy_modal.style.top = e.clientY - 10 + 'px';
-            } else {
-                sc_copy_modal.style.borderRadius = '10px';
-                sc_copy_modal.style.padding = '10px';
-                sc_copy_modal.style.left = e.target.getBoundingClientRect().left + 10 + 'px';
-                sc_copy_modal.style.top = e.target.getBoundingClientRect().top - 30 + 'px';
-            }
-
-            if (sc_isFullscreen) {
-                $(live_player_div).append(sc_copy_modal);
-            } else {
-                document.body.appendChild(sc_copy_modal);
-            }
-
-            // 显示模态框
-            sc_copy_modal.style.display = 'block';
-
-            // 在一定时间后关闭并删除模态框
-            setTimeout(() => {
-                close_and_remove_sc_modal();
-            }, 1500);
-        }
-
-        function close_and_remove_sc_modal() {
-            // 关闭模态框
-            $(document).find('.sc_cp_mod').hide();
-
-            // 从 body 中移除模态框
-            $(document).find('.sc_cp_mod').remove();
-        }
-
-        function sc_fetch_and_show() {
-            // 抓取SC
-            fetch(sc_url).then(response => {
-                return response.json();
-            }).then(ret => {
-                let sc_catch = [];
-                if (ret.code === 0) {
-                    // 高能数
-                    high_energy_num = ret.data.room_rank_info.user_rank_entry.user_contribution_rank_entry?.count || 0;
-
-                    // 舰长数
-                    let captain_num = ret.data.guard_info.count;
-                    $(document).find('.sc_captain_num_right').text(captain_num);
-
-                    sc_live_room_title = ret.data.anchor_info.base_info.uname + '_' + ret.data.room_info.title;
-
-                    sc_catch = ret.data.super_chat_info.message_list;
-                }
-
-                // 追加到localstorage 和 SC显示板
-                let sc_localstorage = [];
-                let sc_sid_localstorage = [];
-                let diff_arr_new_sc = [];
-                let sc_add_arr = [];
-                let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
-                if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
-                    diff_arr_new_sc = sc_catch;
-                } else {
-                    sc_localstorage = JSON.parse(sc_localstorage_json);
-                    sc_sid_localstorage = JSON.parse(unsafeWindow.localStorage.getItem(sc_sid_localstorage_key));
-                    diff_arr_new_sc = sc_catch.filter(v => {
-                        let sid = String(v.id) + '_' + String(v.uid) + '_' + String(v.price);
-
-                        return !sc_sid_localstorage.includes(sid);
-                    });
-                }
-
-                diff_arr_new_sc = diff_arr_new_sc.sort((a, b) => a.start_time - b.start_time);
-
-                if (sc_isListEmpty) {
-                    // 一开始进入
-                    sc_add_arr = sc_localstorage.concat(diff_arr_new_sc);
-                } else {
-                    // 实时
-                    sc_add_arr = diff_arr_new_sc;
-                }
-
-                if (sc_add_arr.length) {
-                    for (let i = 0; i < sc_add_arr.length; i++){
-                        // 追加到SC显示板
-                        update_sc_item(sc_add_arr[i]);
-                    }
-
-                    // 追加到localstorage（存储就不用GM_setValue了，直接localstorage，控制台就可以看到）
-                    if (diff_arr_new_sc.length) {
-                        // 加入记录组
-                        check_and_join_live_sc_room();
-
-                        for (let d = 0; d < diff_arr_new_sc.length; d++) {
-                            sc_localstorage.push(diff_arr_new_sc[d]);
-                            sc_sid_localstorage.push(String(diff_arr_new_sc[d]["id"]) + '_' + String(diff_arr_new_sc[d]["uid"]) + '_' + String(diff_arr_new_sc[d]["price"]));
-                        }
-
-                        // 保存/更新sc_keep_time （最后sc的时间戳）
-                        unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
-
-                        // 追加存储
-                        unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
-                        unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
-                    }
-
-                    sc_isListEmpty = false;
-                }
-            }).catch(error => {
-                sc_catch_log('请求api失败！抓取已存在的SC失败！请刷新页面来解决~');
-                let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
-                if (sc_localstorage_json !== null && sc_localstorage_json !== 'null' && sc_localstorage_json !== '[]' && sc_localstorage_json !== '') {
-                    if (sc_isListEmpty) {
-                        let sc_localstorage = JSON.parse(sc_localstorage_json);
-                        if (sc_localstorage.length) {
-                            for (let r = 0; r < sc_localstorage.length; r++){
-                                // 追加到SC显示板
-                                update_sc_item(sc_localstorage[r]);
-                            }
-
-                            sc_isListEmpty = false;
-                        }
-                    }
-                }
-            });
-        }
-
         sc_switch_css();
         sc_memory_show();
         check_and_clear_all_sc_store();
         sc_fetch_and_show();
 
-    }
-
-    function getTimestampConversion(timestamp) {
-        let timeStamp;
-        let timeStampLen = timestamp.toString().length;
-
-        if (timeStampLen === 10) {
-            timeStamp = timestamp * 1000
-        } else if (timeStampLen === 13) {
-            timeStamp = timestamp
-        } else {
-            timeStamp = timestamp
-        }
-
-        let date = new Date(timeStamp); // 时间戳为10位需*1000，时间戳为13位的话不需乘1000
-        let Y = (date.getFullYear() + '-');
-        let M = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1) + '-';
-        let D = (date.getDate() < 10 ? '0' + date.getDate() + ' ' : date.getDate() + ' ');
-        let h = (date.getHours() < 10 ? '0' + date.getHours() + ':' : date.getHours() + ':');
-        let m = (date.getMinutes() < 10 ? '0' + date.getMinutes() + ':' : date.getMinutes() + ':');
-        let s = (date.getSeconds() < 10 ? '0' + date.getSeconds() : date.getSeconds());
-
-        return Y + M + D + h + m + s;
-    }
-
-    function getTimestampDiff(timestamp) {
-        let timeStamp;
-        let timeStampLen = timestamp.toString().length;
-
-        if (timeStampLen === 10) {
-            timeStamp = timestamp * 1000
-        } else if (timeStampLen === 13) {
-            timeStamp = timestamp
-        } else {
-            timeStamp = timestamp
-        }
-
-        let nowTime = (new Date()).getTime();
-        let timeDiffValue = nowTime - timeStamp;;
-        let resultStr = '';
-        if (timeDiffValue < 0) {
-            return resultStr;
-        }
-
-        var dayDiff = timeDiffValue / (1000 * 60 * 60 * 24);
-        var hourDiff = timeDiffValue / (1000 * 60 * 60);
-        var minDiff = timeDiffValue / (1000 * 60);
-
-        if (dayDiff >= 1) {
-            resultStr = '' + parseInt(dayDiff) + '天前';
-        } else if (hourDiff >= 1) {
-            resultStr = '' + parseInt(hourDiff) + '小时前';
-        } else if (minDiff >= 1) {
-            resultStr = '' + parseInt(minDiff) + '分钟前';
-        } else {
-            resultStr = '刚刚';
-        }
-
-        return resultStr;
-    }
-
-    // 更新每条SC距离当前时间
-    function updateTimestampDiff() {
-        let sc_timestamp_item = $(document).find('.sc_start_timestamp');
-        sc_timestamp_item.each(function() {
-            let new_timestamp_diff = getTimestampDiff($(this).html());
-            $(this).prev().html(new_timestamp_diff);
-        });
-    }
-
-    function check_and_join_live_sc_room() {
-        if (!sc_keep_time_flag) {
-
-            sc_keep_time_flag = 1;
-
-            // 加入记录组
-            let live_sc_rooms_json = unsafeWindow.localStorage.getItem('live_sc_rooms');
-            if (live_sc_rooms_json === null || live_sc_rooms_json === 'null' || live_sc_rooms_json === '[]' || live_sc_rooms_json === '') {
-                unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify([room_id]));
-            } else {
-                let live_sc_rooms = JSON.parse(live_sc_rooms_json);
-                live_sc_rooms.push(room_id);
-                unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify(live_sc_rooms));
-            }
-        }
-    }
-
-    // 检查全记的状态
-    function check_all_memory_status() {
-        // 只有当前的记忆模式是全记时才检查
-        if (sc_memory === 3) {
-            let sc_btn_memory = $(document).find('.sc_button_memory');
-            let sc_memory_all_rooms_mode = unsafeWindow.localStorage.getItem('live_sc_memory_all_rooms_mode');
-            if (sc_memory_all_rooms_mode !== null && sc_memory_all_rooms_mode !== 'null' && sc_memory_all_rooms_mode !== '') {
-                if (parseInt(sc_memory_all_rooms_mode, 10) !== 3) {
-                    sc_memory = 0;
-                    sc_btn_memory.text('没记');
-                }
-            } else {
-                sc_memory = 0;
-                sc_btn_memory.text('没记');
-            }
-        }
-    }
-
-    function sc_custom_config_apply(new_sc_side_fold_custom_first_class) {
-        if (sc_panel_side_fold_flag) {
-            if (sc_side_fold_custom_config === 1) {
-                // 第一个SC保持展开
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class) {
-                    sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class));
-                }
-                if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
-                    sc_trigger_item_side_fold_out($('.' + new_sc_side_fold_custom_first_class));
-                }
-            } else if (sc_side_fold_custom_config === 2) {
-                // 第一个SC展开时间自定义
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class) {
-                    sc_trigger_item_side_fold_in($('.' + sc_side_fold_custom_first_class));
-                }
-                if (sc_side_fold_custom_first_timeout_id) {
-                    clearTimeout(sc_side_fold_custom_first_timeout_id);
-                }
-
-                if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
-                    sc_trigger_item_side_fold_out($('.' + new_sc_side_fold_custom_first_class));
-                }
-
-                sc_side_fold_custom_first_timeout_id = setTimeout(function() {
-                    if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
-                        sc_trigger_item_side_fold_in($('.' + new_sc_side_fold_custom_first_class));
-                    }
-                }, sc_side_fold_custom_time * 1000);
-
-            }
-        }
-    }
-
-    function update_sc_item(sc_data) {
-        // 追加SC 显示
-        let sc_background_bottom_color = sc_data["background_bottom_color"];
-        let sc_background_image = sc_data["background_image"];
-        let sc_background_color = sc_data["background_color"];
-        let sc_uid = sc_data["uid"];
-        let sc_user_info_face = sc_data["user_info"]["face"];
-        let sc_user_info_face_frame = sc_data["user_info"]["face_frame"];
-        let sc_user_info_uname = sc_data["user_info"]["uname"];
-        let sc_price = sc_data["price"];
-        let sc_message = sc_data["message"];
-        let sc_start_timestamp = sc_data["start_time"];
-
-        let sc_medal_flag = false;
-        let sc_medal_color = '';
-        let sc_medal_name = '';
-        let sc_medal_level = 0;
-
-        if (sc_data["medal_info"] && sc_data["medal_info"]["anchor_roomid"]) {
-            sc_medal_flag = true;
-            sc_medal_color = sc_data["medal_info"]["medal_color"];
-            sc_medal_name = sc_data["medal_info"]["medal_name"];
-            sc_medal_level = sc_data["medal_info"]["medal_level"];
-        }
-
-        let sc_background_image_html = '';
-        if (sc_background_image !== '') {
-            sc_background_image_html = 'background-image: url('+ sc_background_image +');';
-        }
-
-        let sc_font_color = '#666666';
-        let sc_font_color_data = sc_data["user_info"]["name_color"] ?? '#666666';
-
-        let sc_start_time = getTimestampConversion(sc_start_timestamp);
-        let sc_diff_time = getTimestampDiff(sc_start_timestamp);
-
-        let sc_user_info_face_img = '<img src="'+ sc_user_info_face +'" height="40" width="40" style="border-radius: 20px; float: left; position: absolute; z-index:1;">';
-        let sc_user_info_face_frame_img = '';
-        if (sc_user_info_face_frame !== '') {
-            sc_user_info_face_img = '<img src="'+ sc_user_info_face +'" height="35" width="35" style="border-radius: 20px; float: left; position: absolute; z-index: 1;top: 3px;left: 2px;">';
-            sc_user_info_face_frame_img = '<img src="'+ sc_user_info_face_frame +'" height="40" width="40" style="float: left; position: absolute; z-index: 2;">';
-        }
-
-        let box_shadow_css = '';
-        if (sc_switch === 0 || sc_switch === 2 || sc_switch === 3) {
-            box_shadow_css = 'box-shadow: rgba(0, 0, 0, 0.5) 2px 2px 2px;';
-        }
-
-        let metal_and_start_time_html = '<div class="sc_start_time" style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>';
-        if (sc_medal_flag) {
-            metal_and_start_time_html = '<div style="display: inline-flex;"><div class="fans_medal_item" style="background-color: '+ sc_medal_color +';border: 1px solid '+ sc_medal_color +';"><div class="fans_medal_label"><span class="fans_medal_content">'+ sc_medal_name +'</span></div><div class="fans_medal_level">'+ sc_medal_level +'</div></div>' +
-                '<div class="sc_start_time" style="height: 20px; padding-left: 5px;"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">' + sc_start_time + '</span></div></div>'
-        }
-
-        let sc_msg_item_style_width = '';
-        let sc_msg_item_style_border_radius = 'border-radius: 8px 8px 6px 6px;';
-        let sc_msg_body_style_display = '';
-        let sc_msg_head_style_border_radius = 'border-radius: 6px 6px 0px 0px;';
-        let sc_msg_head_left_style_display = '';
-        let sc_msg_head_right_style_display = '';
-        if (sc_panel_side_fold_flag) {
-            sc_msg_item_style_width = 'width: 50px;';
-            sc_msg_item_style_border_radius = 'border-radius: 8px;';
-            sc_msg_body_style_display = 'display: none;';
-            sc_msg_head_style_border_radius = 'border-radius: 6px;';
-            sc_msg_head_left_style_display = 'display: none;';
-            sc_msg_head_right_style_display = 'display: none;';
-        }
-
-        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;animation: sc_fadenum 1s linear forwards;'+ sc_msg_item_style_border_radius + box_shadow_css +'">'+
-            '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center;'+ sc_msg_head_style_border_radius +'">'+
-            '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
-            sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
-            '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;'+ sc_msg_head_left_style_display +'">'+
-            metal_and_start_time_html+
-            '<div class="sc_uname_div" style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((sc_rectangle_width / 2) + 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;" data-color="'+ sc_font_color_data +'">' + sc_user_info_uname + '</span></div>'+
-            '</div>'+
-            '<div class="sc_msg_head_right" style="float: right; box-sizing: border-box; height: 40px;'+ sc_msg_head_right_style_display +'">'+
-            '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right;">￥'+ sc_price +'</span></div>'+
-            '<div style="height: 20px; color: #666666" data-html2canvas-ignore><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span></div>'+
-            '</div>'+
-            '</div>'+
-            '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;'+ sc_msg_body_style_display +'"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+
-            '</div>';
-
-        $(document).find('.sc_long_list').prepend(sc_item_html);
-
-        sc_custom_config_apply('sc_' + sc_uid + '_' + sc_start_timestamp);
-
-        sc_side_fold_custom_first_class = 'sc_' + sc_uid + '_' + sc_start_timestamp;
-
-    }
-
-    function store_sc_item(sc_data) {
-        check_and_join_live_sc_room();
-        // 追加SC 存储
-        let sc_localstorage = [];
-        let sc_sid_localstorage = [];
-        let sid = String(sc_data["id"]) + '_' + String(sc_data["uid"]) + '_' + String(sc_data["price"]);
-        let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
-
-        if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
-            sc_localstorage.push(sc_data);
-            sc_sid_localstorage.push(sid);
-            // 保存/更新sc_keep_time （最后sc的时间戳）
-            unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
-
-            // 追加存储
-            unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
-            unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
-
-            return true;
-        } else {
-            sc_localstorage = JSON.parse(sc_localstorage_json);
-            sc_sid_localstorage = JSON.parse(unsafeWindow.localStorage.getItem(sc_sid_localstorage_key));
-
-            if (sc_sid_localstorage.includes(sid)) {
-                return false;
-            } else {
-                sc_localstorage.push(sc_data);
-                sc_sid_localstorage.push(sid);
-                // 保存/更新sc_keep_time （最后sc的时间戳）
-                unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
-
-                // 追加存储
-                unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
-                unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
-
-                return true;
-            }
-        }
-    }
-
-    function update_rank_count(n_count, n_online_count) {
-        if (n_online_count) {
-            high_energy_num = n_online_count;
-        } else {
-            n_online_count = high_energy_num;
-        }
-
-        // SC记录板的
-        if (n_count > n_online_count) {
-            $(document).find('.sc_high_energy_num_left').text('高能：');
-            $(document).find('.sc_high_energy_num_right').text(n_count);
-            $(document).find('.sc_data_show_label').attr('title', '');
-
-            if (!sc_update_date_guard_once) {
-                const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-                if (rank_data_show_div.length) {
-                    $(document).find('.sc_captain_num_right').text(rank_data_show_div.last().text().match(/\d+/) ?? 0);
-                    sc_update_date_guard_once = true;
-                }
-            }
-        } else {
-            $(document).find('.sc_high_energy_num_left').text('同接：');
-            $(document).find('.sc_high_energy_num_right').text(n_count);
-            $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ n_count + '/' + n_online_count +') = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
-        }
-
-        // 页面的
-        if (data_show_top_flag) {
-            const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-            if (rank_data_show_div.length) {
-                if (n_count > n_online_count) {
-                    rank_data_show_div.first().text('高能用户(' + n_count + ')');
-                    rank_data_show_div.first().attr('title', '');
-                } else {
-                    rank_data_show_div.first().text('高能用户(' + n_count + '/' + n_online_count + ')');
-                    rank_data_show_div.first().attr('title', '同接/高能 = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
-                }
-            }
-        }
-
-        if (data_show_bottom_flag) {
-            const sc_data_show_bottom_rank_num_div = $(document).find('#sc_data_show_bottom_rank_num');
-            if (sc_data_show_bottom_rank_num_div.length) {
-                if (n_count > n_online_count) {
-                    sc_data_show_bottom_rank_num_div.text('高能：'+ n_count);
-                    sc_data_show_bottom_rank_num_div.attr('title', '');
-                } else {
-                    sc_data_show_bottom_rank_num_div.text('同接：'+ n_count);
-                    sc_data_show_bottom_rank_num_div.attr('title', '同接/高能('+ n_count + '/' + n_online_count +') = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
-                }
-            } else {
-                const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-                if (rank_data_show_div.length) {
-                    const guard_text = rank_data_show_div.last().text();
-
-                    let sc_data_show_bottom_div_color = '#ffffff';
-                    const chat_control_panel_vm_div = $(document).find('#chat-control-panel-vm');
-                    if (chat_control_panel_vm_div.length) {
-                        const chat_control_panel_vm_div_bg = chat_control_panel_vm_div.css('background-image');
-                        if (!chat_control_panel_vm_div_bg || chat_control_panel_vm_div_bg === 'none') {
-                            sc_data_show_bottom_div_color = '#666666';
-                        }
-                    }
-
-                    if (n_count > n_online_count) {
-                        $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">高能：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
-                    } else {
-                        $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" title="'+ (n_count / n_online_count * 100).toFixed(2) +'%" style="width: 100%;margin-bottom: 5px;">同接：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
-                    }
-                }
-            }
-        }
     }
 
     sc_process_start();
@@ -3099,43 +3658,4 @@
 
     }
 
-    function check_blacklist_menu(room_id) {
-        let sc_room_black_list_json = unsafeWindow.localStorage.getItem('live_sc_room_blacklist');
-        if (sc_room_black_list_json === null || sc_room_black_list_json === 'null' || sc_room_black_list_json === '[]' || sc_room_black_list_json === '') {
-            // 显示加入黑名单
-            GM_registerMenuCommand('点击将当前直播房间加入黑名单', function() {
-                unsafeWindow.localStorage.setItem('live_sc_room_blacklist', JSON.stringify([room_id]));
-                sc_catch_log('直播房间id：' + room_id + ' 已加入黑名单！');
-                alert("当前直播房间已加入黑名单，刷新页面生效！");
-                unsafeWindow.location.reload();
-            });
-
-            return true;
-        } else {
-            let sc_room_black_list = JSON.parse(sc_room_black_list_json);
-            if (sc_room_black_list.includes(room_id)) {
-                // 显示移除黑名单
-                GM_registerMenuCommand('当前直播房间已加入黑名单，点击移出黑名单', function() {
-                    sc_room_black_list = sc_room_black_list.filter(item => item !== room_id);
-                    unsafeWindow.localStorage.setItem('live_sc_room_blacklist', JSON.stringify(sc_room_black_list));
-                    sc_catch_log('直播房间id：' + room_id + ' 已移出黑名单！');
-                    alert("当前直播房间已除出黑名单，刷新页面生效！");
-                    unsafeWindow.location.reload();
-                });
-
-                return false;
-            } else {
-                // 显示加入黑名单
-                GM_registerMenuCommand('点击将当前直播房间加入黑名单', function() {
-                    sc_room_black_list.push(room_id);
-                    unsafeWindow.localStorage.setItem('live_sc_room_blacklist', JSON.stringify(sc_room_black_list));
-                    sc_catch_log('直播房间id：' + room_id + ' 已加入黑名单！');
-                    alert("当前直播房间已加入黑名单，刷新页面生效！");
-                    unsafeWindow.location.reload();
-                });
-
-                return true;
-            }
-        }
-    }
 })();

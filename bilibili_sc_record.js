@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      8.3.1
+// @version      8.3.2
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -1046,6 +1046,8 @@
 
         sc_btn_mode_apply();
 
+        sc_side_fold_custom_auto_run_flag = false;
+
         sc_custom_config_apply(sc_side_fold_custom_first_class);
     }
 
@@ -1056,8 +1058,6 @@
 
         if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
         if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
-
-        sc_side_fold_custom_auto_run_flag = false;
 
         $(document).find('.sc_long_rectangle').css('width', sc_rectangle_width + 'px');
         $(document).find('.sc_long_list').css('padding-left', '10px');
@@ -1130,8 +1130,6 @@
 
         if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
         if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
-
-        sc_side_fold_custom_auto_run_flag = false;
 
         $(document).find('.sc_long_circle').show();
         $(document).find('.sc_long_rectangle').hide();
@@ -2394,6 +2392,8 @@
 
                 sc_fold_mode_store();
 
+                sc_side_fold_custom_auto_run_flag = false;
+
                 sc_custom_config_apply(sc_side_fold_custom_first_class);
             } else {
                 sc_isClickAllowed = true;
@@ -2875,9 +2875,10 @@
             if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
             if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
 
+            sc_side_fold_custom_auto_run_flag = false;
+
             if (sc_custom_select_val === '0') {
                 sc_side_fold_custom_each_same_time_flag = false;
-                sc_side_fold_custom_auto_run_flag = false;
 
             } else if (sc_custom_select_val === '1') {
                 sc_side_fold_custom_each_same_time_flag = $(document).find('#sc_custom_each_same_time_input').is(':checked');
@@ -2951,9 +2952,10 @@
             if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
             if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
 
+            sc_side_fold_custom_auto_run_flag = false;
+
             if (sc_custom_select_val === '0') {
                 sc_side_fold_custom_each_same_time_flag = false;
-                sc_side_fold_custom_auto_run_flag = false;
 
             } else if (sc_custom_select_val === '1') {
                 sc_side_fold_custom_each_same_time_flag = $(document).find('#sc_custom_each_same_time_input_fullscreen').is(':checked');

@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      8.3.2
+// @version      8.3.3
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -153,6 +153,7 @@
 
     let sc_rectangle_is_slide_down = false;
     let sc_rectangle_is_slide_up = false;
+    let sc_rectangle_mouse_out = true;
 
     function sc_memory_get_store_mode_all(sc_all_memory_config_json) {
         let sc_all_memory_config = JSON.parse(sc_all_memory_config_json);
@@ -541,72 +542,74 @@
     }
 
     function sc_auto_trigger_side_fold_out_next() {
-        sc_side_fold_custom_auto_run_flag = true;
+        if (sc_panel_fold_mode === 1) {
+            sc_side_fold_custom_auto_run_flag = true;
 
-        let auto_target_oj = $(document).find('.' + sc_side_fold_custom_each_same_time_class);
+            let auto_target_oj = $(document).find('.' + sc_side_fold_custom_each_same_time_class);
 
-        if (auto_target_oj.length === 0) { sc_side_fold_custom_auto_run_flag = false; return; }
+            if (auto_target_oj.length === 0) { sc_side_fold_custom_auto_run_flag = false; return; }
 
-        if (sc_side_fold_custom_stop_from_auto_flag) {
-            let auto_target_oj_next = auto_target_oj.prev();
-            if (auto_target_oj_next.length) {
-                auto_target_oj = auto_target_oj_next;
-                sc_side_fold_custom_each_same_time_class = auto_target_oj.attr('class').split(' ').find((scClassName) => { return scClassName !== 'sc_long_item'; });
-            }
-        }
-
-        auto_target_oj.css('position', 'absolute');
-        auto_target_oj.css('top', '10px'); // 第一个SC的位置
-        auto_target_oj.css('translateY', '-100%');
-        auto_target_oj.css('opacity', 0);
-        auto_target_oj.css('z-index', '10');
-        auto_target_oj.css('width', (sc_rectangle_width - 22) + 'px'); // 22 约为总padding
-        auto_target_oj.css('height', '');
-
-        if ((auto_target_oj.offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
-            auto_target_oj.css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
-        }
-
-        sc_side_fold_out_one(auto_target_oj, true);
-
-        auto_target_oj.hide();
-
-        auto_target_oj.animate({
-            'translateY': '0',
-            'opacity' : 1
-        }, {
-            duration: 1000,
-            easing: 'linear'
-        });
-
-        auto_target_oj.show();
-
-        sc_side_fold_custom_each_same_time_timeout_id = setTimeout(function() {
-            if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) {
-                // 下一个SC
-                let prev_target_oj = auto_target_oj.prev();
-                if (prev_target_oj.length > 0) {
-
-                    sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class);
-
-                    sc_side_fold_custom_each_same_time_class = prev_target_oj.attr('class').split(' ').find((scClassName) => { return scClassName !== 'sc_long_item'; });
-
-                    sc_side_fold_custom_stop_from_auto_flag = false;
-
-                    sc_sleep(1500).then(() => { sc_auto_trigger_side_fold_out_next() });
-
-                } else {
-                    if (sc_side_fold_custom_config === 2) {
-                        sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class);
-                    }
-
-                    sc_side_fold_custom_auto_run_flag = false;
-
-                    sc_side_fold_custom_stop_from_auto_flag = true;
-
+            if (sc_side_fold_custom_stop_from_auto_flag) {
+                let auto_target_oj_next = auto_target_oj.prev();
+                if (auto_target_oj_next.length) {
+                    auto_target_oj = auto_target_oj_next;
+                    sc_side_fold_custom_each_same_time_class = auto_target_oj.attr('class').split(' ').find((scClassName) => { return scClassName !== 'sc_long_item'; });
                 }
             }
-        }, sc_side_fold_custom_time * 1000);
+
+            auto_target_oj.css('position', 'absolute');
+            auto_target_oj.css('top', '10px'); // 第一个SC的位置
+            auto_target_oj.css('translateY', '-100%');
+            auto_target_oj.css('opacity', 0);
+            auto_target_oj.css('z-index', '10');
+            auto_target_oj.css('width', (sc_rectangle_width - 22) + 'px'); // 22 约为总padding
+            auto_target_oj.css('height', '');
+
+            if ((auto_target_oj.offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
+                auto_target_oj.css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+            }
+
+            sc_side_fold_out_one(auto_target_oj, true);
+
+            auto_target_oj.hide();
+
+            auto_target_oj.animate({
+                'translateY': '0',
+                'opacity' : 1
+            }, {
+                duration: 1000,
+                easing: 'linear'
+            });
+
+            auto_target_oj.show();
+
+            sc_side_fold_custom_each_same_time_timeout_id = setTimeout(function() {
+                if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) {
+                    // 下一个SC
+                    let prev_target_oj = auto_target_oj.prev();
+                    if (prev_target_oj.length > 0) {
+
+                        sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class);
+
+                        sc_side_fold_custom_each_same_time_class = prev_target_oj.attr('class').split(' ').find((scClassName) => { return scClassName !== 'sc_long_item'; });
+
+                        sc_side_fold_custom_stop_from_auto_flag = false;
+
+                        sc_sleep(1500).then(() => { sc_auto_trigger_side_fold_out_next() });
+
+                    } else {
+                        if (sc_side_fold_custom_config === 2) {
+                            sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class);
+                        }
+
+                        sc_side_fold_custom_auto_run_flag = false;
+
+                        sc_side_fold_custom_stop_from_auto_flag = true;
+
+                    }
+                }
+            }, sc_side_fold_custom_time * 1000);
+        }
     }
 
     function sc_auto_trigger_side_fold_out_start(target_oj_class) {
@@ -1121,6 +1124,9 @@
         sc_panel_side_fold_flag_store();
 
         sc_menu();
+
+        clone_sc_data_show.slideUp(500);
+        clone_sc_long_buttons.slideUp(500);
     }
 
     // 折叠显示板
@@ -1585,13 +1591,25 @@
         }
     }
 
-    function sc_after_click_func_btn_apply(click_page_x) {
-        if (sc_panel_side_fold_flag) {
-            let sc_rectangle_model = document.getElementsByClassName('sc_long_rectangle');
-            let sc_rect_left = $(sc_rectangle_model).position().left;
+    function sc_after_click_func_btn_apply(e, animate_flag = false) {
+        let click_page_x = e.clientX;
+        let click_page_y = e.clientY;
 
-            if (click_page_x < sc_rect_left || click_page_x - sc_rect_left > 72) {
-                let sc_btn_model = document.getElementsByClassName('sc_long_buttons');
+        let sc_rectangle_model = document.getElementsByClassName('sc_long_rectangle');
+        let sc_rect_left = $(sc_rectangle_model).position().left;
+        let sc_rect_top = $(sc_rectangle_model).position().top;
+        let sc_data_model = document.getElementsByClassName('sc_data_show');
+        let sc_btn_model = document.getElementsByClassName('sc_long_buttons');
+
+        if (sc_panel_side_fold_flag) {
+
+            if (click_page_x < sc_rect_left || click_page_x - sc_rect_left > 72
+                || click_page_y < sc_rect_top
+                || (click_page_y > sc_rect_top && click_page_y - sc_rect_top > $(sc_rectangle_model).outerHeight())) {
+
+                if (animate_flag && sc_panel_side_fold_simple) {
+                    $(sc_data_model).slideUp(500);
+                }
 
                 $(sc_btn_model).slideUp(500, () => {
                     sc_rectangle_is_slide_up = false;
@@ -1604,6 +1622,16 @@
 
             if (!sc_panel_side_fold_simple && sc_func_btn_mode === 1) {
                 $(sc_rectangle_model).css('border-bottom', '');
+            }
+        } else if (sc_panel_fold_mode == 2) {
+
+            if (click_page_x < sc_rect_left || click_page_x - sc_rect_left > sc_rectangle_width
+                || click_page_y < sc_rect_top
+                || (click_page_y > sc_rect_top && click_page_y - sc_rect_top > $(sc_rectangle_model).outerHeight())) {
+                $(sc_data_model).slideUp(500);
+                $(sc_btn_model).slideUp(500, () => {
+                    sc_rectangle_is_slide_up = false;
+                });
             }
         }
     }
@@ -2446,8 +2474,8 @@
 
         // 优化回弹问题
         $(document).on('mouseenter', '.sc_long_rectangle, .sc_long_buttons, .sc_data_show', () => {
-
-            if (sc_rectangle_is_slide_down) {
+            sc_rectangle_mouse_out = false;
+            if (sc_rectangle_is_slide_down || sc_rectangle_is_slide_up) {
                 return;
             }
             sc_rectangle_is_slide_down = true;
@@ -2464,6 +2492,9 @@
 
                     $(sc_btn_model).slideDown(500, () => {
                         sc_rectangle_is_slide_down = false;
+                        if (sc_rectangle_mouse_out) {
+                            $(sc_btn_model).slideUp(500);
+                        }
                     });
                 }
 
@@ -2471,6 +2502,9 @@
 
                     $(sc_data_model).slideDown(500, () => {
                         sc_rectangle_is_slide_down = false;
+                        if (sc_rectangle_mouse_out) {
+                            $(sc_data_model).slideUp(500);
+                        }
                     });
                     $(sc_data_lable_model).animate({opacity: 1}, 1000);
                 }
@@ -2539,6 +2573,7 @@
         });
 
         $(document).on('mouseleave', '.sc_long_rectangle', (e) => {
+            sc_rectangle_mouse_out = true;
             if (sc_rectangle_is_slide_up) {
                 return;
             }
@@ -2563,6 +2598,12 @@
 
             $(sc_btn_model).slideUp(500, () => {
                 sc_rectangle_is_slide_up = false;
+                if (!sc_rectangle_mouse_out) {
+                    $(sc_btn_model).slideDown(500);
+                    if (sc_panel_side_fold_flag && !sc_panel_side_fold_simple) {
+                        $(sc_rectangle_model).css('border-bottom', '10px solid transparent');
+                    }
+                }
             });
 
             if (sc_panel_side_fold_flag) {
@@ -2576,6 +2617,9 @@
                     $(sc_data_lable_model).animate({opacity: 0}, 200);
                     $(sc_data_model).slideUp(500, () => {
                         sc_rectangle_is_slide_up = false;
+                        if (!sc_rectangle_mouse_out) {
+                            $(sc_data_model).slideDown(500);
+                        }
                     });
                     $(sc_rectangle_model).css('border-bottom', '10px solid transparent');
                 } else {
@@ -2585,6 +2629,9 @@
                 $(sc_data_lable_model).animate({opacity: 0}, 200);
                 $(sc_data_model).slideUp(500, () => {
                     sc_rectangle_is_slide_up = false;
+                    if (!sc_rectangle_mouse_out) {
+                        $(sc_data_model).slideDown(500);
+                    }
                 });
             }
 
@@ -3200,7 +3247,7 @@
             sc_func_btn_mode = 0;
             sc_func_btn_mode_store();
             sc_btn_mode_apply();
-            sc_after_click_func_btn_apply(e.clientX);
+            sc_after_click_func_btn_apply(e);
 
             $(this).parent().fadeOut();
             open_and_close_sc_modal('已设置 侧折模式下显示所有的按钮✓', '#A7C9D3', e, 1);
@@ -3213,7 +3260,7 @@
             sc_func_btn_mode = 1;
             sc_func_btn_mode_store();
             sc_btn_mode_apply();
-            sc_after_click_func_btn_apply(e.clientX);
+            sc_after_click_func_btn_apply(e);
 
             $(this).parent().fadeOut();
             open_and_close_sc_modal('已设置 侧折模式下隐藏所有的按钮 ✓', '#A7C9D3', e, 1);
@@ -3226,7 +3273,7 @@
             sc_func_btn_mode = 2;
             sc_func_btn_mode_store();
             sc_btn_mode_apply();
-            sc_after_click_func_btn_apply(e.clientX);
+            sc_after_click_func_btn_apply(e);
 
             $(this).parent().fadeOut();
             open_and_close_sc_modal('已设置 侧折模式下按钮的极简模式 ✓', '#A7C9D3', e, 1);
@@ -3239,7 +3286,7 @@
             sc_func_btn_mode = 3;
             sc_func_btn_mode_store();
             sc_btn_mode_apply();
-            sc_after_click_func_btn_apply(e.clientX);
+            sc_after_click_func_btn_apply(e);
 
             $(this).parent().fadeOut();
             open_and_close_sc_modal('已设置 侧折模式下只显示折叠按钮 ✓', '#A7C9D3', e, 1);
@@ -3252,7 +3299,7 @@
             sc_func_btn_mode = 4;
             sc_func_btn_mode_store();
             sc_btn_mode_apply();
-            sc_after_click_func_btn_apply(e.clientX);
+            sc_after_click_func_btn_apply(e);
 
             $(this).parent().fadeOut();
             open_and_close_sc_modal('已设置 侧折模式下只显示菜单按钮 ✓', '#A7C9D3', e, 1);
@@ -3326,7 +3373,7 @@
             sc_foldback();
 
             $(this).parent().fadeOut();
-            open_and_close_sc_modal('已设置 展开记录板即切换展开模式 ✓', '#A7C9D3', e, 1);
+            open_and_close_sc_modal('已切换到展开模式 ✓', '#A7C9D3', e, 1);
         });
 
         $(document).on('click', '#sc_circle_welt_hide_half_true_btn', function(e) {
@@ -3440,6 +3487,8 @@
 
             $(document).find('.sc_long_rectangle').css('cursor', 'progress');
 
+            sc_after_click_func_btn_apply(e, true);
+
             function capture_gen_canvas(tmp_sc_item_div, current_sc_div) {
 
                 return new Promise((resolve, reject) => {
@@ -3526,9 +3575,10 @@
         let sc_context_copy_menu_timeout_id;
         let sc_context_func_menu_timeout_id;
 
-        $(document).on('mouseleave', '.sc_ctx_copy_menu', function() {
+        $(document).on('mouseleave', '.sc_ctx_copy_menu', function(e) {
             sc_context_copy_menu_timeout_id = setTimeout(() => {
                 $(this).hide();
+                sc_after_click_func_btn_apply(e, true);
             }, 1000);
         });
 
@@ -3536,9 +3586,10 @@
             clearTimeout(sc_context_copy_menu_timeout_id);
         });
 
-        $(document).on('mouseleave', '.sc_ctx_func_menu', function() {
+        $(document).on('mouseleave', '.sc_ctx_func_menu', function(e) {
             sc_context_func_menu_timeout_id = setTimeout(() => {
                 $(this).hide();
+                sc_after_click_func_btn_apply(e, true);
             }, 1000);
         });
 

@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      8.3.3
+// @version      9.0.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -88,7 +88,7 @@
     let sc_url = sc_url_api + room_id; // 请求sc的url
 
     let sc_panel_high = 400; // 显示面板的最大高度（单位是px，后面会拼接）
-    let sc_rectangle_width = 302;
+    let sc_rectangle_width = 302; // 默认302，右侧合适325/388/428（SC刚刚好在弹幕框内/侧折模式记录板紧贴在弹幕框右侧外/侧折模式记录板紧贴在屏幕右侧）
 
     let data_show_top_flag = true; // 是否在页面右侧弹幕滚动框的顶部动态显示数据
     let data_show_bottom_flag = true; // 是否在页面右侧弹幕滚动框的底部动态显示数据
@@ -155,6 +155,8 @@
     let sc_rectangle_is_slide_up = false;
     let sc_rectangle_mouse_out = true;
 
+    let sc_live_sidebar_left_flag = false; // 是否设置直播间的右侧滑动按钮在左侧
+
     function sc_memory_get_store_mode_all(sc_all_memory_config_json) {
         let sc_all_memory_config = JSON.parse(sc_all_memory_config_json);
         sc_switch = sc_all_memory_config['sc_switch'] ?? 0;
@@ -171,6 +173,8 @@
         sc_start_time_show_flag = sc_all_memory_config['sc_start_time_show_flag'] ?? true;
         sc_welt_hide_circle_half_flag = sc_all_memory_config['sc_welt_hide_circle_half_flag'] ?? false;
         sc_side_fold_custom_each_same_time_flag = sc_all_memory_config['sc_side_fold_custom_each_same_time_flag'] ?? false;
+        sc_rectangle_width = sc_all_memory_config['sc_rectangle_width'] ?? 302;
+        sc_live_sidebar_left_flag = sc_all_memory_config['sc_live_sidebar_left_flag'] ?? false;
 
         if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
             sc_panel_drag_left = unsafeWindow.innerWidth - 72;
@@ -203,6 +207,8 @@
         sc_start_time_show_flag = sc_self_memory_config['sc_start_time_show_flag'] ?? true;
         sc_welt_hide_circle_half_flag = sc_self_memory_config['sc_welt_hide_circle_half_flag'] ?? false;
         sc_side_fold_custom_each_same_time_flag = sc_self_memory_config['sc_side_fold_custom_each_same_time_flag'] ?? false;
+        sc_rectangle_width = sc_self_memory_config['sc_rectangle_width'] ?? 302;
+        sc_live_sidebar_left_flag = sc_self_memory_config['sc_live_sidebar_left_flag'] ?? false;
 
         if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
             sc_panel_drag_left = unsafeWindow.innerWidth - 72;
@@ -488,6 +494,65 @@
 
     function sc_sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    let sc_live_sidebar_try_find = 2; // 最多再尝试2次
+    function sc_live_sidebar_position_left_apply() {
+        let sc_live_sidebar = $(document).find('#sidebar-vm');
+
+        if (sc_live_sidebar.length) {
+            let sc_live_sidebar_cntr = sc_live_sidebar.find('.side-bar-cntr');
+            let sc_live_sidebar_popup_cntr = sc_live_sidebar.find('.side-bar-popup-cntr');
+
+            if (sc_live_sidebar_cntr.length) {
+                sc_live_sidebar_cntr.css('right', 'unset');
+                sc_live_sidebar_cntr.css('left', 0);
+                sc_live_sidebar_cntr.css('border-radius', '0 12px 12px 0');
+            }
+
+            if (sc_live_sidebar_popup_cntr.length) {
+                sc_live_sidebar_popup_cntr.css('left', sc_live_sidebar_popup_cntr.css('right'));
+                sc_live_sidebar_popup_cntr.css('right', 'unset');
+
+                let sc_live_sidebar_popup_cntr_arrow = sc_live_sidebar_popup_cntr.find('.arrow');
+                if (sc_live_sidebar_popup_cntr_arrow.length) {
+                    sc_live_sidebar_popup_cntr_arrow.css('left', 'unset');
+                    sc_live_sidebar_popup_cntr_arrow.css('right', '100%');
+                    sc_live_sidebar_popup_cntr_arrow.css('border-color', 'transparent var(--bg1_float, "#FFFFFF") transparent transparent');
+                }
+            }
+        } else {
+            if (sc_live_sidebar_try_find) {
+                setTimeout(() => { sc_live_sidebar_position_left_apply() }, 2000);
+                sc_live_sidebar_try_find--;
+            }
+        }
+    }
+
+    function sc_live_sidebar_position_right_apply() {
+        let sc_live_sidebar = $(document).find('#sidebar-vm');
+
+        if (sc_live_sidebar.length) {
+            let sc_live_sidebar_cntr = sc_live_sidebar.find('.side-bar-cntr');
+            let sc_live_sidebar_popup_cntr = sc_live_sidebar.find('.side-bar-popup-cntr');
+
+            if (sc_live_sidebar_cntr.length) {
+                sc_live_sidebar_cntr.css('left', 'unset');
+                sc_live_sidebar_cntr.css('right', 0);
+                sc_live_sidebar_cntr.css('border-radius', '12px 0 0 12px');
+            }
+            if (sc_live_sidebar_popup_cntr.length) {
+                sc_live_sidebar_popup_cntr.css('right', sc_live_sidebar_popup_cntr.css('left'));
+                sc_live_sidebar_popup_cntr.css('left', 'unset');
+
+                let sc_live_sidebar_popup_cntr_arrow = sc_live_sidebar_popup_cntr.find('.arrow');
+                if (sc_live_sidebar_popup_cntr_arrow.length) {
+                    sc_live_sidebar_popup_cntr_arrow.css('right', 'unset');
+                    sc_live_sidebar_popup_cntr_arrow.css('left', '100%');
+                    sc_live_sidebar_popup_cntr_arrow.css('border-color', 'transparent transparent transparent var(--bg1_float, "#FFFFFF")');
+                }
+            }
+        }
     }
 
     function sc_side_fold_in_one(target_oj) {
@@ -873,6 +938,26 @@
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_welt_hide_circle_half_flag', sc_welt_hide_circle_half_flag, 'all');
+        }
+    }
+
+    function sc_rectangle_width_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_rectangle_width', sc_rectangle_width, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_rectangle_width', sc_rectangle_width, 'all');
+        }
+    }
+
+    function sc_live_sidebar_left_flag_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_live_sidebar_left_flag', sc_live_sidebar_left_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_live_sidebar_left_flag', sc_live_sidebar_left_flag, 'all');
         }
     }
 
@@ -1458,6 +1543,8 @@
 
             if (sc_welt_hide_circle_half_flag) { sc_circle_welt_hide_half(sc_panel_drag_left, sc_panel_drag_top); }
         }
+
+        if (sc_live_sidebar_left_flag) { setTimeout(() => { sc_live_sidebar_position_left_apply() }, 1000); }
     }
 
     // 导出
@@ -2744,6 +2831,10 @@
                 width: 42%;
             }
 
+            .sc_custom_modal_content p {
+                color: #000;
+            }
+
             .sc_custom_close {
                 color: #aaa;
                 float: right;
@@ -2760,10 +2851,12 @@
 
             .sc_custom_radio_group {
                 display: inline-flex;
+                color: #000;
             }
 
             .sc_custom_radio_group_fullscreen {
                 display: inline-flex;
+                color: #000;
             }
 
             .sc_custom_radio_group label {
@@ -2791,9 +2884,19 @@
                 margin-top: 20px;
             }
 
+            .sc_custom_checkbox_inline {
+                vertical-align: middle;
+                display: inline-block;
+                color: #000;
+            }
+
             .sc_custom_form {
                 margin-top: 30px;
                 text-align: right;
+            }
+
+            .sc_custom_input_div label {
+                color: #000;
             }
 
             #sc_custom_confirm_btn {
@@ -2815,34 +2918,34 @@
         sc_custom_modal_html.id = 'sc_custom_config_div';
         sc_custom_modal_html.className = 'sc_custom_config_modal';
         sc_custom_modal_html.innerHTML = `
-               <div class="sc_custom_modal_content">
-                   <span class="sc_custom_close">&times;</span>
-                   <p>侧折模式下留言显示设置：</p>
-                   <form class="sc_custom_form">
-                       <div class="sc_custom_radio_group">
-                           <input type="radio" id="sc_custom_default_option" name="sc_custom_option" value="0" checked />
-                           <label for="sc_custom_default_option">默认</label>
+                <div class="sc_custom_modal_content">
+                    <span class="sc_custom_close">&times;</span>
+                    <p>侧折模式下留言显示设置：</p>
+                    <form class="sc_custom_form">
+                        <div class="sc_custom_radio_group">
+                            <input type="radio" id="sc_custom_default_option" name="sc_custom_option" value="0" checked />
+                            <label for="sc_custom_default_option">默认</label>
 
-                           <input type="radio" id="sc_custom_open_option" name="sc_custom_option" value="1" />
-                           <label for="sc_custom_open_option">第一个SC保持展开</label>
+                            <input type="radio" id="sc_custom_open_option" name="sc_custom_option" value="1" />
+                            <label for="sc_custom_open_option">第一个SC保持展开</label>
 
-                           <input type="radio" id="sc_custom_time_option" name="sc_custom_option" value="2" />
-                           <label for="sc_custom_time_option">第一个SC不保持展开</label>
-                       </div>
-                       <div class="sc_custom_checkbox_div sc_custom_checkbox_div_default">
-                           <input type="checkbox" id="sc_custom_each_same_time_input" />
-                           <label for="sc_custom_each_same_time_input">确保每个实时SC都有相同的展开时间</label>
-                       </div>
-                       <div class="sc_custom_input_div sc_custom_input_div_default">
-                           <label for="sc_custom_time_input">展开时间设定 (5-150/秒)：</label>
-                           <input type="number" id="sc_custom_time_input" min="5" max="150" value="10" />
-                       </div>
-                   </form>
-                   <div class="sc_custom_btn_div">
-                       <button id="sc_custom_cancel_btn" class="sc_custom_modal_btn">取消</button>
-                       <button id="sc_custom_confirm_btn" class="sc_custom_modal_btn">确定</button>
-                   </div>
-               </div>
+                            <input type="radio" id="sc_custom_time_option" name="sc_custom_option" value="2" />
+                            <label for="sc_custom_time_option">第一个SC不保持展开</label>
+                        </div>
+                        <div class="sc_custom_checkbox_div sc_custom_checkbox_div_default">
+                            <input type="checkbox" id="sc_custom_each_same_time_input" class="sc_custom_checkbox_inline" />
+                            <label for="sc_custom_each_same_time_input" class="sc_custom_checkbox_inline" >确保每个实时SC都有相同的展开时间</label>
+                        </div>
+                        <div class="sc_custom_input_div sc_custom_input_div_default">
+                            <label for="sc_custom_time_input">展开时间设定 (5-150/秒)：</label>
+                            <input type="number" id="sc_custom_time_input" min="5" max="150" value="10" />
+                        </div>
+                    </form>
+                    <div class="sc_custom_btn_div">
+                        <button id="sc_custom_cancel_btn" class="sc_custom_modal_btn">取消</button>
+                        <button id="sc_custom_confirm_btn" class="sc_custom_modal_btn">确定</button>
+                    </div>
+                </div>
         `;
 
         document.body.appendChild(sc_custom_modal_html);
@@ -2851,34 +2954,34 @@
         sc_custom_modal_html_fullscreen.id = 'sc_custom_config_div_fullscreen';
         sc_custom_modal_html_fullscreen.className = 'sc_custom_config_modal';
         sc_custom_modal_html_fullscreen.innerHTML = `
-               <div class="sc_custom_modal_content">
-                   <span class="sc_custom_close">&times;</span>
-                   <p>侧折模式下留言显示设置：</p>
-                   <form class="sc_custom_form">
-                       <div class="sc_custom_radio_group_fullscreen">
-                           <input type="radio" id="sc_custom_default_option_fullscreen" name="sc_custom_option_fullscreen" value="0" checked />
-                           <label for="sc_custom_default_option_fullscreen">默认</label>
+                <div class="sc_custom_modal_content">
+                    <span class="sc_custom_close">&times;</span>
+                    <p>侧折模式下留言显示设置：</p>
+                    <form class="sc_custom_form">
+                        <div class="sc_custom_radio_group_fullscreen">
+                            <input type="radio" id="sc_custom_default_option_fullscreen" name="sc_custom_option_fullscreen" value="0" checked />
+                            <label for="sc_custom_default_option_fullscreen">默认</label>
 
-                           <input type="radio" id="sc_custom_open_option_fullscreen" name="sc_custom_option_fullscreen" value="1" />
-                           <label for="sc_custom_open_option_fullscreen">第一个SC保持展开</label>
+                            <input type="radio" id="sc_custom_open_option_fullscreen" name="sc_custom_option_fullscreen" value="1" />
+                            <label for="sc_custom_open_option_fullscreen">第一个SC保持展开</label>
 
-                           <input type="radio" id="sc_custom_time_option_fullscreen" name="sc_custom_option_fullscreen" value="2" />
-                           <label for="sc_custom_time_option_fullscreen">第一个SC不保持展开</label>
-                       </div>
-                       <div class="sc_custom_checkbox_div sc_custom_checkbox_div_fullscreen">
-                           <input type="checkbox" id="sc_custom_each_same_time_input_fullscreen" />
-                           <label for="sc_custom_each_same_time_input">确保每个实时SC都有相同的展开时间</label>
-                       </div>
-                       <div class="sc_custom_input_div sc_custom_input_div_fullscreen">
-                           <label for="sc_custom_time_input_fullscreen">展开时间设定 (5-150/秒)：</label>
-                           <input type="number" id="sc_custom_time_input_fullscreen" min="5" max="150" value="10" />
-                       </div>
-                   </form>
-                   <div class="sc_custom_btn_div_fullscreen">
-                       <button id="sc_custom_cancel_btn_fullscreen" class="sc_custom_modal_btn">取消</button>
-                       <button id="sc_custom_confirm_btn_fullscreen" class="sc_custom_modal_btn">确定</button>
-                   </div>
-               </div>
+                            <input type="radio" id="sc_custom_time_option_fullscreen" name="sc_custom_option_fullscreen" value="2" />
+                            <label for="sc_custom_time_option_fullscreen">第一个SC不保持展开</label>
+                        </div>
+                        <div class="sc_custom_checkbox_div sc_custom_checkbox_div_fullscreen">
+                            <input type="checkbox" id="sc_custom_each_same_time_input_fullscreen" class="sc_custom_checkbox_inline" />
+                            <label for="sc_custom_each_same_time_input" class="sc_custom_checkbox_inline" >确保每个实时SC都有相同的展开时间</label>
+                        </div>
+                        <div class="sc_custom_input_div sc_custom_input_div_fullscreen">
+                            <label for="sc_custom_time_input_fullscreen">展开时间设定 (5-150/秒)：</label>
+                            <input type="number" id="sc_custom_time_input_fullscreen" min="5" max="150" value="10" />
+                        </div>
+                    </form>
+                    <div class="sc_custom_btn_div_fullscreen">
+                        <button id="sc_custom_cancel_btn_fullscreen" class="sc_custom_modal_btn">取消</button>
+                        <button id="sc_custom_confirm_btn_fullscreen" class="sc_custom_modal_btn">确定</button>
+                    </div>
+                </div>
         `;
 
         $(live_player_div).append(sc_custom_modal_html_fullscreen);
@@ -2946,6 +3049,8 @@
                             sc_side_fold_custom_time = 10;
                         }
                     }
+
+                    sc_side_fold_custom_time = sc_side_fold_custom_time + 1.5; // 1.5s是动画时间，补回来
                 }
 
                 if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
@@ -2968,6 +3073,8 @@
                         sc_side_fold_custom_time = 10;
                     }
                 }
+
+                sc_side_fold_custom_time = sc_side_fold_custom_time + 1.5; // 1.5s是动画时间，补回来
 
                 if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
                     sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class);
@@ -3087,6 +3194,210 @@
             }
         });
 
+        let sc_panel_width_modal_style = document.createElement('style');
+        sc_panel_width_modal_style.textContent = `
+            .sc_panel_width_config_modal {
+                display: none;
+                position: fixed;
+                z-index: 3333;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                overflow: auto;
+                background-color: rgba(0, 0, 0, 0.3);
+            }
+
+            .sc_panel_width_modal_content {
+                background-color: #fefefe;
+                margin: 15% auto;
+                padding: 20px;
+                border: 1px solid #888;
+                width: 42%;
+            }
+
+            .sc_panel_width_modal_content p {
+                color: #000;
+            }
+
+            .sc_panel_width_close {
+                color: #aaa;
+                float: right;
+                font-size: 28px;
+                font-weight: bold;
+            }
+
+            .sc_panel_width_close:hover,
+            .sc_panel_width_close:focus {
+                color: black;
+                text-decoration: none;
+                cursor: pointer;
+            }
+
+            .sc_panel_width_btn_div {
+                text-align: center;
+                margin-top: 20px;
+            }
+
+            .sc_panel_width_btn_div_fullscreen {
+                text-align: center;
+                margin-top: 30px;
+            }
+
+            #sc_panel_width_input_div {
+                text-align: center;
+                margin-top: 20px;
+            }
+
+            #sc_panel_width_input_div label {
+                color: #000;
+            }
+
+            #sc_panel_width_input_div_fullscreen {
+                text-align: center;
+                margin-top: 20px;
+            }
+
+            #sc_panel_width_input_div_fullscreen label {
+                color: #000;
+            }
+
+            #sc_panel_width_cancel_btn {
+                float: left;
+            }
+
+            #sc_panel_width_cancel_btn_fullscreen {
+                float: left;
+            }
+
+            #sc_panel_width_confirm_btn {
+                float: right;
+            }
+
+            #sc_panel_width_confirm_btn_fullscreen {
+                float: right;
+            }
+
+            .sc_panel_width_modal_btn {
+                padding: 3px 10px;
+            }
+            .sc_panel_width_modal_width_1_btn,
+            .sc_panel_width_modal_width_2_btn,
+            .sc_panel_width_modal_width_3_btn{
+                margin-left: 10px;
+            }
+        `;
+
+        document.head.appendChild(sc_panel_width_modal_style);
+
+        let sc_panel_width_modal_html = document.createElement('div');
+        sc_panel_width_modal_html.id = 'sc_panel_width_config_div';
+        sc_panel_width_modal_html.className = 'sc_panel_width_config_modal';
+        sc_panel_width_modal_html.innerHTML = `
+                <div class="sc_panel_width_modal_content">
+                    <span class="sc_panel_width_close">&times;</span>
+                    <p>醒目留言（记录板）宽度自定义设置：</p>
+                    <form id="sc_panel_width_form">
+                        <div id="sc_panel_width_input_div">
+                            <label for="sc_panel_width_input">300-500(px)：</label>
+                            <input type="number" class="sc_panel_width_input_value" id="sc_panel_width_input" min="300" max="500" value="302"/>
+                        </div>
+                    </form>
+
+                    <div class="sc_panel_width_btn_div">
+                        <button id="sc_panel_width_cancel_btn" class="sc_panel_width_modal_btn sc_panel_width_modal_close_btn">取消</button>
+                        <button id="sc_panel_width_default_btn" class="sc_panel_width_modal_btn sc_panel_width_modal_default_btn">默认</button>
+                        <button id="sc_panel_width_1_btn" class="sc_panel_width_modal_btn sc_panel_width_modal_width_1_btn">宽一</button>
+                        <button id="sc_panel_width_2_btn" class="sc_panel_width_modal_btn sc_panel_width_modal_width_2_btn">宽二</button>
+                        <button id="sc_panel_width_3_btn" class="sc_panel_width_modal_btn sc_panel_width_modal_width_3_btn">宽三</button>
+                        <button id="sc_panel_width_confirm_btn" class="sc_panel_width_modal_btn sc_panel_width_modal_close_btn">确定</button>
+                    </div>
+                </div>
+        `;
+
+        document.body.appendChild(sc_panel_width_modal_html);
+
+        let sc_panel_width_modal_html_fullscreen = document.createElement('div');
+        sc_panel_width_modal_html_fullscreen.id = 'sc_panel_width_config_div_fullscreen';
+        sc_panel_width_modal_html_fullscreen.className = 'sc_panel_width_config_modal';
+        sc_panel_width_modal_html_fullscreen.innerHTML = `
+                <div class="sc_panel_width_modal_content">
+                    <span class="sc_panel_width_close">&times;</span>
+                    <p>醒目留言（记录板）宽度自定义设置：</p>
+                    <form id="sc_panel_width_form_fullscreen">
+                        <div id="sc_panel_width_input_div_fullscreen">
+                            <label for="sc_panel_width_input_fullscreen">300-500(px)：</label>
+                            <input type="number" class="sc_panel_width_input_value" id="sc_panel_width_input_fullscreen" min="300" max="500" value="302"/>
+                        </div>
+                    </form>
+
+                    <div class="sc_panel_width_btn_div_fullscreen">
+                        <button id="sc_panel_width_cancel_btn_fullscreen" class="sc_panel_width_modal_btn sc_panel_width_modal_close_btn">取消</button>
+                        <button id="sc_panel_width_default_btn_fullscreen" class="sc_panel_width_modal_btn sc_panel_width_modal_default_btn">默认</button>
+                        <button id="sc_panel_width_1_btn_fullscreen" class="sc_panel_width_modal_btn sc_panel_width_modal_width_1_btn">宽一</button>
+                        <button id="sc_panel_width_2_btn_fullscreen" class="sc_panel_width_modal_btn sc_panel_width_modal_width_2_btn">宽二</button>
+                        <button id="sc_panel_width_3_btn_fullscreen" class="sc_panel_width_modal_btn sc_panel_width_modal_width_3_btn">宽三</button>
+                        <button id="sc_panel_width_confirm_btn_fullscreen" class="sc_panel_width_modal_btn sc_panel_width_modal_close_btn">确定</button>
+                    </div>
+                </div>
+        `;
+
+        $(live_player_div).append(sc_panel_width_modal_html_fullscreen);
+
+        function sc_close_panel_width_modal() {
+            $(document).find('.sc_panel_width_config_modal').hide();
+        }
+
+        function sc_panel_width_config_apply() {
+            if (sc_panel_fold_mode === 1) {
+                if (sc_side_fold_custom_first_class) { sc_side_fold_custom_auto_run_flag = false; sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
+            } else if (sc_panel_fold_mode === 2) {
+                $(document).find('.sc_long_rectangle').width(sc_rectangle_width);
+            }
+
+            $(document).find('.sc_uname_div').width(sc_rectangle_width / 2 + 5);
+        }
+
+        $(document).on('click', '.sc_panel_width_close, .sc_panel_width_modal_close_btn', function() {
+            sc_close_panel_width_modal();
+        });
+
+        $(document).on('click', '.sc_panel_width_modal_default_btn', function() {
+            $(document).find('.sc_panel_width_input_value').val(302);
+        });
+
+        $(document).on('click', '.sc_panel_width_modal_width_1_btn', function() {
+            $(document).find('.sc_panel_width_input_value').val(325);
+        });
+
+        $(document).on('click', '.sc_panel_width_modal_width_2_btn', function() {
+            $(document).find('.sc_panel_width_input_value').val(388);
+        });
+
+        $(document).on('click', '.sc_panel_width_modal_width_3_btn', function() {
+            $(document).find('.sc_panel_width_input_value').val(428);
+        });
+
+        $(document).on('click', '#sc_panel_width_confirm_btn', function(e) {
+            let sc_panel_width_config = $(document).find('#sc_panel_width_input').val();
+            sc_rectangle_width = parseInt(sc_panel_width_config, 10);
+            sc_rectangle_width_store();
+            sc_panel_width_config_apply();
+
+            sc_close_panel_width_modal();
+            open_and_close_sc_modal('✓', '#A7C9D3', e);
+        });
+
+        $(document).on('click', '#sc_panel_width_confirm_btn_fullscreen', function(e) {
+            let sc_panel_width_config = $(document).find('#sc_panel_width_input_fullscreen').val();
+            sc_rectangle_width = parseInt(sc_panel_width_config, 10);
+            sc_rectangle_width_store();
+            sc_panel_width_config_apply();
+
+            sc_close_panel_width_modal();
+            open_and_close_sc_modal('✓', '#A7C9D3', e);
+        });
+
         // 创建一个自定义右键菜单
         let sc_func_button1 = document.createElement('button');
         sc_func_button1.className = 'sc_func_btn';
@@ -3126,57 +3437,75 @@
 
         let sc_func_button7 = document.createElement('button');
         sc_func_button7.className = 'sc_func_btn';
-        sc_func_button7.id = 'sc_func_bottom_data_show_btn';
-        sc_func_button7.innerHTML = '右侧的弹幕发送框显示数据';
+        sc_func_button7.id = 'sc_func_panel_width_config_btn';
+        sc_func_button7.innerHTML = '设置记录板留言宽度自定义';
         sc_func_button7.style.marginBottom = '2px';
 
         let sc_func_button8 = document.createElement('button');
         sc_func_button8.className = 'sc_func_btn';
-        sc_func_button8.id = 'sc_func_bottom_data_hide_btn';
-        sc_func_button8.innerHTML = '右侧的弹幕发送框隐藏数据';
+        sc_func_button8.id = 'sc_func_bottom_data_show_btn';
+        sc_func_button8.innerHTML = '右侧的弹幕发送框显示数据';
         sc_func_button8.style.marginBottom = '2px';
 
         let sc_func_button9 = document.createElement('button');
         sc_func_button9.className = 'sc_func_btn';
-        sc_func_button9.id = 'sc_func_panel_allow_drag_close_btn';
-        sc_func_button9.innerHTML = '锁定记录板即关闭拖拽功能';
+        sc_func_button9.id = 'sc_func_bottom_data_hide_btn';
+        sc_func_button9.innerHTML = '右侧的弹幕发送框隐藏数据';
         sc_func_button9.style.marginBottom = '2px';
 
         let sc_func_button10 = document.createElement('button');
         sc_func_button10.className = 'sc_func_btn';
-        sc_func_button10.id = 'sc_func_panel_allow_drag_open_btn';
-        sc_func_button10.innerHTML = '解锁记录板即开放拖拽功能';
+        sc_func_button10.id = 'sc_func_panel_allow_drag_close_btn';
+        sc_func_button10.innerHTML = '锁定记录板即关闭拖拽功能';
         sc_func_button10.style.marginBottom = '2px';
 
         let sc_func_button11 = document.createElement('button');
         sc_func_button11.className = 'sc_func_btn';
-        sc_func_button11.id = 'sc_func_panel_switch_open_mode_btn';
-        sc_func_button11.innerHTML = '展开记录板即切换展开模式';
+        sc_func_button11.id = 'sc_func_panel_allow_drag_open_btn';
+        sc_func_button11.innerHTML = '解锁记录板即开放拖拽功能';
         sc_func_button11.style.marginBottom = '2px';
 
         let sc_func_button12 = document.createElement('button');
         sc_func_button12.className = 'sc_func_btn';
-        sc_func_button12.id = 'sc_circle_welt_hide_half_true_btn';
-        sc_func_button12.innerHTML = '设置小图标在贴边后半隐藏';
+        sc_func_button12.id = 'sc_func_panel_switch_open_mode_btn';
+        sc_func_button12.innerHTML = '展开记录板即切换展开模式';
         sc_func_button12.style.marginBottom = '2px';
 
         let sc_func_button13 = document.createElement('button');
         sc_func_button13.className = 'sc_func_btn';
-        sc_func_button13.id = 'sc_circle_welt_hide_half_false_btn';
-        sc_func_button13.innerHTML = '取消小图标在贴边后半隐藏';
+        sc_func_button13.id = 'sc_circle_welt_hide_half_true_btn';
+        sc_func_button13.innerHTML = '设置小图标在贴边后半隐藏';
         sc_func_button13.style.marginBottom = '2px';
 
         let sc_func_button14 = document.createElement('button');
         sc_func_button14.className = 'sc_func_btn';
-        sc_func_button14.id = 'sc_func_item_show_time_btn';
-        sc_func_button14.innerHTML = '显示醒目留言发送具体时间';
+        sc_func_button14.id = 'sc_circle_welt_hide_half_false_btn';
+        sc_func_button14.innerHTML = '取消小图标在贴边后半隐藏';
         sc_func_button14.style.marginBottom = '2px';
 
         let sc_func_button15 = document.createElement('button');
         sc_func_button15.className = 'sc_func_btn';
-        sc_func_button15.id = 'sc_func_item_hide_time_btn';
-        sc_func_button15.innerHTML = '隐藏醒目留言发送具体时间';
+        sc_func_button15.id = 'sc_func_item_show_time_btn';
+        sc_func_button15.innerHTML = '显示醒目留言发送具体时间';
         sc_func_button15.style.marginBottom = '2px';
+
+        let sc_func_button16 = document.createElement('button');
+        sc_func_button16.className = 'sc_func_btn';
+        sc_func_button16.id = 'sc_func_item_hide_time_btn';
+        sc_func_button16.innerHTML = '隐藏醒目留言发送具体时间';
+        sc_func_button16.style.marginBottom = '2px';
+
+        let sc_func_button17 = document.createElement('button');
+        sc_func_button17.className = 'sc_func_btn';
+        sc_func_button17.id = 'sc_func_live_sidebar_left_btn';
+        sc_func_button17.innerHTML = '设置直播间功能按钮在左侧';
+        sc_func_button17.style.marginBottom = '2px';
+
+        let sc_func_button18 = document.createElement('button');
+        sc_func_button18.className = 'sc_func_btn';
+        sc_func_button18.id = 'sc_func_live_sidebar_right_btn';
+        sc_func_button18.innerHTML = '恢复直播间功能按钮在右侧';
+        sc_func_button18.style.marginBottom = '2px';
 
         let sc_func_br1 = document.createElement('br');
         let sc_func_br2 = document.createElement('br');
@@ -3192,6 +3521,9 @@
         let sc_func_br12 = document.createElement('br');
         let sc_func_br13 = document.createElement('br');
         let sc_func_br14 = document.createElement('br');
+        let sc_func_br15 = document.createElement('br');
+        let sc_func_br16 = document.createElement('br');
+        let sc_func_br17 = document.createElement('br');
 
         let sc_func_context_menu = document.createElement('div');
         sc_func_context_menu.id = 'sc_context_menu_func_body';
@@ -3232,6 +3564,12 @@
         sc_func_context_menu.appendChild(sc_func_button14);
         sc_func_context_menu.appendChild(sc_func_br14);
         sc_func_context_menu.appendChild(sc_func_button15);
+        sc_func_context_menu.appendChild(sc_func_br15);
+        sc_func_context_menu.appendChild(sc_func_button16);
+        sc_func_context_menu.appendChild(sc_func_br16);
+        sc_func_context_menu.appendChild(sc_func_button17);
+        sc_func_context_menu.appendChild(sc_func_br17);
+        sc_func_context_menu.appendChild(sc_func_button18);
 
         // 将功能的右键菜单添加到body中
         document.body.appendChild(sc_func_context_menu);
@@ -3314,6 +3652,19 @@
                 sc_custom_config_div_id = 'sc_custom_config_div_fullscreen';
             }
             $(document).find('#' + sc_custom_config_div_id).show();
+
+            $(this).parent().fadeOut();
+        });
+
+        $(document).on('click', '#sc_func_panel_width_config_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let sc_panel_width_config_div_id = 'sc_panel_width_config_div';
+            if (sc_isFullscreen) {
+                sc_panel_width_config_div_id = 'sc_panel_width_config_div_fullscreen';
+            }
+            $(document).find('#' + sc_panel_width_config_div_id).show();
 
             $(this).parent().fadeOut();
         });
@@ -3427,6 +3778,30 @@
 
             $(this).parent().fadeOut();
             open_and_close_sc_modal('已设置 隐藏醒目留言发送具体时间 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_live_sidebar_left_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_live_sidebar_left_flag = true;
+            sc_live_sidebar_position_left_apply();
+            sc_live_sidebar_left_flag_store();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 直播间功能按钮在左侧 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_live_sidebar_right_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_live_sidebar_left_flag = false;
+            sc_live_sidebar_position_right_apply();
+            sc_live_sidebar_left_flag_store();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已恢复直播间功能按钮在右侧 ✓', '#A7C9D3', e, 1);
         });
 
         // 创建一个自定义右键菜单
@@ -3633,8 +4008,8 @@
             if (unsafeWindow.innerWidth - e.clientX <= 200) {
                 e.clientX = unsafeWindow.innerWidth - 200;
             }
-            if (unsafeWindow.innerHeight - e.clientY <= 450) {
-                e.clientY = unsafeWindow.innerHeight - 450;
+            if (unsafeWindow.innerHeight - e.clientY <= 500) {
+                e.clientY = unsafeWindow.innerHeight - 500;
             }
             $(document).find('#' + the_sc_ctx_menu_id).css('left', e.clientX + 'px');
             $(document).find('#' + the_sc_ctx_menu_id).css('top', e.clientY + 'px');

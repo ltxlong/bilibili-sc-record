@@ -29,8 +29,6 @@
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
 // @license      GPL-3.0-or-later
-// @downloadURL https://update.greasyfork.org/scripts/484381/B%E7%AB%99%E7%9B%B4%E6%92%AD%E9%97%B4SC%E8%AE%B0%E5%BD%95%E6%9D%BF.user.js
-// @updateURL https://update.greasyfork.org/scripts/484381/B%E7%AB%99%E7%9B%B4%E6%92%AD%E9%97%B4SC%E8%AE%B0%E5%BD%95%E6%9D%BF.meta.js
 // ==/UserScript==
 
 (function() {
@@ -3866,12 +3864,12 @@
             }
         `;
 
-    document.head.appendChild(sc_item_order_modal_style);
+        document.head.appendChild(sc_item_order_modal_style);
 
-    let sc_item_order_modal_html = document.createElement('div');
-    sc_item_order_modal_html.id = 'sc_item_order_config_div';
-    sc_item_order_modal_html.className = 'sc_item_order_config_modal';
-    sc_item_order_modal_html.innerHTML = `
+        let sc_item_order_modal_html = document.createElement('div');
+        sc_item_order_modal_html.id = 'sc_item_order_config_div';
+        sc_item_order_modal_html.className = 'sc_item_order_config_modal';
+        sc_item_order_modal_html.innerHTML = `
                 <div class="sc_item_order_modal_content">
                     <span class="sc_item_order_close">&times;</span>
                     <p>设置记录板留言的排列顺序：</p>
@@ -3891,12 +3889,12 @@
                 </div>
         `;
 
-    document.body.appendChild(sc_item_order_modal_html);
+        document.body.appendChild(sc_item_order_modal_html);
 
-    let sc_item_order_modal_html_fullscreen = document.createElement('div');
-    sc_item_order_modal_html_fullscreen.id = 'sc_item_order_config_div_fullscreen';
-    sc_item_order_modal_html_fullscreen.className = 'sc_item_order_config_modal';
-    sc_item_order_modal_html_fullscreen.innerHTML = `
+        let sc_item_order_modal_html_fullscreen = document.createElement('div');
+        sc_item_order_modal_html_fullscreen.id = 'sc_item_order_config_div_fullscreen';
+        sc_item_order_modal_html_fullscreen.className = 'sc_item_order_config_modal';
+        sc_item_order_modal_html_fullscreen.innerHTML = `
                 <div class="sc_item_order_modal_content">
                     <span class="sc_item_order_close">&times;</span>
                     <p>设置记录板留言的排列顺序：</p>
@@ -3916,866 +3914,866 @@
                 </div>
         `;
 
-    $(live_player_div).append(sc_item_order_modal_html_fullscreen);
+        $(live_player_div).append(sc_item_order_modal_html_fullscreen);
 
-    function sc_close_item_order_modal() {
-        $(document).find('.sc_item_order_config_modal').hide();
-    }
-
-    $(document).on('click', '.sc_item_order_close, .sc_item_order_modal_close_btn', function() {
-        sc_close_item_order_modal();
-    });
-
-    $(document).on('click', '#sc_item_order_confirm_btn', function(e) {
-        let sc_item_order_select_val = $(document).find('.sc_item_order_radio_group input[name="sc_item_order_option"]:checked').val();
-        let old_sc_item_order_up_flag = sc_item_order_up_flag;
-        if (sc_item_order_select_val === '0') {
-            sc_item_order_up_flag = false;
-        } else if (sc_item_order_select_val === '1') {
-            sc_item_order_up_flag = true;
+        function sc_close_item_order_modal() {
+            $(document).find('.sc_item_order_config_modal').hide();
         }
 
-        sc_close_item_order_modal();
-
-        if (old_sc_item_order_up_flag === sc_item_order_up_flag) {
-            open_and_close_sc_modal('✓', '#A7C9D3', e);
-        } else {
-            sc_item_order_up_flag_store();
-            alert('更新设置成功！刷新页面后生效~');
-            unsafeWindow.location.reload();
-        }
-    });
-
-    $(document).on('click', '#sc_item_order_confirm_btn_fullscreen', function(e) {
-        let sc_item_order_select_val = $(document).find('.sc_item_order_radio_group_fullscreen input[name="sc_item_order_option_fullscreen"]:checked').val();
-        let old_sc_item_order_up_flag = sc_item_order_up_flag;
-        if (sc_item_order_select_val === '0') {
-            sc_item_order_up_flag = false;
-        } else if (sc_item_order_select_val === '1') {
-            sc_item_order_up_flag = true;
-        }
-
-        sc_close_item_order_modal();
-
-        if (old_sc_item_order_up_flag === sc_item_order_up_flag) {
-            open_and_close_sc_modal('✓', '#A7C9D3', e);
-        } else {
-            sc_item_order_up_flag_store();
-            alert('更新设置成功！刷新页面后生效~');
-            unsafeWindow.location.reload();
-        }
-    });
-
-    // 创建一个自定义右键菜单
-    let sc_func_button1 = document.createElement('button');
-    sc_func_button1.className = 'sc_func_btn';
-    sc_func_button1.id = 'sc_func_no_remember_show_sc_list_btn';
-    sc_func_button1.innerHTML = '不记忆地显示醒目留言列表';
-    sc_func_button1.style.marginBottom = '2px';
-
-    let sc_func_button2 = document.createElement('button');
-    sc_func_button2.className = 'sc_func_btn';
-    sc_func_button2.id = 'sc_func_no_remember_hide_sc_list_btn';
-    sc_func_button2.innerHTML = '不记忆地隐藏醒目留言列表';
-    sc_func_button2.style.marginBottom = '2px';
-
-    let sc_func_button3 = document.createElement('button');
-    sc_func_button3.className = 'sc_func_btn';
-    sc_func_button3.id = 'sc_func_show_btn';
-    sc_func_button3.innerHTML = '侧折模式下显示所有的按钮';
-    sc_func_button3.style.marginBottom = '2px';
-
-    let sc_func_button4 = document.createElement('button');
-    sc_func_button4.className = 'sc_func_btn';
-    sc_func_button4.id = 'sc_func_hide_btn';
-    sc_func_button4.innerHTML = '侧折模式下隐藏所有的按钮';
-    sc_func_button4.style.marginBottom = '2px';
-
-    let sc_func_button5 = document.createElement('button');
-    sc_func_button5.className = 'sc_func_btn';
-    sc_func_button5.id = 'sc_func_simple_btn';
-    sc_func_button5.innerHTML = '侧折模式下按钮的极简模式';
-    sc_func_button5.style.marginBottom = '2px';
-
-    let sc_func_button6 = document.createElement('button');
-    sc_func_button6.className = 'sc_func_btn';
-    sc_func_button6.id = 'sc_func_one_min_btn';
-    sc_func_button6.innerHTML = '侧折模式下只显示折叠按钮';
-    sc_func_button6.style.marginBottom = '2px';
-
-    let sc_func_button7 = document.createElement('button');
-    sc_func_button7.className = 'sc_func_btn';
-    sc_func_button7.id = 'sc_func_one_menu_btn';
-    sc_func_button7.innerHTML = '侧折模式下只显示菜单按钮';
-    sc_func_button7.style.marginBottom = '2px';
-
-    let sc_func_button8 = document.createElement('button');
-    sc_func_button8.className = 'sc_func_btn';
-    sc_func_button8.id = 'sc_func_first_sc_item_config_btn';
-    sc_func_button8.innerHTML = '侧折模式下留言显示自定义';
-    sc_func_button8.style.marginBottom = '2px';
-
-    let sc_func_button9 = document.createElement('button');
-    sc_func_button9.className = 'sc_func_btn';
-    sc_func_button9.id = 'sc_func_panel_width_config_btn';
-    sc_func_button9.innerHTML = '设置记录板留言宽度自定义';
-    sc_func_button9.style.marginBottom = '2px';
-
-    let sc_func_button10 = document.createElement('button');
-    sc_func_button10.className = 'sc_func_btn';
-    sc_func_button10.id = 'sc_func_panel_height_config_btn';
-    sc_func_button10.innerHTML = '设置记录板显示高度自定义';
-    sc_func_button10.style.marginBottom = '2px';
-
-    let sc_func_button11 = document.createElement('button');
-    sc_func_button11.className = 'sc_func_btn';
-    sc_func_button11.id = 'sc_func_item_order_config_btn';
-    sc_func_button11.innerHTML = '设置记录板留言的排列顺序';
-    sc_func_button11.style.marginBottom = '2px';
-
-    let sc_func_button12 = document.createElement('button');
-    sc_func_button12.className = 'sc_func_btn';
-    sc_func_button12.id = 'sc_func_bottom_data_show_btn';
-    sc_func_button12.innerHTML = '右侧的弹幕发送框显示数据';
-    sc_func_button12.style.marginBottom = '2px';
-
-    let sc_func_button13 = document.createElement('button');
-    sc_func_button13.className = 'sc_func_btn';
-    sc_func_button13.id = 'sc_func_bottom_data_hide_btn';
-    sc_func_button13.innerHTML = '右侧的弹幕发送框隐藏数据';
-    sc_func_button13.style.marginBottom = '2px';
-
-    let sc_func_button14 = document.createElement('button');
-    sc_func_button14.className = 'sc_func_btn';
-    sc_func_button14.id = 'sc_func_panel_allow_drag_close_btn';
-    sc_func_button14.innerHTML = '锁定记录板即关闭拖拽功能';
-    sc_func_button14.style.marginBottom = '2px';
-
-    let sc_func_button15 = document.createElement('button');
-    sc_func_button15.className = 'sc_func_btn';
-    sc_func_button15.id = 'sc_func_panel_allow_drag_open_btn';
-    sc_func_button15.innerHTML = '解锁记录板即开放拖拽功能';
-    sc_func_button15.style.marginBottom = '2px';
-
-    let sc_func_button16 = document.createElement('button');
-    sc_func_button16.className = 'sc_func_btn';
-    sc_func_button16.id = 'sc_func_panel_switch_open_mode_btn';
-    sc_func_button16.innerHTML = '展开记录板即切换展开模式';
-    sc_func_button16.style.marginBottom = '2px';
-
-    let sc_func_button17 = document.createElement('button');
-    sc_func_button17.className = 'sc_func_btn';
-    sc_func_button17.id = 'sc_circle_welt_hide_half_true_btn';
-    sc_func_button17.innerHTML = '设置小图标在贴边后半隐藏';
-    sc_func_button17.style.marginBottom = '2px';
-
-    let sc_func_button18 = document.createElement('button');
-    sc_func_button18.className = 'sc_func_btn';
-    sc_func_button18.id = 'sc_circle_welt_hide_half_false_btn';
-    sc_func_button18.innerHTML = '取消小图标在贴边后半隐藏';
-    sc_func_button18.style.marginBottom = '2px';
-
-    let sc_func_button19 = document.createElement('button');
-    sc_func_button19.className = 'sc_func_btn';
-    sc_func_button19.id = 'sc_func_item_show_time_btn';
-    sc_func_button19.innerHTML = '显示醒目留言发送具体时间';
-    sc_func_button19.style.marginBottom = '2px';
-
-    let sc_func_button20 = document.createElement('button');
-    sc_func_button20.className = 'sc_func_btn';
-    sc_func_button20.id = 'sc_func_item_hide_time_btn';
-    sc_func_button20.innerHTML = '隐藏醒目留言发送具体时间';
-    sc_func_button20.style.marginBottom = '2px';
-
-    let sc_func_button21 = document.createElement('button');
-    sc_func_button21.className = 'sc_func_btn';
-    sc_func_button21.id = 'sc_func_live_sidebar_left_btn';
-    sc_func_button21.innerHTML = '设置直播间功能按钮在左侧';
-    sc_func_button21.style.marginBottom = '2px';
-
-    let sc_func_button22 = document.createElement('button');
-    sc_func_button22.className = 'sc_func_btn';
-    sc_func_button22.id = 'sc_func_live_sidebar_right_btn';
-    sc_func_button22.innerHTML = '恢复直播间功能按钮在右侧';
-    sc_func_button22.style.marginBottom = '2px';
-
-    let sc_func_br1 = document.createElement('br');
-    let sc_func_br2 = document.createElement('br');
-    let sc_func_br3 = document.createElement('br');
-    let sc_func_br4 = document.createElement('br');
-    let sc_func_br5 = document.createElement('br');
-    let sc_func_br6 = document.createElement('br');
-    let sc_func_br7 = document.createElement('br');
-    let sc_func_br8 = document.createElement('br');
-    let sc_func_br9 = document.createElement('br');
-    let sc_func_br10 = document.createElement('br');
-    let sc_func_br11 = document.createElement('br');
-    let sc_func_br12 = document.createElement('br');
-    let sc_func_br13 = document.createElement('br');
-    let sc_func_br14 = document.createElement('br');
-    let sc_func_br15 = document.createElement('br');
-    let sc_func_br16 = document.createElement('br');
-    let sc_func_br17 = document.createElement('br');
-    let sc_func_br18 = document.createElement('br');
-    let sc_func_br19 = document.createElement('br');
-    let sc_func_br20 = document.createElement('br');
-    let sc_func_br21 = document.createElement('br');
-
-    let sc_func_context_menu = document.createElement('div');
-    sc_func_context_menu.id = 'sc_context_menu_func_body';
-    sc_func_context_menu.className = 'sc_ctx_func_menu';
-    sc_func_context_menu.style.position = 'fixed';
-    sc_func_context_menu.style.display = 'none';
-    sc_func_context_menu.style.backgroundColor = '#ffffff';
-    sc_func_context_menu.style.border = 0;
-    sc_func_context_menu.style.padding = '5px';
-    sc_func_context_menu.style.zIndex = 3333;
-
-    sc_func_context_menu.appendChild(sc_func_button1);
-    sc_func_context_menu.appendChild(sc_func_br1);
-    sc_func_context_menu.appendChild(sc_func_button2);
-    sc_func_context_menu.appendChild(sc_func_br2);
-    sc_func_context_menu.appendChild(sc_func_button3);
-    sc_func_context_menu.appendChild(sc_func_br3);
-    sc_func_context_menu.appendChild(sc_func_button4);
-    sc_func_context_menu.appendChild(sc_func_br4);
-    sc_func_context_menu.appendChild(sc_func_button5);
-    sc_func_context_menu.appendChild(sc_func_br5);
-    sc_func_context_menu.appendChild(sc_func_button6);
-    sc_func_context_menu.appendChild(sc_func_br6);
-    sc_func_context_menu.appendChild(sc_func_button7);
-    sc_func_context_menu.appendChild(sc_func_br7);
-    sc_func_context_menu.appendChild(sc_func_button8);
-    sc_func_context_menu.appendChild(sc_func_br8);
-    sc_func_context_menu.appendChild(sc_func_button9);
-    sc_func_context_menu.appendChild(sc_func_br9);
-    sc_func_context_menu.appendChild(sc_func_button10);
-    sc_func_context_menu.appendChild(sc_func_br10);
-    sc_func_context_menu.appendChild(sc_func_button11);
-    sc_func_context_menu.appendChild(sc_func_br11);
-    sc_func_context_menu.appendChild(sc_func_button12);
-    sc_func_context_menu.appendChild(sc_func_br12);
-    sc_func_context_menu.appendChild(sc_func_button13);
-    sc_func_context_menu.appendChild(sc_func_br13);
-    sc_func_context_menu.appendChild(sc_func_button14);
-    sc_func_context_menu.appendChild(sc_func_br14);
-    sc_func_context_menu.appendChild(sc_func_button15);
-    sc_func_context_menu.appendChild(sc_func_br15);
-    sc_func_context_menu.appendChild(sc_func_button16);
-    sc_func_context_menu.appendChild(sc_func_br16);
-    sc_func_context_menu.appendChild(sc_func_button17);
-    sc_func_context_menu.appendChild(sc_func_br17);
-    sc_func_context_menu.appendChild(sc_func_button18);
-    sc_func_context_menu.appendChild(sc_func_br18);
-    sc_func_context_menu.appendChild(sc_func_button19);
-    sc_func_context_menu.appendChild(sc_func_br19);
-    sc_func_context_menu.appendChild(sc_func_button20);
-    sc_func_context_menu.appendChild(sc_func_br20);
-    sc_func_context_menu.appendChild(sc_func_button21);
-    sc_func_context_menu.appendChild(sc_func_br21);
-    sc_func_context_menu.appendChild(sc_func_button22);
-
-    // 将功能的右键菜单添加到body中
-    document.body.appendChild(sc_func_context_menu);
-
-    let sc_func_context_menu_fullscreen = sc_func_context_menu.cloneNode(true);
-    sc_func_context_menu_fullscreen.id = 'sc_func_context_menu_fullscreen';
-    $(live_player_div).append(sc_func_context_menu_fullscreen);
-
-    $(document).on('click', '#sc_func_show_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_func_btn_mode = 0;
-        sc_func_btn_mode_store();
-        sc_btn_mode_apply();
-        sc_after_click_func_btn_apply(e);
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 侧折模式下显示所有的按钮✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_hide_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_func_btn_mode = 1;
-        sc_func_btn_mode_store();
-        sc_btn_mode_apply();
-        sc_after_click_func_btn_apply(e);
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 侧折模式下隐藏所有的按钮 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_simple_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_func_btn_mode = 2;
-        sc_func_btn_mode_store();
-        sc_btn_mode_apply();
-        sc_after_click_func_btn_apply(e);
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 侧折模式下按钮的极简模式 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_one_min_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_func_btn_mode = 3;
-        sc_func_btn_mode_store();
-        sc_btn_mode_apply();
-        sc_after_click_func_btn_apply(e);
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 侧折模式下只显示折叠按钮 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_one_menu_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_func_btn_mode = 4;
-        sc_func_btn_mode_store();
-        sc_btn_mode_apply();
-        sc_after_click_func_btn_apply(e);
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 侧折模式下只显示菜单按钮 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_first_sc_item_config_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        let sc_custom_config_div_id = 'sc_custom_config_div';
-        if (sc_isFullscreen) {
-            sc_custom_config_div_id = 'sc_custom_config_div_fullscreen';
-        }
-        $(document).find('#' + sc_custom_config_div_id).show();
-
-        $(this).parent().fadeOut();
-    });
-
-    $(document).on('click', '#sc_func_panel_width_config_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        let sc_panel_width_config_div_id = 'sc_panel_width_config_div';
-        if (sc_isFullscreen) {
-            sc_panel_width_config_div_id = 'sc_panel_width_config_div_fullscreen';
-        }
-        $(document).find('#' + sc_panel_width_config_div_id).show();
-
-        $(this).parent().fadeOut();
-    });
-
-    $(document).on('click', '#sc_func_panel_height_config_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        let sc_panel_height_config_div_id = 'sc_panel_height_config_div';
-        if (sc_isFullscreen) {
-            sc_panel_height_config_div_id = 'sc_panel_height_config_div_fullscreen';
-        }
-        $(document).find('#' + sc_panel_height_config_div_id).show();
-
-        $(this).parent().fadeOut();
-    });
-
-    $(document).on('click', '#sc_func_item_order_config_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        let sc_item_order_config_div_id = 'sc_item_order_config_div';
-        if (sc_isFullscreen) {
-            sc_item_order_config_div_id = 'sc_item_order_config_div_fullscreen';
-        }
-        $(document).find('#' + sc_item_order_config_div_id).show();
-
-        $(this).parent().fadeOut();
-    });
-
-    $(document).on('click', '#sc_func_bottom_data_show_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        data_show_bottom_flag = true;
-        sc_data_show_bottom_store();
-        $(document).find('#sc_data_show_bottom_div').show();
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 右侧的弹幕发送框显示数据 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_bottom_data_hide_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        data_show_bottom_flag = false;
-        sc_data_show_bottom_store();
-        $(document).find('#sc_data_show_bottom_div').hide();
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 右侧的弹幕发送框隐藏数据 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_panel_allow_drag_close_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_panel_allow_drag_flag = false;
-        sc_panel_allow_drag_store();
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 锁定记录板即关闭拖拽功能 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_panel_allow_drag_open_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_panel_allow_drag_flag = true;
-        sc_panel_allow_drag_store();
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 解锁记录板即开放拖拽功能 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_panel_switch_open_mode_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        $(document).find('.sc_long_buttons').show();
-        sc_rectangle_is_slide_down = false;
-        sc_foldback();
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已切换到展开模式 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_circle_welt_hide_half_true_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_welt_hide_circle_half_flag = true;
-        sc_welt_hide_circle_half_store();
-        sc_circle_welt_hide_half();
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 小图标在贴边后半隐藏 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_circle_welt_hide_half_false_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_welt_hide_circle_half_flag = false;
-        sc_welt_hide_circle_half_store();
-
-        let sc_circles = $(document).find('.sc_long_circle');
-        sc_circles.removeClass('sc_circle_x_left_hide_animate');
-        sc_circles.removeClass('sc_circle_x_right_hide_animate');
-        sc_circles.removeClass('sc_circle_y_top_hide_animate');
-        sc_circles.removeClass('sc_circle_y_bottom_hide_animate');
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 取消小图标在贴边后半隐藏 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_item_show_time_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        $(document).find('.sc_start_time').show();
-        sc_start_time_show_flag = true;
-        sc_start_time_show_store();
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 显示醒目留言发送具体时间 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_item_hide_time_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        $(document).find('.sc_start_time').hide();
-        sc_start_time_show_flag = false;
-        sc_start_time_show_store();
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 隐藏醒目留言发送具体时间 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_live_sidebar_left_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_live_sidebar_left_flag = true;
-        sc_live_sidebar_position_left_apply();
-        sc_live_sidebar_left_flag_store();
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已设置 直播间功能按钮在左侧 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_live_sidebar_right_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_live_sidebar_left_flag = false;
-        sc_live_sidebar_position_right_apply();
-        sc_live_sidebar_left_flag_store();
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已恢复直播间功能按钮在右侧 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_no_remember_show_sc_list_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        let func_btn_sc_long_list = $(document).find('.sc_long_list');
-        let old_rect_height = func_btn_sc_long_list.attr('data-height');
-
-        if (old_rect_height !== undefined) {
-            sc_panel_list_height = parseInt(old_rect_height, 10);
-        }
-        if (sc_panel_list_height === 0) {
-            sc_panel_list_height = 400;
-        }
-
-        sc_panel_list_height_config_apply();
-
-        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
-        if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
-
-        if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
-        if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
-
-        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已显示醒目留言列表，该操作不会记忆 ✓', '#A7C9D3', e, 1);
-    });
-
-    $(document).on('click', '#sc_func_no_remember_hide_sc_list_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        sc_panel_list_height = 0;
-        let func_btn_sc_long_list = $(document).find('.sc_long_list');
-        func_btn_sc_long_list.attr('data-height', func_btn_sc_long_list.height());
-        sc_panel_list_height_config_apply();
-
-        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
-        if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
-
-        if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
-        if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
-
-        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
-
-        $(this).parent().fadeOut();
-        open_and_close_sc_modal('已隐藏醒目留言列表，该操作不会记忆 ✓', '#A7C9D3', e, 1);
-    });
-
-    // 创建一个自定义右键菜单
-    let sc_copy_button1 = document.createElement('button');
-    sc_copy_button1.className = 'sc_copy_btn';
-    sc_copy_button1.id = 'sc_copy_has_time_btn';
-    sc_copy_button1.innerHTML = '点击复制为图片(有时间)';
-    sc_copy_button1.style.marginBottom = '2px';
-
-    let sc_copy_button2 = document.createElement('button');
-    sc_copy_button2.className = 'sc_copy_btn';
-    sc_copy_button2.id = 'sc_copy_no_time_btn';
-    sc_copy_button2.innerHTML = '点击复制为图片(没时间)';
-    sc_copy_button2.style.marginBottom = '2px';
-
-    let sc_copy_button3 = document.createElement('button');
-    sc_copy_button3.className = 'sc_copy_btn';
-    sc_copy_button3.id = 'sc_copy_uname_color_btn';
-    sc_copy_button3.innerHTML = '点击复制为图片(名颜色)';
-
-    let sc_copy_br1 = document.createElement('br');
-    let sc_copy_br2 = document.createElement('br');
-
-    let sc_copy_context_menu = document.createElement('div');
-    sc_copy_context_menu.id = 'sc_context_menu_copy_body';
-    sc_copy_context_menu.className = 'sc_ctx_copy_menu';
-    sc_copy_context_menu.style.position = 'fixed';
-    sc_copy_context_menu.style.display = 'none';
-    sc_copy_context_menu.style.backgroundColor = '#ffffff';
-    sc_copy_context_menu.style.border = 0;
-    sc_copy_context_menu.style.padding = '5px';
-    sc_copy_context_menu.style.zIndex = 3333;
-
-    sc_copy_context_menu.appendChild(sc_copy_button1);
-    sc_copy_context_menu.appendChild(sc_copy_br1);
-    sc_copy_context_menu.appendChild(sc_copy_button2);
-    sc_copy_context_menu.appendChild(sc_copy_br2);
-    sc_copy_context_menu.appendChild(sc_copy_button3);
-
-    // 将复制的右键菜单添加到body中
-    document.body.appendChild(sc_copy_context_menu);
-
-    let sc_copy_context_menu_fullscreen = sc_copy_context_menu.cloneNode(true);
-    sc_copy_context_menu_fullscreen.id = 'sc_copy_context_menu_fullscreen';
-    $(live_player_div).append(sc_copy_context_menu_fullscreen);
-
-    $(document).on('mouseover', '.sc_copy_btn, .sc_func_btn', function() {
-        $(this).css('transform', 'translateX(-2px)');
-        setTimeout(function() {
-            $(document).find('.sc_copy_btn, .sc_func_btn').css('transform', 'translateY(0)');
-        }, 200);
-
-    })
-
-    $(document).on('click', '.sc_copy_btn', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        $(document).find('.sc_long_rectangle').css('cursor', 'progress');
-
-        sc_after_click_func_btn_apply(e, true);
-
-        function capture_gen_canvas(tmp_sc_item_div, current_sc_div) {
-
-            return new Promise((resolve, reject) => {
-                html2canvas(tmp_sc_item_div, {
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: null,
-                    logging: false,
-                    width: current_sc_div.clientWidth,
-                    height: current_sc_div.clientHeight,
-                    scale: 8 // 数值越大，分辨率越大，越清晰，至少4倍才比较清晰
-                }).then(canvas => {
-
-                    resolve(canvas);
-                }).catch(error => {
-
-                    reject(error);
-                });
-            });
-        }
-
-        let sc_copy_btn_id = $(this).attr('id');
-
-        $(this).parent().fadeOut(function() {
-            let current_sc_div = $(sc_copy_context_menu).data('current_sc_div');
-
-            if (sc_panel_side_fold_flag) {
-                $(current_sc_div).css('width', (sc_rectangle_width - 22) + 'px');
-                sc_side_fold_out_one($(current_sc_div));
-                if ($(current_sc_div).attr('data-fold') === '0') {
-                    $(current_sc_div).css('height', $(current_sc_div).attr('data-height') + 'px');
-                }
+        $(document).on('click', '.sc_item_order_close, .sc_item_order_modal_close_btn', function() {
+            sc_close_item_order_modal();
+        });
+
+        $(document).on('click', '#sc_item_order_confirm_btn', function(e) {
+            let sc_item_order_select_val = $(document).find('.sc_item_order_radio_group input[name="sc_item_order_option"]:checked').val();
+            let old_sc_item_order_up_flag = sc_item_order_up_flag;
+            if (sc_item_order_select_val === '0') {
+                sc_item_order_up_flag = false;
+            } else if (sc_item_order_select_val === '1') {
+                sc_item_order_up_flag = true;
             }
 
-            let tmp_sc_item = $(current_sc_div).clone(); // 为了去掉animation的影响
-            tmp_sc_item.width(current_sc_div.clientWidth);
-            tmp_sc_item.height(current_sc_div.clientHeight);
-            tmp_sc_item.css('animation', '');
-            tmp_sc_item.find('.sc_font_color').css('color', '#000000');
-            tmp_sc_item.find('.sc_start_time').show();
+            sc_close_item_order_modal();
 
-            if (sc_copy_btn_id === 'sc_copy_no_time_btn') {
-                tmp_sc_item.find('.sc_start_time').hide();
-            } else if (sc_copy_btn_id === 'sc_copy_uname_color_btn') {
-                tmp_sc_item.find('.sc_start_time').hide();
-                let this_sc_uname_data_color = tmp_sc_item.find('.sc_font_color').attr('data-color');
-                tmp_sc_item.find('.sc_font_color').css('color', this_sc_uname_data_color);
+            if (old_sc_item_order_up_flag === sc_item_order_up_flag) {
+                open_and_close_sc_modal('✓', '#A7C9D3', e);
+            } else {
+                sc_item_order_up_flag_store();
+                alert('更新设置成功！刷新页面后生效~');
+                unsafeWindow.location.reload();
+            }
+        });
+
+        $(document).on('click', '#sc_item_order_confirm_btn_fullscreen', function(e) {
+            let sc_item_order_select_val = $(document).find('.sc_item_order_radio_group_fullscreen input[name="sc_item_order_option_fullscreen"]:checked').val();
+            let old_sc_item_order_up_flag = sc_item_order_up_flag;
+            if (sc_item_order_select_val === '0') {
+                sc_item_order_up_flag = false;
+            } else if (sc_item_order_select_val === '1') {
+                sc_item_order_up_flag = true;
             }
 
-            if (tmp_sc_item.find('.fans_medal_item').length) {
-                // 粉丝牌存在时，可以兼容名字过长的情况
-                tmp_sc_item.find('.sc_msg_head_left').css('width', '170px');
-                tmp_sc_item.find('.sc_uname_div').css('width', '225px');
-                tmp_sc_item.find('.sc_msg_head_right').css('height', '20px');
+            sc_close_item_order_modal();
+
+            if (old_sc_item_order_up_flag === sc_item_order_up_flag) {
+                open_and_close_sc_modal('✓', '#A7C9D3', e);
+            } else {
+                sc_item_order_up_flag_store();
+                alert('更新设置成功！刷新页面后生效~');
+                unsafeWindow.location.reload();
+            }
+        });
+
+        // 创建一个自定义右键菜单
+        let sc_func_button1 = document.createElement('button');
+        sc_func_button1.className = 'sc_func_btn';
+        sc_func_button1.id = 'sc_func_no_remember_show_sc_list_btn';
+        sc_func_button1.innerHTML = '不记忆地显示醒目留言列表';
+        sc_func_button1.style.marginBottom = '2px';
+
+        let sc_func_button2 = document.createElement('button');
+        sc_func_button2.className = 'sc_func_btn';
+        sc_func_button2.id = 'sc_func_no_remember_hide_sc_list_btn';
+        sc_func_button2.innerHTML = '不记忆地隐藏醒目留言列表';
+        sc_func_button2.style.marginBottom = '2px';
+
+        let sc_func_button3 = document.createElement('button');
+        sc_func_button3.className = 'sc_func_btn';
+        sc_func_button3.id = 'sc_func_show_btn';
+        sc_func_button3.innerHTML = '侧折模式下显示所有的按钮';
+        sc_func_button3.style.marginBottom = '2px';
+
+        let sc_func_button4 = document.createElement('button');
+        sc_func_button4.className = 'sc_func_btn';
+        sc_func_button4.id = 'sc_func_hide_btn';
+        sc_func_button4.innerHTML = '侧折模式下隐藏所有的按钮';
+        sc_func_button4.style.marginBottom = '2px';
+
+        let sc_func_button5 = document.createElement('button');
+        sc_func_button5.className = 'sc_func_btn';
+        sc_func_button5.id = 'sc_func_simple_btn';
+        sc_func_button5.innerHTML = '侧折模式下按钮的极简模式';
+        sc_func_button5.style.marginBottom = '2px';
+
+        let sc_func_button6 = document.createElement('button');
+        sc_func_button6.className = 'sc_func_btn';
+        sc_func_button6.id = 'sc_func_one_min_btn';
+        sc_func_button6.innerHTML = '侧折模式下只显示折叠按钮';
+        sc_func_button6.style.marginBottom = '2px';
+
+        let sc_func_button7 = document.createElement('button');
+        sc_func_button7.className = 'sc_func_btn';
+        sc_func_button7.id = 'sc_func_one_menu_btn';
+        sc_func_button7.innerHTML = '侧折模式下只显示菜单按钮';
+        sc_func_button7.style.marginBottom = '2px';
+
+        let sc_func_button8 = document.createElement('button');
+        sc_func_button8.className = 'sc_func_btn';
+        sc_func_button8.id = 'sc_func_first_sc_item_config_btn';
+        sc_func_button8.innerHTML = '侧折模式下留言显示自定义';
+        sc_func_button8.style.marginBottom = '2px';
+
+        let sc_func_button9 = document.createElement('button');
+        sc_func_button9.className = 'sc_func_btn';
+        sc_func_button9.id = 'sc_func_panel_width_config_btn';
+        sc_func_button9.innerHTML = '设置记录板留言宽度自定义';
+        sc_func_button9.style.marginBottom = '2px';
+
+        let sc_func_button10 = document.createElement('button');
+        sc_func_button10.className = 'sc_func_btn';
+        sc_func_button10.id = 'sc_func_panel_height_config_btn';
+        sc_func_button10.innerHTML = '设置记录板显示高度自定义';
+        sc_func_button10.style.marginBottom = '2px';
+
+        let sc_func_button11 = document.createElement('button');
+        sc_func_button11.className = 'sc_func_btn';
+        sc_func_button11.id = 'sc_func_item_order_config_btn';
+        sc_func_button11.innerHTML = '设置记录板留言的排列顺序';
+        sc_func_button11.style.marginBottom = '2px';
+
+        let sc_func_button12 = document.createElement('button');
+        sc_func_button12.className = 'sc_func_btn';
+        sc_func_button12.id = 'sc_func_bottom_data_show_btn';
+        sc_func_button12.innerHTML = '右侧的弹幕发送框显示数据';
+        sc_func_button12.style.marginBottom = '2px';
+
+        let sc_func_button13 = document.createElement('button');
+        sc_func_button13.className = 'sc_func_btn';
+        sc_func_button13.id = 'sc_func_bottom_data_hide_btn';
+        sc_func_button13.innerHTML = '右侧的弹幕发送框隐藏数据';
+        sc_func_button13.style.marginBottom = '2px';
+
+        let sc_func_button14 = document.createElement('button');
+        sc_func_button14.className = 'sc_func_btn';
+        sc_func_button14.id = 'sc_func_panel_allow_drag_close_btn';
+        sc_func_button14.innerHTML = '锁定记录板即关闭拖拽功能';
+        sc_func_button14.style.marginBottom = '2px';
+
+        let sc_func_button15 = document.createElement('button');
+        sc_func_button15.className = 'sc_func_btn';
+        sc_func_button15.id = 'sc_func_panel_allow_drag_open_btn';
+        sc_func_button15.innerHTML = '解锁记录板即开放拖拽功能';
+        sc_func_button15.style.marginBottom = '2px';
+
+        let sc_func_button16 = document.createElement('button');
+        sc_func_button16.className = 'sc_func_btn';
+        sc_func_button16.id = 'sc_func_panel_switch_open_mode_btn';
+        sc_func_button16.innerHTML = '展开记录板即切换展开模式';
+        sc_func_button16.style.marginBottom = '2px';
+
+        let sc_func_button17 = document.createElement('button');
+        sc_func_button17.className = 'sc_func_btn';
+        sc_func_button17.id = 'sc_circle_welt_hide_half_true_btn';
+        sc_func_button17.innerHTML = '设置小图标在贴边后半隐藏';
+        sc_func_button17.style.marginBottom = '2px';
+
+        let sc_func_button18 = document.createElement('button');
+        sc_func_button18.className = 'sc_func_btn';
+        sc_func_button18.id = 'sc_circle_welt_hide_half_false_btn';
+        sc_func_button18.innerHTML = '取消小图标在贴边后半隐藏';
+        sc_func_button18.style.marginBottom = '2px';
+
+        let sc_func_button19 = document.createElement('button');
+        sc_func_button19.className = 'sc_func_btn';
+        sc_func_button19.id = 'sc_func_item_show_time_btn';
+        sc_func_button19.innerHTML = '显示醒目留言发送具体时间';
+        sc_func_button19.style.marginBottom = '2px';
+
+        let sc_func_button20 = document.createElement('button');
+        sc_func_button20.className = 'sc_func_btn';
+        sc_func_button20.id = 'sc_func_item_hide_time_btn';
+        sc_func_button20.innerHTML = '隐藏醒目留言发送具体时间';
+        sc_func_button20.style.marginBottom = '2px';
+
+        let sc_func_button21 = document.createElement('button');
+        sc_func_button21.className = 'sc_func_btn';
+        sc_func_button21.id = 'sc_func_live_sidebar_left_btn';
+        sc_func_button21.innerHTML = '设置直播间功能按钮在左侧';
+        sc_func_button21.style.marginBottom = '2px';
+
+        let sc_func_button22 = document.createElement('button');
+        sc_func_button22.className = 'sc_func_btn';
+        sc_func_button22.id = 'sc_func_live_sidebar_right_btn';
+        sc_func_button22.innerHTML = '恢复直播间功能按钮在右侧';
+        sc_func_button22.style.marginBottom = '2px';
+
+        let sc_func_br1 = document.createElement('br');
+        let sc_func_br2 = document.createElement('br');
+        let sc_func_br3 = document.createElement('br');
+        let sc_func_br4 = document.createElement('br');
+        let sc_func_br5 = document.createElement('br');
+        let sc_func_br6 = document.createElement('br');
+        let sc_func_br7 = document.createElement('br');
+        let sc_func_br8 = document.createElement('br');
+        let sc_func_br9 = document.createElement('br');
+        let sc_func_br10 = document.createElement('br');
+        let sc_func_br11 = document.createElement('br');
+        let sc_func_br12 = document.createElement('br');
+        let sc_func_br13 = document.createElement('br');
+        let sc_func_br14 = document.createElement('br');
+        let sc_func_br15 = document.createElement('br');
+        let sc_func_br16 = document.createElement('br');
+        let sc_func_br17 = document.createElement('br');
+        let sc_func_br18 = document.createElement('br');
+        let sc_func_br19 = document.createElement('br');
+        let sc_func_br20 = document.createElement('br');
+        let sc_func_br21 = document.createElement('br');
+
+        let sc_func_context_menu = document.createElement('div');
+        sc_func_context_menu.id = 'sc_context_menu_func_body';
+        sc_func_context_menu.className = 'sc_ctx_func_menu';
+        sc_func_context_menu.style.position = 'fixed';
+        sc_func_context_menu.style.display = 'none';
+        sc_func_context_menu.style.backgroundColor = '#ffffff';
+        sc_func_context_menu.style.border = 0;
+        sc_func_context_menu.style.padding = '5px';
+        sc_func_context_menu.style.zIndex = 3333;
+
+        sc_func_context_menu.appendChild(sc_func_button1);
+        sc_func_context_menu.appendChild(sc_func_br1);
+        sc_func_context_menu.appendChild(sc_func_button2);
+        sc_func_context_menu.appendChild(sc_func_br2);
+        sc_func_context_menu.appendChild(sc_func_button3);
+        sc_func_context_menu.appendChild(sc_func_br3);
+        sc_func_context_menu.appendChild(sc_func_button4);
+        sc_func_context_menu.appendChild(sc_func_br4);
+        sc_func_context_menu.appendChild(sc_func_button5);
+        sc_func_context_menu.appendChild(sc_func_br5);
+        sc_func_context_menu.appendChild(sc_func_button6);
+        sc_func_context_menu.appendChild(sc_func_br6);
+        sc_func_context_menu.appendChild(sc_func_button7);
+        sc_func_context_menu.appendChild(sc_func_br7);
+        sc_func_context_menu.appendChild(sc_func_button8);
+        sc_func_context_menu.appendChild(sc_func_br8);
+        sc_func_context_menu.appendChild(sc_func_button9);
+        sc_func_context_menu.appendChild(sc_func_br9);
+        sc_func_context_menu.appendChild(sc_func_button10);
+        sc_func_context_menu.appendChild(sc_func_br10);
+        sc_func_context_menu.appendChild(sc_func_button11);
+        sc_func_context_menu.appendChild(sc_func_br11);
+        sc_func_context_menu.appendChild(sc_func_button12);
+        sc_func_context_menu.appendChild(sc_func_br12);
+        sc_func_context_menu.appendChild(sc_func_button13);
+        sc_func_context_menu.appendChild(sc_func_br13);
+        sc_func_context_menu.appendChild(sc_func_button14);
+        sc_func_context_menu.appendChild(sc_func_br14);
+        sc_func_context_menu.appendChild(sc_func_button15);
+        sc_func_context_menu.appendChild(sc_func_br15);
+        sc_func_context_menu.appendChild(sc_func_button16);
+        sc_func_context_menu.appendChild(sc_func_br16);
+        sc_func_context_menu.appendChild(sc_func_button17);
+        sc_func_context_menu.appendChild(sc_func_br17);
+        sc_func_context_menu.appendChild(sc_func_button18);
+        sc_func_context_menu.appendChild(sc_func_br18);
+        sc_func_context_menu.appendChild(sc_func_button19);
+        sc_func_context_menu.appendChild(sc_func_br19);
+        sc_func_context_menu.appendChild(sc_func_button20);
+        sc_func_context_menu.appendChild(sc_func_br20);
+        sc_func_context_menu.appendChild(sc_func_button21);
+        sc_func_context_menu.appendChild(sc_func_br21);
+        sc_func_context_menu.appendChild(sc_func_button22);
+
+        // 将功能的右键菜单添加到body中
+        document.body.appendChild(sc_func_context_menu);
+
+        let sc_func_context_menu_fullscreen = sc_func_context_menu.cloneNode(true);
+        sc_func_context_menu_fullscreen.id = 'sc_func_context_menu_fullscreen';
+        $(live_player_div).append(sc_func_context_menu_fullscreen);
+
+        $(document).on('click', '#sc_func_show_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_func_btn_mode = 0;
+            sc_func_btn_mode_store();
+            sc_btn_mode_apply();
+            sc_after_click_func_btn_apply(e);
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 侧折模式下显示所有的按钮✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_hide_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_func_btn_mode = 1;
+            sc_func_btn_mode_store();
+            sc_btn_mode_apply();
+            sc_after_click_func_btn_apply(e);
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 侧折模式下隐藏所有的按钮 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_simple_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_func_btn_mode = 2;
+            sc_func_btn_mode_store();
+            sc_btn_mode_apply();
+            sc_after_click_func_btn_apply(e);
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 侧折模式下按钮的极简模式 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_one_min_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_func_btn_mode = 3;
+            sc_func_btn_mode_store();
+            sc_btn_mode_apply();
+            sc_after_click_func_btn_apply(e);
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 侧折模式下只显示折叠按钮 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_one_menu_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_func_btn_mode = 4;
+            sc_func_btn_mode_store();
+            sc_btn_mode_apply();
+            sc_after_click_func_btn_apply(e);
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 侧折模式下只显示菜单按钮 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_first_sc_item_config_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let sc_custom_config_div_id = 'sc_custom_config_div';
+            if (sc_isFullscreen) {
+                sc_custom_config_div_id = 'sc_custom_config_div_fullscreen';
+            }
+            $(document).find('#' + sc_custom_config_div_id).show();
+
+            $(this).parent().fadeOut();
+        });
+
+        $(document).on('click', '#sc_func_panel_width_config_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let sc_panel_width_config_div_id = 'sc_panel_width_config_div';
+            if (sc_isFullscreen) {
+                sc_panel_width_config_div_id = 'sc_panel_width_config_div_fullscreen';
+            }
+            $(document).find('#' + sc_panel_width_config_div_id).show();
+
+            $(this).parent().fadeOut();
+        });
+
+        $(document).on('click', '#sc_func_panel_height_config_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let sc_panel_height_config_div_id = 'sc_panel_height_config_div';
+            if (sc_isFullscreen) {
+                sc_panel_height_config_div_id = 'sc_panel_height_config_div_fullscreen';
+            }
+            $(document).find('#' + sc_panel_height_config_div_id).show();
+
+            $(this).parent().fadeOut();
+        });
+
+        $(document).on('click', '#sc_func_item_order_config_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let sc_item_order_config_div_id = 'sc_item_order_config_div';
+            if (sc_isFullscreen) {
+                sc_item_order_config_div_id = 'sc_item_order_config_div_fullscreen';
+            }
+            $(document).find('#' + sc_item_order_config_div_id).show();
+
+            $(this).parent().fadeOut();
+        });
+
+        $(document).on('click', '#sc_func_bottom_data_show_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            data_show_bottom_flag = true;
+            sc_data_show_bottom_store();
+            $(document).find('#sc_data_show_bottom_div').show();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 右侧的弹幕发送框显示数据 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_bottom_data_hide_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            data_show_bottom_flag = false;
+            sc_data_show_bottom_store();
+            $(document).find('#sc_data_show_bottom_div').hide();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 右侧的弹幕发送框隐藏数据 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_panel_allow_drag_close_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_panel_allow_drag_flag = false;
+            sc_panel_allow_drag_store();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 锁定记录板即关闭拖拽功能 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_panel_allow_drag_open_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_panel_allow_drag_flag = true;
+            sc_panel_allow_drag_store();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 解锁记录板即开放拖拽功能 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_panel_switch_open_mode_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            $(document).find('.sc_long_buttons').show();
+            sc_rectangle_is_slide_down = false;
+            sc_foldback();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已切换到展开模式 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_circle_welt_hide_half_true_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_welt_hide_circle_half_flag = true;
+            sc_welt_hide_circle_half_store();
+            sc_circle_welt_hide_half();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 小图标在贴边后半隐藏 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_circle_welt_hide_half_false_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_welt_hide_circle_half_flag = false;
+            sc_welt_hide_circle_half_store();
+
+            let sc_circles = $(document).find('.sc_long_circle');
+            sc_circles.removeClass('sc_circle_x_left_hide_animate');
+            sc_circles.removeClass('sc_circle_x_right_hide_animate');
+            sc_circles.removeClass('sc_circle_y_top_hide_animate');
+            sc_circles.removeClass('sc_circle_y_bottom_hide_animate');
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 取消小图标在贴边后半隐藏 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_item_show_time_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            $(document).find('.sc_start_time').show();
+            sc_start_time_show_flag = true;
+            sc_start_time_show_store();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 显示醒目留言发送具体时间 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_item_hide_time_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            $(document).find('.sc_start_time').hide();
+            sc_start_time_show_flag = false;
+            sc_start_time_show_store();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 隐藏醒目留言发送具体时间 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_live_sidebar_left_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_live_sidebar_left_flag = true;
+            sc_live_sidebar_position_left_apply();
+            sc_live_sidebar_left_flag_store();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已设置 直播间功能按钮在左侧 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_live_sidebar_right_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_live_sidebar_left_flag = false;
+            sc_live_sidebar_position_right_apply();
+            sc_live_sidebar_left_flag_store();
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已恢复直播间功能按钮在右侧 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_no_remember_show_sc_list_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let func_btn_sc_long_list = $(document).find('.sc_long_list');
+            let old_rect_height = func_btn_sc_long_list.attr('data-height');
+
+            if (old_rect_height !== undefined) {
+                sc_panel_list_height = parseInt(old_rect_height, 10);
+            }
+            if (sc_panel_list_height === 0) {
+                sc_panel_list_height = 400;
             }
 
-            document.body.appendChild(tmp_sc_item[0]);
+            sc_panel_list_height_config_apply();
 
-            capture_gen_canvas(tmp_sc_item[0], current_sc_div).then(canvas => {
-                canvas.toBlob(blob => {
-                    navigator.clipboard.write([
-                        new ClipboardItem({'image/png': blob})
-                    ]).then(() => {
-                        open_and_close_sc_modal('✓', '#A7C9D3', e);
-                    }).catch(err => {
-                        open_and_close_sc_modal('✗', 'red', e);
-                        console.error('复制SC图片失败', err);
+            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
+            if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+            if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已显示醒目留言列表，该操作不会记忆 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_no_remember_hide_sc_list_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            sc_panel_list_height = 0;
+            let func_btn_sc_long_list = $(document).find('.sc_long_list');
+            func_btn_sc_long_list.attr('data-height', func_btn_sc_long_list.height());
+            sc_panel_list_height_config_apply();
+
+            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
+            if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+            if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
+
+            $(this).parent().fadeOut();
+            open_and_close_sc_modal('已隐藏醒目留言列表，该操作不会记忆 ✓', '#A7C9D3', e, 1);
+        });
+
+        // 创建一个自定义右键菜单
+        let sc_copy_button1 = document.createElement('button');
+        sc_copy_button1.className = 'sc_copy_btn';
+        sc_copy_button1.id = 'sc_copy_has_time_btn';
+        sc_copy_button1.innerHTML = '点击复制为图片(有时间)';
+        sc_copy_button1.style.marginBottom = '2px';
+
+        let sc_copy_button2 = document.createElement('button');
+        sc_copy_button2.className = 'sc_copy_btn';
+        sc_copy_button2.id = 'sc_copy_no_time_btn';
+        sc_copy_button2.innerHTML = '点击复制为图片(没时间)';
+        sc_copy_button2.style.marginBottom = '2px';
+
+        let sc_copy_button3 = document.createElement('button');
+        sc_copy_button3.className = 'sc_copy_btn';
+        sc_copy_button3.id = 'sc_copy_uname_color_btn';
+        sc_copy_button3.innerHTML = '点击复制为图片(名颜色)';
+
+        let sc_copy_br1 = document.createElement('br');
+        let sc_copy_br2 = document.createElement('br');
+
+        let sc_copy_context_menu = document.createElement('div');
+        sc_copy_context_menu.id = 'sc_context_menu_copy_body';
+        sc_copy_context_menu.className = 'sc_ctx_copy_menu';
+        sc_copy_context_menu.style.position = 'fixed';
+        sc_copy_context_menu.style.display = 'none';
+        sc_copy_context_menu.style.backgroundColor = '#ffffff';
+        sc_copy_context_menu.style.border = 0;
+        sc_copy_context_menu.style.padding = '5px';
+        sc_copy_context_menu.style.zIndex = 3333;
+
+        sc_copy_context_menu.appendChild(sc_copy_button1);
+        sc_copy_context_menu.appendChild(sc_copy_br1);
+        sc_copy_context_menu.appendChild(sc_copy_button2);
+        sc_copy_context_menu.appendChild(sc_copy_br2);
+        sc_copy_context_menu.appendChild(sc_copy_button3);
+
+        // 将复制的右键菜单添加到body中
+        document.body.appendChild(sc_copy_context_menu);
+
+        let sc_copy_context_menu_fullscreen = sc_copy_context_menu.cloneNode(true);
+        sc_copy_context_menu_fullscreen.id = 'sc_copy_context_menu_fullscreen';
+        $(live_player_div).append(sc_copy_context_menu_fullscreen);
+
+        $(document).on('mouseover', '.sc_copy_btn, .sc_func_btn', function() {
+            $(this).css('transform', 'translateX(-2px)');
+            setTimeout(function() {
+                $(document).find('.sc_copy_btn, .sc_func_btn').css('transform', 'translateY(0)');
+            }, 200);
+
+        })
+
+        $(document).on('click', '.sc_copy_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            $(document).find('.sc_long_rectangle').css('cursor', 'progress');
+
+            sc_after_click_func_btn_apply(e, true);
+
+            function capture_gen_canvas(tmp_sc_item_div, current_sc_div) {
+
+                return new Promise((resolve, reject) => {
+                    html2canvas(tmp_sc_item_div, {
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: null,
+                        logging: false,
+                        width: current_sc_div.clientWidth,
+                        height: current_sc_div.clientHeight,
+                        scale: 8 // 数值越大，分辨率越大，越清晰，至少4倍才比较清晰
+                    }).then(canvas => {
+
+                        resolve(canvas);
+                    }).catch(error => {
+
+                        reject(error);
                     });
                 });
-            }).catch(error => {
-                console.error('处理html2canvas方法错误', error);
-            });
-
-            document.body.removeChild(tmp_sc_item[0]);
-
-            if (sc_panel_side_fold_flag) {
-                $(current_sc_div).css('width', '');
-                $(current_sc_div).css('height', '');
-                sc_side_fold_in_one($(current_sc_div));
             }
-        });
-    });
 
-    let sc_context_copy_menu_timeout_id;
-    let sc_context_func_menu_timeout_id;
+            let sc_copy_btn_id = $(this).attr('id');
 
-    $(document).on('mouseleave', '.sc_ctx_copy_menu', function(e) {
-        sc_context_copy_menu_timeout_id = setTimeout(() => {
-            $(this).hide();
-            sc_after_click_func_btn_apply(e, true);
-        }, 1000);
-    });
+            $(this).parent().fadeOut(function() {
+                let current_sc_div = $(sc_copy_context_menu).data('current_sc_div');
 
-    $(document).on('mouseover', '.sc_ctx_copy_menu', function() {
-        clearTimeout(sc_context_copy_menu_timeout_id);
-    });
-
-    $(document).on('mouseleave', '.sc_ctx_func_menu', function(e) {
-        sc_context_func_menu_timeout_id = setTimeout(() => {
-            $(this).hide();
-            sc_after_click_func_btn_apply(e, true);
-        }, 1000);
-    });
-
-    $(document).on('mouseover', '.sc_ctx_func_menu', function() {
-        clearTimeout(sc_context_func_menu_timeout_id);
-    });
-
-    $(document).on('contextmenu', '.sc_long_item', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        // 存储当前右键的div
-        $(document).find('.sc_ctx_copy_menu').data('current_sc_div', this);
-        let the_sc_ctx_menu_id = 'sc_context_menu_copy_body';
-        if (sc_isFullscreen) {
-            the_sc_ctx_menu_id = 'sc_copy_context_menu_fullscreen';
-        }
-
-        if (unsafeWindow.innerWidth - e.clientX <= 200) {
-            e.clientX = unsafeWindow.innerWidth - 200;
-        }
-        if (unsafeWindow.innerHeight - e.clientY <= 100) {
-            e.clientY = unsafeWindow.innerHeight - 100;
-        }
-        $(document).find('#' + the_sc_ctx_menu_id).css('left', e.clientX + 'px');
-        $(document).find('#' + the_sc_ctx_menu_id).css('top', e.clientY + 'px');
-        $(document).find('#' + the_sc_ctx_menu_id).show();
-
-        clearTimeout(sc_context_copy_menu_timeout_id);
-    });
-
-    $(document).on('contextmenu', '.sc_data_show, .sc_long_buttons', function(e) {
-        e = e || unsafeWindow.event;
-        e.preventDefault();
-
-        let the_sc_ctx_menu_id = 'sc_context_menu_func_body';
-        if (sc_isFullscreen) {
-            the_sc_ctx_menu_id = 'sc_func_context_menu_fullscreen';
-        }
-
-        if (unsafeWindow.innerWidth - e.clientX <= 200) {
-            e.clientX = unsafeWindow.innerWidth - 200;
-        }
-        if (unsafeWindow.innerHeight - e.clientY <= 600) {
-            e.clientY = unsafeWindow.innerHeight - 600;
-        }
-        $(document).find('#' + the_sc_ctx_menu_id).css('left', e.clientX + 'px');
-        $(document).find('#' + the_sc_ctx_menu_id).css('top', e.clientY + 'px');
-        $(document).find('#' + the_sc_ctx_menu_id).show();
-
-        clearTimeout(sc_context_func_menu_timeout_id);
-    });
-
-    sc_switch_css();
-    sc_memory_show();
-    check_and_clear_all_sc_store();
-    sc_fetch_and_show();
-
-}
-
- sc_process_start();
-
-if (!sc_room_blacklist_flag) {
-    const originalParse = JSON.parse;
-    JSON.parse = function (str) {
-        try {
-            const parsedArr = originalParse(str);
-            if (parsedArr && parsedArr.cmd !== undefined) {
-                if (parsedArr.cmd === 'ONLINE_RANK_COUNT') {
-                    let n_count = parsedArr.data.count;
-                    let n_online_count = parsedArr.data.online_count ?? 0;
-                    update_rank_count(n_count, n_online_count);
-                } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
-                    let store_flag = store_sc_item(parsedArr.data);
-                    if (store_flag) {
-                        update_sc_item(parsedArr.data);
+                if (sc_panel_side_fold_flag) {
+                    $(current_sc_div).css('width', (sc_rectangle_width - 22) + 'px');
+                    sc_side_fold_out_one($(current_sc_div));
+                    if ($(current_sc_div).attr('data-fold') === '0') {
+                        $(current_sc_div).css('height', $(current_sc_div).attr('data-height') + 'px');
                     }
+                }
+
+                let tmp_sc_item = $(current_sc_div).clone(); // 为了去掉animation的影响
+                tmp_sc_item.width(current_sc_div.clientWidth);
+                tmp_sc_item.height(current_sc_div.clientHeight);
+                tmp_sc_item.css('animation', '');
+                tmp_sc_item.find('.sc_font_color').css('color', '#000000');
+                tmp_sc_item.find('.sc_start_time').show();
+
+                if (sc_copy_btn_id === 'sc_copy_no_time_btn') {
+                    tmp_sc_item.find('.sc_start_time').hide();
+                } else if (sc_copy_btn_id === 'sc_copy_uname_color_btn') {
+                    tmp_sc_item.find('.sc_start_time').hide();
+                    let this_sc_uname_data_color = tmp_sc_item.find('.sc_font_color').attr('data-color');
+                    tmp_sc_item.find('.sc_font_color').css('color', this_sc_uname_data_color);
+                }
+
+                if (tmp_sc_item.find('.fans_medal_item').length) {
+                    // 粉丝牌存在时，可以兼容名字过长的情况
+                    tmp_sc_item.find('.sc_msg_head_left').css('width', '170px');
+                    tmp_sc_item.find('.sc_uname_div').css('width', '225px');
+                    tmp_sc_item.find('.sc_msg_head_right').css('height', '20px');
+                }
+
+                document.body.appendChild(tmp_sc_item[0]);
+
+                capture_gen_canvas(tmp_sc_item[0], current_sc_div).then(canvas => {
+                    canvas.toBlob(blob => {
+                        navigator.clipboard.write([
+                            new ClipboardItem({'image/png': blob})
+                        ]).then(() => {
+                            open_and_close_sc_modal('✓', '#A7C9D3', e);
+                        }).catch(err => {
+                            open_and_close_sc_modal('✗', 'red', e);
+                            console.error('复制SC图片失败', err);
+                        });
+                    });
+                }).catch(error => {
+                    console.error('处理html2canvas方法错误', error);
+                });
+
+                document.body.removeChild(tmp_sc_item[0]);
+
+                if (sc_panel_side_fold_flag) {
+                    $(current_sc_div).css('width', '');
+                    $(current_sc_div).css('height', '');
+                    sc_side_fold_in_one($(current_sc_div));
+                }
+            });
+        });
+
+        let sc_context_copy_menu_timeout_id;
+        let sc_context_func_menu_timeout_id;
+
+        $(document).on('mouseleave', '.sc_ctx_copy_menu', function(e) {
+            sc_context_copy_menu_timeout_id = setTimeout(() => {
+                $(this).hide();
+                sc_after_click_func_btn_apply(e, true);
+            }, 1000);
+        });
+
+        $(document).on('mouseover', '.sc_ctx_copy_menu', function() {
+            clearTimeout(sc_context_copy_menu_timeout_id);
+        });
+
+        $(document).on('mouseleave', '.sc_ctx_func_menu', function(e) {
+            sc_context_func_menu_timeout_id = setTimeout(() => {
+                $(this).hide();
+                sc_after_click_func_btn_apply(e, true);
+            }, 1000);
+        });
+
+        $(document).on('mouseover', '.sc_ctx_func_menu', function() {
+            clearTimeout(sc_context_func_menu_timeout_id);
+        });
+
+        $(document).on('contextmenu', '.sc_long_item', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            // 存储当前右键的div
+            $(document).find('.sc_ctx_copy_menu').data('current_sc_div', this);
+            let the_sc_ctx_menu_id = 'sc_context_menu_copy_body';
+            if (sc_isFullscreen) {
+                the_sc_ctx_menu_id = 'sc_copy_context_menu_fullscreen';
+            }
+
+            if (unsafeWindow.innerWidth - e.clientX <= 200) {
+                e.clientX = unsafeWindow.innerWidth - 200;
+            }
+            if (unsafeWindow.innerHeight - e.clientY <= 100) {
+                e.clientY = unsafeWindow.innerHeight - 100;
+            }
+            $(document).find('#' + the_sc_ctx_menu_id).css('left', e.clientX + 'px');
+            $(document).find('#' + the_sc_ctx_menu_id).css('top', e.clientY + 'px');
+            $(document).find('#' + the_sc_ctx_menu_id).show();
+
+            clearTimeout(sc_context_copy_menu_timeout_id);
+        });
+
+        $(document).on('contextmenu', '.sc_data_show, .sc_long_buttons', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let the_sc_ctx_menu_id = 'sc_context_menu_func_body';
+            if (sc_isFullscreen) {
+                the_sc_ctx_menu_id = 'sc_func_context_menu_fullscreen';
+            }
+
+            if (unsafeWindow.innerWidth - e.clientX <= 200) {
+                e.clientX = unsafeWindow.innerWidth - 200;
+            }
+            if (unsafeWindow.innerHeight - e.clientY <= 600) {
+                e.clientY = unsafeWindow.innerHeight - 600;
+            }
+            $(document).find('#' + the_sc_ctx_menu_id).css('left', e.clientX + 'px');
+            $(document).find('#' + the_sc_ctx_menu_id).css('top', e.clientY + 'px');
+            $(document).find('#' + the_sc_ctx_menu_id).show();
+
+            clearTimeout(sc_context_func_menu_timeout_id);
+        });
+
+        sc_switch_css();
+        sc_memory_show();
+        check_and_clear_all_sc_store();
+        sc_fetch_and_show();
+
+    }
+
+    sc_process_start();
+
+    if (!sc_room_blacklist_flag) {
+        const originalParse = JSON.parse;
+        JSON.parse = function (str) {
+            try {
+                const parsedArr = originalParse(str);
+                if (parsedArr && parsedArr.cmd !== undefined) {
+                    if (parsedArr.cmd === 'ONLINE_RANK_COUNT') {
+                        let n_count = parsedArr.data.count;
+                        let n_online_count = parsedArr.data.online_count ?? 0;
+                        update_rank_count(n_count, n_online_count);
+                    } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
+                        let store_flag = store_sc_item(parsedArr.data);
+                        if (store_flag) {
+                            update_sc_item(parsedArr.data);
+                        }
+                    }
+                }
+
+                return parsedArr;
+            } catch (error) {
+                throw error;
+            }
+        };
+
+        setTimeout(() => {
+            // setTimeout的时间差内先更新一下再定时
+            const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (_rank_list_ctnr_box_li.length) {
+                const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
+
+                $(document).find('.sc_captain_num_right').text(_guard_n);
+                sc_update_date_guard_once = true;
+
+                if (data_show_bottom_flag) {
+                    $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + _guard_n);
                 }
             }
 
-            return parsedArr;
-        } catch (error) {
-            throw error;
-        }
-    };
+            let rank_list_ctnr_box_interval = setInterval(() => {
+                const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                if (rank_list_ctnr_box_item.length) {
+                    const guard_text_target = rank_list_ctnr_box_item.last();
 
-    setTimeout(() => {
-        // setTimeout的时间差内先更新一下再定时
-        const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-        if (_rank_list_ctnr_box_li.length) {
-            const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
+                    const guard_test_observer = new MutationObserver((mutationsList) => {
+                        for (const mutation of mutationsList) {
+                            if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
+                                const guard_newNum = mutation.target.textContent.match(/\d+/) ?? 0;
+                                // SC记录板的
+                                $(document).find('.sc_captain_num_right').text(guard_newNum);
 
-            $(document).find('.sc_captain_num_right').text(_guard_n);
-            sc_update_date_guard_once = true;
-
-            if (data_show_bottom_flag) {
-                $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + _guard_n);
-            }
-        }
-
-        let rank_list_ctnr_box_interval = setInterval(() => {
-            const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-            if (rank_list_ctnr_box_item.length) {
-                const guard_text_target = rank_list_ctnr_box_item.last();
-
-                const guard_test_observer = new MutationObserver((mutationsList) => {
-                    for (const mutation of mutationsList) {
-                        if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
-                            const guard_newNum = mutation.target.textContent.match(/\d+/) ?? 0;
-                            // SC记录板的
-                            $(document).find('.sc_captain_num_right').text(guard_newNum);
-
-                            // 页面的
-                            if (data_show_bottom_flag) {
-                                $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
+                                // 页面的
+                                if (data_show_bottom_flag) {
+                                    $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
+                                }
                             }
                         }
-                    }
-                });
-                const guard_text_watch_config = { characterData: true, childList: true, subtree: true }
-                guard_test_observer.observe(guard_text_target[0], guard_text_watch_config);
+                    });
+                    const guard_text_watch_config = { characterData: true, childList: true, subtree: true }
+                    guard_test_observer.observe(guard_text_target[0], guard_text_watch_config);
 
-                clearInterval(rank_list_ctnr_box_interval);
-            }
-        });
-    }, 3000);
+                    clearInterval(rank_list_ctnr_box_interval);
+                }
+            });
+        }, 3000);
 
-    setInterval(() => {
-        updateTimestampDiff(); // 每30秒更新时间差
-        check_all_memory_status(); // 每30秒检查全记状态
-    }, 30000);
+        setInterval(() => {
+            updateTimestampDiff(); // 每30秒更新时间差
+            check_all_memory_status(); // 每30秒检查全记状态
+        }, 30000);
 
-}
+    }
 
 })();

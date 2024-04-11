@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      9.2.0
+// @version      9.2.1
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -2827,6 +2827,9 @@
             if (!sc_panel_side_fold_flag || sc_item_side_fold_touch_flag) { return; }
 
             let sc_fold_out_show_top = $(this).offset().top - $(this).parent().parent().parent().offset().top - 10;
+            if (sc_panel_list_height === 0) {
+                sc_fold_out_show_top = sc_fold_out_show_top + 10;
+            }
             $(this).parent().css('position', 'absolute');
             $(this).parent().css('top', sc_fold_out_show_top);
             $(this).parent().css('z-index', '10');
@@ -2834,7 +2837,11 @@
             $(this).parent().css('height', '');
 
             if (($(this).offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
-                $(this).parent().css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+                if (sc_panel_list_height === 0) {
+                    $(this).parent().css('left', -(sc_rectangle_width - 22 - 72 + 10 + 60)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+                } else {
+                    $(this).parent().css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+                }
             }
             sc_side_fold_out_one($(this).parent(), true);
 
@@ -3681,6 +3688,7 @@
             } else {
                 height_apply_sc_long_rectangle.css('border-top', '10px solid transparent');
             }
+
             if (sc_panel_list_height >= 200) {
                 height_apply_sc_long_list.css('min-height', '200px');
                 height_apply_sc_long_list.css('max-height', sc_panel_list_height + 'px');

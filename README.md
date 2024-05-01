@@ -79,7 +79,7 @@ let first_store_sc = sc_store_arr.at(-1); 修改为 let first_store_sc = sc_stor
   
     >实时同步SC、同接、高能和舰长数据  
     >
-    >高能：在线看的总人数
+    >高能：在线看的总人数    
     >同接：在线看的总人数 - 其中贡献为0的人数
     >
     >高能 >= 同接

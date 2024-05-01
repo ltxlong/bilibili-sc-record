@@ -50,6 +50,19 @@ B站直播间SC记录板-实时同步SC、同接、高能和舰长数据，可�
 
 6、图片资源需要修改的
 
+# 非直播模拟测试自动展开：  
+条件：
+房间存在很多SC（至少两个吧）
+
+让SC保留长时间：
+-> 存储-本地存储空间 -> 选择https://live.bilibili.com -> 找到相应的 live_房间id_sc_keep_time -> 右键，选择删除
+
+方法:
+将sc_custom_config_start_class_by_store函数里的
+let first_store_sc = sc_store_arr.at(-1); 修改为 let first_store_sc = sc_store_arr[0];
+
+注意：
+调试完记得修好回去！
 
 # 关于同接和高能
 
@@ -68,6 +81,8 @@ B站直播间SC记录板-实时同步SC、同接、高能和舰长数据，可�
     >
     >高能：在线看的总人数
     >同接：在线看的总人数 - 其中贡献为0的人数
+    >
+    >高能 >= 同接
     >
     >注意：在App端，有的房间显示的是高能，有的房间显示的是同接
 

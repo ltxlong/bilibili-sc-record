@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      10.0.0
+// @version      10.0.1
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -861,6 +861,7 @@
     function sc_custom_config_start_class_by_store(sc_store_arr) {
         if (Array.isArray(sc_store_arr)) {
             let first_store_sc = sc_store_arr.at(-1);
+
             if (first_store_sc) {
                 sc_side_fold_custom_each_same_time_class = 'sc_' + first_store_sc["uid"] + '_' + first_store_sc["start_time"];
             }
@@ -1376,7 +1377,15 @@
         }
 
         if (the_pwa_sc_panel_fold_mode === 1) {
-            if (sc_side_fold_custom_first_class) { sc_side_fold_custom_auto_run_flag = false; sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
+
+            if (sc_side_fold_custom_first_class) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
+            if (sc_side_fold_custom_each_same_time_class) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+            if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+            if (sc_side_fold_custom_first_class) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
+
         } else if (the_pwa_sc_panel_fold_mode === 2) {
             $(document).find('.sc_long_rectangle').width(the_pwa_sc_rectangle_width);
         }
@@ -2506,16 +2515,44 @@
         }
 
         if (n_gao_neng) {
-            if (high_energy_contribute_num >= n_gao_neng && n_tong_jie === 0) {
-                high_energy_contribute_num = n_gao_neng;
+            if (n_tong_jie === 0) {
+                if (high_energy_contribute_num >= n_gao_neng) {
+                    // 左侧
+                    high_energy_contribute_num = n_gao_neng;
+                } else if (high_energy_num <= n_gao_neng) {
+                    // 右侧
+                    high_energy_num = n_gao_neng;
+                } else {
+                    // 中间
+                    if (high_energy_num - n_gao_neng >= n_gao_neng - high_energy_contribute_num) {
+                        high_energy_contribute_num = n_gao_neng;
+                    } else {
+                        high_energy_num = n_gao_neng;
+                    }
+                }
+
             } else {
                 high_energy_num = n_gao_neng;
             }
         }
 
         if (n_tong_jie) {
-            if (high_energy_num <= n_tong_jie && n_gao_neng === 0) {
-                high_energy_num = n_tong_jie;
+            if (n_gao_neng === 0) {
+                if (high_energy_contribute_num >= n_tong_jie) {
+                    // 左侧
+                    high_energy_contribute_num = n_tong_jie;
+                } else if (high_energy_num <= n_tong_jie) {
+                    // 右侧
+                    high_energy_num = n_tong_jie;
+                } else {
+                    // 中间
+                    if (high_energy_num - n_tong_jie >= n_tong_jie - high_energy_contribute_num) {
+                        high_energy_contribute_num = n_tong_jie;
+                    } else {
+                        high_energy_num = n_tong_jie;
+                    }
+                }
+
             } else {
                 high_energy_contribute_num = n_tong_jie;
             }

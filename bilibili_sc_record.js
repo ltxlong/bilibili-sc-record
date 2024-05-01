@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      9.2.1
+// @version      10.0.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -85,10 +85,10 @@
 
     if (!room_id) { sc_catch_log('获取room_id失败，插件已停止正确的SC存储'); }
 
-    let sc_url = sc_url_api + room_id; // 请求sc的url
+    let sc_url = sc_url_api + room_id; // 请求sc的url（请求是为了获取进入直播间时已经存在的SC）
 
     let sc_panel_list_height = 400; // 显示面板的最大高度（单位是px，后面会拼接）
-    let sc_rectangle_width = 302; // 默认302，右侧合适325/388/428（SC刚刚好在弹幕框内/侧折模式记录板紧贴在弹幕框右侧外/侧折模式记录板紧贴在屏幕右侧）
+    let sc_rectangle_width = 302; // 默认302，右侧合适325/388/428（SC刚刚好在弹幕框内/侧折模式记录板紧贴在弹幕框右侧外/侧折模式记录板紧贴在屏幕右侧）（单位是px，后面会拼接）
 
     let data_show_top_flag = true; // 是否在页面右侧弹幕滚动框的顶部动态显示数据
     let data_show_bottom_flag = true; // 是否在页面右侧弹幕滚动框的底部动态显示数据
@@ -103,7 +103,8 @@
     let sc_keep_time = unsafeWindow.localStorage.getItem(sc_keep_time_key);
     let sc_keep_time_flag = 0;
 
-    let high_energy_num = 0;
+    let high_energy_num = 0; // 高能数
+    let high_energy_contribute_num = 0; // 同接数
     let sc_update_date_guard_once = false;
 
     let sc_room_blacklist_flag = false;
@@ -122,7 +123,7 @@
     let sc_side_fold_custom_first_class = '';
     let sc_side_fold_custom_first_timeout_id = '';
 
-    let sc_start_time_show_flag = true; //是否显示SC发送的具体时间
+    let sc_start_time_show_flag = true; // 是否显示SC发送的具体时间
 
     let sc_welt_hide_circle_half_flag = false; // 是否小图标贴边半隐藏
 
@@ -159,8 +160,29 @@
 
     let sc_item_order_up_flag = false; // 是否设置SC的排列顺序是从下往上（最新的在底部）
 
+    let sc_data_show_high_energy_num_flag = false; // 是否设置数据模块显示高能（默认显示同接）
+
+    let sc_side_fold_fullscreen_auto_hide_list_flag = false; // 是否设置侧折模式下，切换全屏时，自动隐藏醒目留言列表
+
+    let sc_side_fold_hide_list_ing_flag = false; // 是否已经不记忆的隐藏醒目留言列表
+
+    let sc_live_fullscreen_config_separate_memory_flag = false; // 是否设置全屏状态下所有（除开排序）分开单独记忆
+
+    // fullscreen var 全屏的变量
+    let sc_panel_list_height_fullscreen = 400; // 高
+    let sc_rectangle_width_fullscreen = 302; // 宽
+    let sc_func_btn_mode_fullscreen = 0; // 侧折的按钮模式
+    let sc_switch_fullscreen = 0; // 主题
+    let sc_panel_fold_mode_fullscreen = 0; // 折叠模式
+    let sc_panel_side_fold_simple_fullscreen = false; // 侧折的极简模式
+    let sc_panel_drag_left_fullscreen = -1; // 位置left
+    let sc_panel_drag_top_fullscreen = -1; // 位置top
+    let sc_panel_side_fold_flag_fullscreen = false; // 侧折
+    let sc_data_show_high_energy_num_flag_fullscreen = false; // 是否设置数据模块显示高能（默认显示同接）
+
     function sc_memory_get_store_mode_all(sc_all_memory_config_json) {
         let sc_all_memory_config = JSON.parse(sc_all_memory_config_json);
+
         sc_switch = sc_all_memory_config['sc_switch'] ?? 0;
         sc_panel_fold_mode = sc_all_memory_config['sc_panel_fold_mode'] ?? 0;
         sc_panel_side_fold_flag = sc_all_memory_config['sc_panel_side_fold_flag'] ?? false;
@@ -179,6 +201,9 @@
         sc_panel_list_height = sc_all_memory_config['sc_panel_list_height'] ?? 400;
         sc_live_sidebar_left_flag = sc_all_memory_config['sc_live_sidebar_left_flag'] ?? false;
         sc_item_order_up_flag = sc_all_memory_config['sc_item_order_up_flag'] ?? false;
+        sc_data_show_high_energy_num_flag = sc_all_memory_config['sc_data_show_high_energy_num_flag'] ?? false;
+        sc_side_fold_fullscreen_auto_hide_list_flag = sc_all_memory_config['sc_side_fold_fullscreen_auto_hide_list_flag'] ?? false;
+        sc_live_fullscreen_config_separate_memory_flag = sc_all_memory_config['sc_live_fullscreen_config_separate_memory_flag'] ?? false;
 
         if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
             sc_panel_drag_left = unsafeWindow.innerWidth - 72;
@@ -193,10 +218,37 @@
         if (sc_panel_drag_top >= unsafeWindow.innerHeight) {
             sc_panel_drag_top = unsafeWindow.innerHeight - sc_panel_list_height;
         }
+
+        // fullscreen var
+        sc_panel_list_height_fullscreen = sc_all_memory_config['sc_panel_list_height_fullscreen'] ?? 400;
+        sc_rectangle_width_fullscreen = sc_all_memory_config['sc_rectangle_width_fullscreen'] ?? 302;
+        sc_func_btn_mode_fullscreen = sc_all_memory_config['sc_func_btn_mode_fullscreen'] ?? 0;
+        sc_switch_fullscreen = sc_all_memory_config['sc_switch_fullscreen'] ?? 0;
+        sc_panel_fold_mode_fullscreen = sc_all_memory_config['sc_panel_fold_mode_fullscreen'] ?? 0;
+        sc_panel_side_fold_simple_fullscreen = sc_all_memory_config['sc_panel_side_fold_simple_fullscreen'] ?? false;
+        sc_panel_drag_left_fullscreen = sc_all_memory_config['sc_panel_drag_left_fullscreen'] ?? -1;
+        sc_panel_drag_top_fullscreen = sc_all_memory_config['sc_panel_drag_top_fullscreen'] ?? -1;
+        sc_panel_side_fold_flag_fullscreen = sc_all_memory_config['sc_panel_side_fold_flag_fullscreen'] ?? false;
+        sc_data_show_high_energy_num_flag_fullscreen = sc_all_memory_config['sc_data_show_high_energy_num_flag_fullscreen'] ?? false;
+
+        if (sc_panel_fold_mode_fullscreen === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left_fullscreen) < 72) {
+            sc_panel_drag_left_fullscreen = unsafeWindow.innerWidth - 72;
+        }
+        if (sc_panel_fold_mode_fullscreen === 2 && (unsafeWindow.innerWidth - sc_panel_drag_left_fullscreen) < sc_rectangle_width_fullscreen) {
+            sc_panel_drag_left_fullscreen = unsafeWindow.innerWidth - sc_rectangle_width_fullscreen;
+        }
+
+        if (sc_panel_drag_top_fullscreen <= 0) {
+            sc_panel_drag_top_fullscreen = 0;
+        }
+        if (sc_panel_drag_top_fullscreen >= unsafeWindow.innerHeight) {
+            sc_panel_drag_top_fullscreen = unsafeWindow.innerHeight - sc_panel_list_height_fullscreen;
+        }
     }
 
     function sc_memory_get_store_mode_self(sc_self_memory_config_json) {
         let sc_self_memory_config = JSON.parse(sc_self_memory_config_json);
+
         sc_switch = sc_self_memory_config['sc_switch'] ?? 0;
         sc_panel_fold_mode = sc_self_memory_config['sc_panel_fold_mode'] ?? 0;
         sc_panel_side_fold_flag = sc_self_memory_config['sc_panel_side_fold_flag'] ?? false;
@@ -215,6 +267,9 @@
         sc_panel_list_height = sc_self_memory_config['sc_panel_list_height'] ?? 400;
         sc_live_sidebar_left_flag = sc_self_memory_config['sc_live_sidebar_left_flag'] ?? false;
         sc_item_order_up_flag = sc_self_memory_config['sc_item_order_up_flag'] ?? false;
+        sc_data_show_high_energy_num_flag = sc_self_memory_config['sc_data_show_high_energy_num_flag'] ?? false;
+        sc_side_fold_fullscreen_auto_hide_list_flag = sc_self_memory_config['sc_side_fold_fullscreen_auto_hide_list_flag'] ?? false;
+        sc_live_fullscreen_config_separate_memory_flag = sc_self_memory_config['sc_live_fullscreen_config_separate_memory_flag'] ?? false;
 
         if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
             sc_panel_drag_left = unsafeWindow.innerWidth - 72;
@@ -231,12 +286,41 @@
         }
 
         sc_memory = 2;
+
+        // fullscreen var
+        sc_panel_list_height_fullscreen = sc_self_memory_config['sc_panel_list_height_fullscreen'] ?? 400;
+        sc_rectangle_width_fullscreen = sc_self_memory_config['sc_rectangle_width_fullscreen'] ?? 302;
+        sc_func_btn_mode_fullscreen = sc_self_memory_config['sc_func_btn_mode_fullscreen'] ?? 0;
+        sc_switch_fullscreen = sc_self_memory_config['sc_switch_fullscreen'] ?? 0;
+        sc_panel_fold_mode_fullscreen = sc_self_memory_config['sc_panel_fold_mode_fullscreen'] ?? 0;
+        sc_panel_side_fold_simple_fullscreen = sc_self_memory_config['sc_panel_side_fold_simple_fullscreen'] ?? false;
+        sc_panel_drag_left_fullscreen = sc_self_memory_config['sc_panel_drag_left_fullscreen'] ?? -1;
+        sc_panel_drag_top_fullscreen = sc_self_memory_config['sc_panel_drag_top_fullscreen'] ?? -1;
+        sc_panel_side_fold_flag_fullscreen = sc_self_memory_config['sc_panel_side_fold_flag_fullscreen'] ?? false;
+        sc_data_show_high_energy_num_flag_fullscreen = sc_self_memory_config['sc_data_show_high_energy_num_flag_fullscreen'] ?? false;
+
+        if (sc_panel_fold_mode_fullscreen === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left_fullscreen) < 72) {
+            sc_panel_drag_left_fullscreen = unsafeWindow.innerWidth - 72;
+        }
+        if (sc_panel_fold_mode_fullscreen === 2 && (unsafeWindow.innerWidth - sc_panel_drag_left_fullscreen) < sc_rectangle_width_fullscreen) {
+            sc_panel_drag_left_fullscreen = unsafeWindow.innerWidth - sc_rectangle_width_fullscreen;
+        }
+
+        if (sc_panel_drag_top_fullscreen <= 0) {
+            sc_panel_drag_top_fullscreen = 0;
+        }
+        if (sc_panel_drag_top_fullscreen >= unsafeWindow.innerHeight) {
+            sc_panel_drag_top_fullscreen = unsafeWindow.innerHeight - sc_panel_list_height_fullscreen;
+        }
     }
 
     function sc_memory_get_store_mode_switch(sc_switch_memory_rooms_json) {
         let sc_switch_memory_rooms = JSON.parse(sc_switch_memory_rooms_json);
         if (sc_switch_memory_rooms.includes(room_id)) {
             let sc_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record');
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record_fullscreen');
+            }
             if (sc_switch_record !== null && sc_switch_record !== 'null' && sc_switch_record !== '') {
                 sc_switch = parseInt(sc_switch_record, 10);
             }
@@ -613,7 +697,16 @@
     }
 
     function sc_auto_trigger_side_fold_out_next() {
-        if (sc_panel_fold_mode === 1) {
+        let the_atn_sc_panel_fold_mode = sc_panel_fold_mode;
+        let the_atn_sc_rectangle_width = sc_rectangle_width;
+        let the_atn_sc_panel_list_height = sc_panel_list_height;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_atn_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            the_atn_sc_rectangle_width = sc_rectangle_width_fullscreen;
+            the_atn_sc_panel_list_height = sc_panel_list_height_fullscreen;
+        }
+
+        if (the_atn_sc_panel_fold_mode === 1) {
             sc_side_fold_custom_auto_run_flag = true;
 
             let auto_target_oj = $(document).find('.' + sc_side_fold_custom_each_same_time_class);
@@ -637,17 +730,17 @@
             auto_target_oj.css('translateY', '-100%');
             auto_target_oj.css('opacity', 0);
             auto_target_oj.css('z-index', '10');
-            auto_target_oj.css('width', (sc_rectangle_width - 22) + 'px'); // 22 约为总padding
+            auto_target_oj.css('width', (the_atn_sc_rectangle_width - 22) + 'px'); // 22 约为总padding
             auto_target_oj.css('height', '');
 
             if ((auto_target_oj.offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
-                if (sc_panel_list_height === 0) {
-                    auto_target_oj.css('left', -(sc_rectangle_width - 22 - 72 + 10 + 60)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+                if (the_atn_sc_panel_list_height === 0 || sc_side_fold_hide_list_ing_flag) {
+                    auto_target_oj.css('left', -(the_atn_sc_rectangle_width - 22 - 72 + 10 + 60)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
                 } else {
-                    auto_target_oj.css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+                    auto_target_oj.css('left', -(the_atn_sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
                 }
             } else {
-                if (sc_panel_list_height === 0) {
+                if (the_atn_sc_panel_list_height === 0 || sc_side_fold_hide_list_ing_flag) {
                     auto_target_oj.css('left', 70);
                 }
             }
@@ -667,7 +760,12 @@
             auto_target_oj.show();
 
             sc_side_fold_custom_each_same_time_timeout_id = setTimeout(function() {
-                if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) {
+                let the_sto_sc_panel_fold_mode = sc_panel_fold_mode;
+                if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                    the_sto_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+                }
+
+                if (sc_side_fold_custom_each_same_time_class && the_sto_sc_panel_fold_mode === 1) {
                     // 下一个SC
                     let prev_target_oj = auto_target_oj.prev();
                     if (sc_item_order_up_flag) {
@@ -714,6 +812,15 @@
 
     function sc_trigger_item_side_fold_out(target_oj_class) {
 
+        let the_tio_sc_panel_fold_mode = sc_panel_fold_mode;
+        let the_tio_sc_rectangle_width = sc_rectangle_width;
+        let the_tio_sc_panel_list_height = sc_panel_list_height;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_tio_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            the_tio_sc_rectangle_width = sc_rectangle_width_fullscreen;
+            the_tio_sc_panel_list_height = sc_panel_list_height_fullscreen;
+        }
+
         let target_oj = $(document).find('.' + target_oj_class);
 
         if (sc_side_fold_custom_each_same_time_flag) {
@@ -722,11 +829,19 @@
             target_oj.css('position', 'absolute');
             target_oj.css('top', '0px'); // 第一个SC的位置
             target_oj.css('z-index', '10');
-            target_oj.css('width', (sc_rectangle_width - 22) + 'px'); // 22 约为总padding
+            target_oj.css('width', (the_tio_sc_rectangle_width - 22) + 'px'); // 22 约为总padding
             target_oj.css('height', '');
 
             if ((target_oj.offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
-                target_oj.css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+                if (the_tio_sc_panel_fold_mode === 1 && (the_tio_sc_panel_list_height === 0 || sc_side_fold_hide_list_ing_flag)) {
+                    target_oj.css('left', -(the_tio_sc_rectangle_width - 22 - 72 + 10 + 60)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+                } else {
+                    target_oj.css('left', -(the_tio_sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+                }
+            } else {
+                if (the_tio_sc_panel_fold_mode === 1 && (the_tio_sc_panel_list_height === 0 || sc_side_fold_hide_list_ing_flag)) {
+                    target_oj.css('left', 70);
+                }
             }
 
             sc_side_fold_out_one(target_oj, true);
@@ -753,32 +868,39 @@
     }
 
     function sc_custom_config_apply(new_sc_side_fold_custom_first_class) {
-        if (sc_panel_side_fold_flag) {
+        let the_cca_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+        let the_cca_sc_panel_fold_mode = sc_panel_fold_mode;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_cca_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+            the_cca_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+        }
+
+        if (the_cca_sc_panel_side_fold_flag) {
             if (sc_side_fold_custom_config === 1) {
                 // 第一个SC保持展开
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class && !sc_side_fold_custom_auto_run_flag) {
+                if (sc_side_fold_custom_first_class && the_cca_sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class && !sc_side_fold_custom_auto_run_flag) {
                     sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class);
                 }
 
-                if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                if (new_sc_side_fold_custom_first_class && the_cca_sc_panel_fold_mode === 1) {
                     sc_trigger_item_side_fold_out(new_sc_side_fold_custom_first_class);
                 }
             } else if (sc_side_fold_custom_config === 2) {
                 // 第一个SC不保持展开
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class && !sc_side_fold_custom_auto_run_flag) {
+                if (sc_side_fold_custom_first_class && the_cca_sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class && !sc_side_fold_custom_auto_run_flag) {
                     sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class);
                 }
                 if (sc_side_fold_custom_first_timeout_id) {
                     clearTimeout(sc_side_fold_custom_first_timeout_id);
                 }
 
-                if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                if (new_sc_side_fold_custom_first_class && the_cca_sc_panel_fold_mode === 1) {
                     sc_trigger_item_side_fold_out(new_sc_side_fold_custom_first_class);
                 }
 
                 if (!sc_side_fold_custom_each_same_time_flag) {
                     sc_side_fold_custom_first_timeout_id = setTimeout(function() {
-                        if (new_sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                        if (new_sc_side_fold_custom_first_class && the_cca_sc_panel_fold_mode === 1) {
                             sc_trigger_item_side_fold_in(new_sc_side_fold_custom_first_class);
                         }
                     }, sc_side_fold_custom_time * 1000);
@@ -806,6 +928,77 @@
         }
     }
 
+    function sc_fullscreen_separate_memory_var_copy() {
+        sc_panel_list_height_fullscreen = sc_panel_list_height;
+        sc_rectangle_width_fullscreen = sc_rectangle_width;
+        sc_func_btn_mode_fullscreen = sc_func_btn_mode;
+        sc_switch_fullscreen = sc_switch;
+        sc_panel_fold_mode_fullscreen = sc_panel_fold_mode;
+        sc_panel_side_fold_simple_fullscreen = sc_panel_side_fold_simple;
+        sc_panel_drag_left_fullscreen = sc_panel_drag_left;
+        sc_panel_drag_top_fullscreen = sc_panel_drag_top;
+        sc_panel_side_fold_flag_fullscreen = sc_panel_side_fold_flag;
+        sc_data_show_high_energy_num_flag_fullscreen = sc_data_show_high_energy_num_flag;
+    }
+
+    function sc_live_panel_width_change(new_width) {
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            sc_rectangle_width_fullscreen = new_width;
+        } else {
+            sc_rectangle_width = new_width;
+        }
+    }
+
+    function sc_live_panel_height_change(new_height) {
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            sc_panel_list_height_fullscreen = new_height;
+        } else {
+            sc_panel_list_height = new_height;
+        }
+    }
+
+    function sc_live_panel_fold_mode_change(new_mode) {
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            sc_panel_fold_mode_fullscreen = new_mode;
+        } else {
+            sc_panel_fold_mode = new_mode;
+        }
+    }
+
+    function sc_live_panel_side_fold_flag_change(new_flag) {
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            sc_panel_side_fold_flag_fullscreen = new_flag;
+        } else {
+            sc_panel_side_fold_flag = new_flag;
+        }
+    }
+
+    function sc_live_panel_side_fold_simple_change(new_flag) {
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            sc_panel_side_fold_simple_fullscreen = new_flag;
+        } else {
+            sc_panel_side_fold_simple = new_flag;
+        }
+    }
+
+    function sc_live_data_show_high_energy_num_flag_change(new_flag) {
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            sc_data_show_high_energy_num_flag_fullscreen = new_flag;
+        } else {
+            sc_data_show_high_energy_num_flag = new_flag;
+        }
+    }
+
+    function sc_live_drag_location_change(new_left_val, new_top_val) {
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            sc_panel_drag_left_fullscreen = new_left_val;
+            sc_panel_drag_top_fullscreen = new_top_val;
+        } else {
+            sc_panel_drag_left = new_left_val;
+            sc_panel_drag_top = new_top_val;
+        }
+    }
+
     // 记忆存储
     function update_sc_memory_config(config_item_name, config_item_val, type = 'self') {
         let sc_memory_config_key = sc_self_memory_config_key
@@ -820,8 +1013,13 @@
         }
 
         if (config_item_name === 'sc_panel_drag' && Array.isArray(config_item_val)) {
-            sc_memory_config['sc_panel_drag_left'] = config_item_val[0] ?? -1;
-            sc_memory_config['sc_panel_drag_top'] = config_item_val[1] ?? -1;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_memory_config['sc_panel_drag_left_fullscreen'] = config_item_val[0] ?? -1;
+                sc_memory_config['sc_panel_drag_top_fullscreen'] = config_item_val[1] ?? -1;
+            } else {
+                sc_memory_config['sc_panel_drag_left'] = config_item_val[0] ?? -1;
+                sc_memory_config['sc_panel_drag_top'] = config_item_val[1] ?? -1;
+            }
         } else {
             sc_memory_config[config_item_name] = config_item_val;
         }
@@ -832,13 +1030,16 @@
     function sc_switch_store() {
         if (sc_memory === 1) {
             // 题记
+            unsafeWindow.localStorage.setItem('live_sc_switch_record_fullscreen', sc_switch_fullscreen);
             unsafeWindow.localStorage.setItem('live_sc_switch_record', sc_switch);
         } else if (sc_memory === 2) {
             // 个记
             update_sc_memory_config('sc_switch', sc_switch, 'self');
+            update_sc_memory_config('sc_switch_fullscreen', sc_switch_fullscreen, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_switch', sc_switch, 'all');
+            update_sc_memory_config('sc_switch_fullscreen', sc_switch_fullscreen, 'all');
         }
     }
 
@@ -846,9 +1047,11 @@
         if (sc_memory === 2) {
             // 个记
             update_sc_memory_config('sc_panel_fold_mode', sc_panel_fold_mode, 'self');
+            update_sc_memory_config('sc_panel_fold_mode_fullscreen', sc_panel_fold_mode_fullscreen, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_panel_fold_mode', sc_panel_fold_mode, 'all');
+            update_sc_memory_config('sc_panel_fold_mode_fullscreen', sc_panel_fold_mode_fullscreen, 'all');
         }
     }
 
@@ -856,9 +1059,11 @@
         if (sc_memory === 2) {
             // 个记
             update_sc_memory_config('sc_panel_side_fold_flag', sc_panel_side_fold_flag, 'self');
+            update_sc_memory_config('sc_panel_side_fold_flag_fullscreen', sc_panel_side_fold_flag_fullscreen, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_panel_side_fold_flag', sc_panel_side_fold_flag, 'all');
+            update_sc_memory_config('sc_panel_side_fold_flag_fullscreen', sc_panel_side_fold_flag_fullscreen, 'all');
         }
     }
 
@@ -866,13 +1071,24 @@
         if (sc_memory === 2) {
             // 个记
             update_sc_memory_config('sc_panel_side_fold_simple', sc_panel_side_fold_simple, 'self');
+            update_sc_memory_config('sc_panel_side_fold_simple_fullscreen', sc_panel_side_fold_simple_fullscreen, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_panel_side_fold_simple', sc_panel_side_fold_simple, 'all');
+            update_sc_memory_config('sc_panel_side_fold_simple_fullscreen', sc_panel_side_fold_simple_fullscreen, 'all');
         }
     }
 
     function sc_panel_drag_store(sc_panel_drag_left_val, sc_panel_drag_top_val) {
+        let the_pds_sc_panel_fold_mode = sc_panel_fold_mode;
+        let the_pds_sc_rectangle_width = sc_rectangle_width;
+        let the_pds_sc_panel_list_height = sc_panel_list_height;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_pds_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            the_pds_sc_rectangle_width = sc_rectangle_width_fullscreen;
+            the_pds_sc_panel_list_height = sc_panel_list_height_fullscreen;
+        }
+
         if (sc_panel_drag_left_val <= 0) {
             sc_panel_drag_left_val = 0;
         }
@@ -880,15 +1096,17 @@
             sc_panel_drag_top_val = 0;
         }
         if (sc_panel_drag_left_val >= unsafeWindow.innerWidth) {
-            if (sc_panel_fold_mode === 1) {
+            if (the_pds_sc_panel_fold_mode === 1) {
                 sc_panel_drag_left_val = unsafeWindow.innerWidth - 72;
             } else {
-                sc_panel_drag_left_val = unsafeWindow.innerWidth - sc_rectangle_width;
+                sc_panel_drag_left_val = unsafeWindow.innerWidth - the_pds_sc_rectangle_width;
             }
         }
         if (sc_panel_drag_top_val >= unsafeWindow.innerHeight) {
-            sc_panel_drag_top_val = unsafeWindow.innerHeight - sc_panel_list_height;
+            sc_panel_drag_top_val = unsafeWindow.innerHeight - the_pds_sc_panel_list_height;
         }
+
+        sc_live_drag_location_change(sc_panel_drag_left_val, sc_panel_drag_top_val);
 
         if (sc_memory === 2) {
             // 个记
@@ -903,9 +1121,11 @@
         if (sc_memory === 2) {
             // 个记
             update_sc_memory_config('sc_func_btn_mode', sc_func_btn_mode, 'self');
+            update_sc_memory_config('sc_func_btn_mode_fullscreen', sc_func_btn_mode_fullscreen, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_func_btn_mode', sc_func_btn_mode, 'all');
+            update_sc_memory_config('sc_func_btn_mode_fullscreen', sc_func_btn_mode_fullscreen, 'all');
         }
     }
 
@@ -967,9 +1187,11 @@
         if (sc_memory === 2) {
             // 个记
             update_sc_memory_config('sc_rectangle_width', sc_rectangle_width, 'self');
+            update_sc_memory_config('sc_rectangle_width_fullscreen', sc_rectangle_width_fullscreen, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_rectangle_width', sc_rectangle_width, 'all');
+            update_sc_memory_config('sc_rectangle_width_fullscreen', sc_rectangle_width_fullscreen, 'all');
         }
     }
 
@@ -977,9 +1199,11 @@
         if (sc_memory === 2) {
             // 个记
             update_sc_memory_config('sc_panel_list_height', sc_panel_list_height, 'self');
+            update_sc_memory_config('sc_panel_list_height_fullscreen', sc_panel_list_height_fullscreen, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_panel_list_height', sc_panel_list_height, 'all');
+            update_sc_memory_config('sc_panel_list_height_fullscreen', sc_panel_list_height_fullscreen, 'all');
         }
     }
 
@@ -1000,6 +1224,30 @@
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_item_order_up_flag', sc_item_order_up_flag, 'all');
+        }
+    }
+
+    function sc_fullscreen_separate_memory_config_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_live_fullscreen_config_separate_memory_flag', sc_live_fullscreen_config_separate_memory_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_live_fullscreen_config_separate_memory_flag', sc_live_fullscreen_config_separate_memory_flag, 'all');
+        }
+    }
+
+    function sc_live_other_config_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_data_show_high_energy_num_flag', sc_data_show_high_energy_num_flag, 'self');
+            update_sc_memory_config('sc_data_show_high_energy_num_flag_fullscreen', sc_data_show_high_energy_num_flag_fullscreen, 'self');
+            update_sc_memory_config('sc_side_fold_fullscreen_auto_hide_list_flag', sc_side_fold_fullscreen_auto_hide_list_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_data_show_high_energy_num_flag', sc_data_show_high_energy_num_flag, 'all');
+            update_sc_memory_config('sc_data_show_high_energy_num_flag_fullscreen', sc_data_show_high_energy_num_flag_fullscreen, 'all');
+            update_sc_memory_config('sc_side_fold_fullscreen_auto_hide_list_flag', sc_side_fold_fullscreen_auto_hide_list_flag, 'all');
         }
     }
 
@@ -1038,41 +1286,48 @@
         let this_sc_item_dynamic_className = this_sc_item_class_arr.find((scClassName) => { return scClassName !== 'sc_long_item'; });
         let this_sc_msg_body = $('.' + this_sc_item_dynamic_className).find('.sc_msg_body');
         let this_sc_item_bg_color = $('.' + this_sc_item_dynamic_className).css('background-color');
+
         if (this_sc_msg_body.is(":visible")) {
             this_sc_msg_body.slideUp(200);
             $('.' + this_sc_item_dynamic_className).css('border-radius', '8px');
             this_sc_msg_body.prev().css('border-radius', '6px');
-            $('.' + this_sc_item_dynamic_className).find('.sc_value_font').css('color', this_sc_item_bg_color);
+            $('.' + this_sc_item_dynamic_className).find('.sc_value_font span').css('color', this_sc_item_bg_color);
             $('.' + this_sc_item_dynamic_className).attr('data-fold', '1');
         } else {
             $('.' + this_sc_item_dynamic_className).css('border-radius', '8px 8px 6px 6px');
             this_sc_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
             this_sc_msg_body.slideDown(200);
-            $('.' + this_sc_item_dynamic_className).find('.sc_value_font').css('color', '');
+            $('.' + this_sc_item_dynamic_className).find('.sc_value_font span').css('color', '#000');
             $('.' + this_sc_item_dynamic_className).attr('data-fold', '0');
         }
     }
 
     // 按钮模式选择
     function sc_btn_mode_apply() {
+        let the_bma_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+        let the_bma_sc_func_btn_mode = sc_func_btn_mode;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_bma_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+            the_bma_sc_func_btn_mode = sc_func_btn_mode_fullscreen;
+        }
 
-        if (sc_panel_side_fold_flag) {
-            if (sc_func_btn_mode === 0) {
+        if (the_bma_sc_panel_side_fold_flag) {
+            if (the_bma_sc_func_btn_mode === 0) {
                 // 侧折模式下显示所有的按钮
                 sc_menu();
-            } else if (sc_func_btn_mode === 1) {
+            } else if (the_bma_sc_func_btn_mode === 1) {
                 // 侧折模式下隐藏所有的按钮
                 $(document).find('.sc_button_item').hide();
-            } else if (sc_func_btn_mode === 2) {
+            } else if (the_bma_sc_func_btn_mode === 2) {
                 // 侧折模式下按钮的极简模式
                 $(document).find('.sc_button_item').hide();
                 $(document).find('.sc_button_menu').show();
                 $(document).find('.sc_button_min').show();
-            } else if (sc_func_btn_mode === 3) {
+            } else if (the_bma_sc_func_btn_mode === 3) {
                 // 侧折模式下只显示折叠按钮
                 $(document).find('.sc_button_item').hide();
                 $(document).find('.sc_button_min').show();
-            } else if (sc_func_btn_mode === 4) {
+            } else if (the_bma_sc_func_btn_mode === 4) {
                 // 侧折模式下只显示菜单按钮
                 $(document).find('.sc_button_item').hide();
                 $(document).find('.sc_button_menu').show();
@@ -1112,6 +1367,187 @@
         }
     }
 
+    function sc_panel_width_config_apply() {
+        let the_pwa_sc_panel_fold_mode = sc_panel_fold_mode;
+        let the_pwa_sc_rectangle_width = sc_rectangle_width;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_pwa_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            the_pwa_sc_rectangle_width = sc_rectangle_width_fullscreen;
+        }
+
+        if (the_pwa_sc_panel_fold_mode === 1) {
+            if (sc_side_fold_custom_first_class) { sc_side_fold_custom_auto_run_flag = false; sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
+        } else if (the_pwa_sc_panel_fold_mode === 2) {
+            $(document).find('.sc_long_rectangle').width(the_pwa_sc_rectangle_width);
+        }
+
+        $(document).find('.sc_uname_div').width(the_pwa_sc_rectangle_width / 2 + 5);
+    }
+
+    function sc_panel_list_height_config_apply() {
+        let height_apply_sc_long_list = $(document).find('.sc_long_list');
+        let height_apply_sc_long_rectangle = $(document).find('.sc_long_rectangle');
+
+        let the_sc_panel_list_height = sc_panel_list_height;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_sc_panel_list_height = sc_panel_list_height_fullscreen;
+        }
+
+        if (the_sc_panel_list_height === 0) {
+            height_apply_sc_long_rectangle.css('border-top', 'unset');
+        } else {
+            height_apply_sc_long_rectangle.css('border-top', '10px solid transparent');
+        }
+
+        if (the_sc_panel_list_height >= 200) {
+            height_apply_sc_long_list.css('min-height', '200px');
+            height_apply_sc_long_list.css('max-height', the_sc_panel_list_height + 'px');
+        } else {
+            height_apply_sc_long_list.css('min-height', the_sc_panel_list_height + 'px');
+            height_apply_sc_long_list.css('max-height', the_sc_panel_list_height + 'px');
+        }
+    }
+
+    function sc_panel_list_no_remember_hide() {
+        sc_side_fold_hide_list_ing_flag = true;
+
+        let the_plh_sc_panel_fold_mode = sc_panel_fold_mode;
+        let the_plh_sc_panel_list_height = sc_panel_list_height;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_plh_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            the_plh_sc_panel_list_height = sc_panel_list_height_fullscreen;
+        }
+        sc_live_panel_height_change(0);
+
+        let func_btn_sc_long_list = $(document).find('.sc_long_list');
+        func_btn_sc_long_list.attr('data-height', the_plh_sc_panel_list_height);
+        sc_panel_list_height_config_apply();
+
+        if (sc_side_fold_custom_first_class && the_plh_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+        if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
+        if (sc_side_fold_custom_each_same_time_class && the_plh_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+        if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+        if (sc_side_fold_custom_first_class && the_plh_sc_panel_fold_mode === 1) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
+
+        sc_live_panel_height_change(the_plh_sc_panel_list_height);
+    }
+
+    function sc_panel_list_no_remember_show(btn_click_flag = true) {
+        sc_side_fold_hide_list_ing_flag = false;
+
+        let func_btn_sc_long_list = $(document).find('.sc_long_list');
+        let old_rect_height = func_btn_sc_long_list.attr('data-height');
+
+        let the_pls_sc_panel_list_height = sc_panel_list_height;
+        let the_pls_sc_panel_fold_mode = sc_panel_fold_mode;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag && btn_click_flag) {
+            the_pls_sc_panel_list_height = sc_panel_list_height_fullscreen;
+            the_pls_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+        }
+
+        if (old_rect_height !== undefined && old_rect_height !== 0 && btn_click_flag) {
+            sc_live_panel_height_change(parseInt(old_rect_height, 10));
+        }
+        if (the_pls_sc_panel_list_height === 0 && btn_click_flag) {
+            sc_live_panel_height_change(400);
+        }
+
+        sc_panel_list_height_config_apply();
+
+        if (sc_side_fold_custom_first_class && the_pls_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+        if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
+        if (sc_side_fold_custom_each_same_time_class && the_pls_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+        if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+        if (sc_side_fold_custom_first_class && the_pls_sc_panel_fold_mode === 1) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
+
+    }
+
+    // 数据显示模块设置
+    function sc_live_other_config_data_show_apply() {
+        let the_loa_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag;
+
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_loa_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag_fullscreen;
+        }
+
+        if (the_loa_sc_data_show_high_energy_num_flag) {
+            // 记录板的
+            $(document).find('.sc_high_energy_num_left').text('高能：');
+            $(document).find('.sc_high_energy_num_right').text(high_energy_num);
+            if (high_energy_contribute_num === 0) {
+                $(document).find('.sc_data_show_label').attr('title', '');
+            } else {
+                $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
+            }
+
+            // 页面的
+            if (data_show_bottom_flag) {
+                const sc_loa_data_show_bottom_rank_num_div = $(document).find('#sc_data_show_bottom_rank_num');
+                if (sc_loa_data_show_bottom_rank_num_div.length) {
+                    const sc_loa_urc_data_show_bottom_div = $(document).find('#sc_data_show_bottom_div');
+                    sc_loa_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
+                    if (high_energy_contribute_num === 0) {
+                        sc_loa_urc_data_show_bottom_div.attr('title', '');
+                    } else {
+                        sc_loa_urc_data_show_bottom_div.attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
+                    }
+                }
+            }
+        } else {
+            // 记录板的
+            if (high_energy_contribute_num === 0) {
+                $(document).find('.sc_high_energy_num_left').text('高能：');
+                $(document).find('.sc_high_energy_num_right').text(high_energy_num);
+                $(document).find('.sc_data_show_label').attr('title', '');
+            } else {
+                $(document).find('.sc_high_energy_num_left').text('同接：');
+                $(document).find('.sc_high_energy_num_right').text(high_energy_contribute_num);
+                $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
+            }
+
+            // 页面的
+            if (data_show_bottom_flag) {
+                const sc_loa_data_show_bottom_rank_num_div = $(document).find('#sc_data_show_bottom_rank_num');
+                if (sc_loa_data_show_bottom_rank_num_div.length) {
+                    const sc_loa_urc_data_show_bottom_div = $(document).find('#sc_data_show_bottom_div');
+                    if (high_energy_contribute_num === 0) {
+                        sc_loa_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
+                        sc_loa_urc_data_show_bottom_div.attr('title', '');
+                    } else {
+                        sc_loa_data_show_bottom_rank_num_div.text('同接：'+ high_energy_contribute_num);
+                        sc_loa_urc_data_show_bottom_div.attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
+                    }
+                }
+            }
+        }
+    }
+
+    function sc_live_fullscreen_config_all_store() {
+        sc_switch_store();
+        sc_fold_mode_store();
+        sc_panel_side_fold_flag_store();
+        sc_side_fold_simple_store();
+        sc_func_btn_mode_store();
+        sc_rectangle_width_store();
+        sc_panel_list_height_store();
+        sc_fullscreen_separate_memory_config_store();
+        sc_live_other_config_store();
+
+        if (sc_panel_drag_left_fullscreen=== -1 && sc_panel_drag_top_fullscreen=== -1) {
+            const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
+            if (rect_circle.width === 0 && rect_circle.height === 0) {
+                const rect_rectangle = $(document).find('.sc_long_rectangle')[0].getBoundingClientRect();
+                sc_panel_drag_store(rect_rectangle.left, rect_rectangle.top);
+            } else {
+                sc_panel_drag_store(rect_circle.left, rect_circle.top);
+            }
+        }
+    }
+
     // 侧折显示板
     function sc_sidefold(flag = true) {
         $(document).find('.sc_long_rectangle').css('width', '72px');
@@ -1129,7 +1565,7 @@
         sc_btn_sidefold.text('展开');
 
         let sc_data_show = $(document).find('.sc_data_show');
-        sc_data_show.css('margin-bottom', '15px');
+        sc_data_show.css('margin-bottom', '5px');
         sc_data_show.css('height', '70px');
 
         $(document).find('.sc_label_data_br').show();
@@ -1155,10 +1591,18 @@
         let clone_sc_data_show = sc_data_show.last().clone(true);
         let clone_sc_long_buttons = sc_long_buttons.last().clone(true);
         clone_sc_long_buttons.hide();
-        if (sc_panel_side_fold_simple) {
+
+        let the_sf_sc_panel_side_fold_simple = sc_panel_side_fold_simple;
+        let the_sf_sc_panel_list_height = sc_panel_list_height;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_sf_sc_panel_side_fold_simple = sc_panel_side_fold_simple_fullscreen;
+            the_sf_sc_panel_list_height = sc_panel_list_height_fullscreen;
+        }
+
+        if (the_sf_sc_panel_side_fold_simple) {
             clone_sc_data_show.hide();
         } else {
-            sc_long_rectangle.css('border-bottom', '');
+            sc_long_rectangle.css('border-bottom', 'unset');
         }
         sc_long_rectangle.append(clone_sc_data_show);
         sc_long_rectangle.append(clone_sc_long_buttons);
@@ -1167,16 +1611,17 @@
 
         sc_side_fold_in_all();
 
-        sc_panel_side_fold_flag = true;
+        sc_live_panel_side_fold_flag_change(true);
 
         if (flag) {
-            if (unsafeWindow.innerHeight - sc_long_rectangle.position().top < sc_panel_list_height + 280) {
+            if (unsafeWindow.innerHeight - sc_long_rectangle.position().top < the_sf_sc_panel_list_height + 280) {
                 sc_long_rectangle.each(function() {
-                    $(this).css('top', unsafeWindow.innerHeight - sc_panel_list_height - 280);
+                    $(this).css('top', unsafeWindow.innerHeight - the_sf_sc_panel_list_height - 280);
                 });
             }
 
-            sc_panel_fold_mode = 1;
+            sc_live_panel_fold_mode_change(1);
+
             sc_fold_mode_store();
             sc_panel_side_fold_flag_store();
 
@@ -1193,17 +1638,24 @@
     }
 
     // 侧折后恢复展开显示板
-    function sc_foldback() {
-        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+    function sc_foldback(flag = true) {
+        let the_fb_sc_panel_fold_mode = sc_panel_fold_mode;
+        let the_fb_sc_rectangle_width = sc_rectangle_width;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag && flag) {
+            the_fb_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            the_fb_sc_rectangle_width = sc_rectangle_width_fullscreen;
+        }
+
+        if (sc_side_fold_custom_first_class && the_fb_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
         if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
 
-        if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+        if (sc_side_fold_custom_each_same_time_class && the_fb_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
         if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
 
-        $(document).find('.sc_long_rectangle').css('width', sc_rectangle_width + 'px');
+        $(document).find('.sc_long_rectangle').css('width', the_fb_sc_rectangle_width + 'px');
         $(document).find('.sc_long_list').css('padding-left', '10px');
-        $(document).find('.sc_long_item').css('width', '');
-        $(document).find('.sc_long_item').css('height', '');
+        $(document).find('.sc_long_item').css('width', 'unset');
+        $(document).find('.sc_long_item').css('height', 'unset');
         let sc_btn_item = $(document).find('.sc_button_item');
         sc_btn_item.css('margin-top', '15px');
         sc_btn_item.css('margin-bottom', '15px');
@@ -1216,7 +1668,7 @@
         sc_btn_foldback.text('侧折');
 
         let sc_data_show = $(document).find('.sc_data_show');
-        sc_data_show.css('margin-bottom', '20px');
+        sc_data_show.css('margin-bottom', '10px');
         sc_data_show.css('height', '20px');
 
         $(document).find('.sc_label_data_br').hide();
@@ -1239,6 +1691,10 @@
 
         let sc_long_rectangle = $(document).find('.sc_long_rectangle');
         let sc_long_buttons = $(document).find('.sc_long_buttons');
+
+        sc_data_show.hide();
+        sc_long_buttons.hide();
+
         let clone_sc_data_show = sc_data_show.last().clone(true);
         let clone_sc_long_buttons = sc_long_buttons.last().clone(true);
         sc_long_rectangle.css('border-bottom', '10px solid transparent');
@@ -1247,24 +1703,25 @@
         sc_data_show.remove();
         sc_long_buttons.remove();
 
-        if (unsafeWindow.innerWidth - sc_long_rectangle.position().left < sc_rectangle_width) {
+        if (unsafeWindow.innerWidth - sc_long_rectangle.position().left < the_fb_sc_rectangle_width) {
             sc_long_rectangle.each(function() {
-                $(this).css('left', unsafeWindow.innerWidth - sc_rectangle_width - 15);
+                $(this).css('left', unsafeWindow.innerWidth - the_fb_sc_rectangle_width - 15);
             });
         }
 
         sc_side_fold_out_all();
 
-        sc_panel_fold_mode = 2;
-        sc_panel_side_fold_flag = false;
+        if (the_fb_sc_panel_fold_mode === 1 && sc_side_fold_fullscreen_auto_hide_list_flag) {
+            sc_panel_list_height_config_apply();
+        }
+
+        sc_live_panel_fold_mode_change(2);
+        sc_live_panel_side_fold_flag_change(false);
 
         sc_fold_mode_store();
         sc_panel_side_fold_flag_store();
 
         sc_menu();
-
-        clone_sc_data_show.slideUp(500);
-        clone_sc_long_buttons.slideUp(500);
 
         if (sc_item_order_up_flag) {
             sc_scroll_list_to_bottom();
@@ -1272,18 +1729,23 @@
     }
 
     // 折叠显示板
-    function sc_minimize() {
-        if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+    function sc_minimize(flag = true) {
+        let the_min_sc_panel_fold_mode = sc_panel_fold_mode;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag && flag) {
+            the_min_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+        }
+
+        if (sc_side_fold_custom_first_class && the_min_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
         if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
 
-        if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+        if (sc_side_fold_custom_each_same_time_class && the_min_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
         if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
 
         $(document).find('.sc_long_circle').show();
         $(document).find('.sc_long_rectangle').hide();
         $(document).find('.sc_long_buttons').hide(); // 优化回弹问题
 
-        sc_panel_fold_mode = 0;
+        sc_live_panel_fold_mode_change(0);
 
         sc_fold_mode_store();
 
@@ -1293,7 +1755,11 @@
     // 切换主题
     function sc_switch_css(flag = false) {
         if (flag) {
-            sc_switch++;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_switch_fullscreen++;
+            } else {
+                sc_switch++;
+            }
 
             // 记录主题
             sc_switch_store();
@@ -1305,17 +1771,24 @@
         let sc_data_show = $(document).find('.sc_data_show');
         let sc_button_item = $(document).find('.sc_button_item');
 
-        if (sc_switch === 0) {
+        let the_theme_sc_switch = sc_switch;
+        let the_theme_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_theme_sc_switch = sc_switch_fullscreen;
+            the_theme_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+        }
+
+        if (the_theme_sc_switch === 0) {
             // 白色
             sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
             sc_rectangle.css('box-shadow', '2px 2px 5px black');
             sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-            if (sc_panel_side_fold_flag) {
+            if (the_theme_sc_panel_side_fold_flag) {
                 sc_list.css('padding', '0px 14px 0px 11px');
             } else {
                 sc_list.css('padding', '0px 13px 0px 10px');
             }
-            sc_data_show.css('color', '');
+            sc_data_show.css('color', '#000');
             sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
             sc_button_item.css('background-size', '350%');
             sc_button_item.css('border', 0);
@@ -1331,12 +1804,12 @@
                 background: rgba(204,204,204,0);
             }
             `);
-        } else if(sc_switch === 1) {
+        } else if(the_theme_sc_switch === 1) {
             // 透明
             sc_rectangle.css('background-color', 'rgba(255,255,255,0)');
             sc_rectangle.css('box-shadow', '');
             sc_item.css('box-shadow', '');
-            if (sc_panel_side_fold_flag){
+            if (the_theme_sc_panel_side_fold_flag){
                 sc_list.css('padding', '0px 12px 0px 11px');
             } else {
                 sc_list.css('padding', '0px 11px 0px 10px');
@@ -1356,11 +1829,11 @@
                 background: rgba(255,255,255,0);
             }
             `);
-        } else if(sc_switch === 2) {
+        } else if(the_theme_sc_switch === 2) {
             // 半透明（白0.1）
             sc_rectangle.css('background-color', 'rgba(255,255,255,0.1)');
             sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-            if (sc_panel_side_fold_flag) {
+            if (the_theme_sc_panel_side_fold_flag) {
                 sc_list.css('padding', '0px 14px 0px 11px');
             } else {
                 sc_list.css('padding', '0px 13px 0px 10px');
@@ -1381,16 +1854,16 @@
                 background: rgba(204,204,204,0);
             }
             `);
-        } else if(sc_switch === 3) {
+        } else if(the_theme_sc_switch === 3) {
             // 半透明（白0.5）
             sc_rectangle.css('background-color', 'rgba(255,255,255,0.5)');
             sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-            if (sc_panel_side_fold_flag) {
+            if (the_theme_sc_panel_side_fold_flag) {
                 sc_list.css('padding', '0px 14px 0px 11px');
             } else {
                 sc_list.css('padding', '0px 13px 0px 10px');
             }
-            sc_data_show.css('color', '');
+            sc_data_show.css('color', '#000');
             sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
             sc_button_item.css('background-size', '350%');
             sc_button_item.css('border', 0);
@@ -1406,12 +1879,12 @@
                 background: rgba(204,204,204,0);
             }
             `);
-        } else if(sc_switch === 4) {
+        } else if(the_theme_sc_switch === 4) {
             // 半透明（黑色0.1）
             sc_rectangle.css('background-color', 'rgba(0,0,0,0.1)');
             sc_rectangle.css('box-shadow', '');
             sc_item.css('box-shadow', '');
-            if (sc_panel_side_fold_flag) {
+            if (the_theme_sc_panel_side_fold_flag) {
                 sc_list.css('padding', '0px 12px 0px 11px');
             } else {
                 sc_list.css('padding', '0px 11px 0px 10px');
@@ -1431,12 +1904,12 @@
                 background: rgba(255,255,255,0);
             }
             `);
-        } else if(sc_switch === 5) {
+        } else if(the_theme_sc_switch === 5) {
             // 半透明（黑色0.5）
             sc_rectangle.css('background-color', 'rgba(0,0,0,0.5)');
             sc_rectangle.css('box-shadow', '');
             sc_item.css('box-shadow', '');
-            if (sc_panel_side_fold_flag) {
+            if (the_theme_sc_panel_side_fold_flag) {
                 sc_list.css('padding', '0px 12px 0px 11px');
             } else {
                 sc_list.css('padding', '0px 12px 0px 10px');
@@ -1458,16 +1931,21 @@
             `);
         } else {
             // 白色
-            sc_switch = 0;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_switch_fullscreen = 0;
+            } else {
+                sc_switch = 0;
+            }
+
             sc_rectangle.css('background-color', 'rgba(255,255,255,1)');
             sc_item.css('box-shadow', 'rgba(0, 0, 0, 0.5) 2px 2px 2px');
-            if (sc_panel_side_fold_flag) {
+            if (the_theme_sc_panel_side_fold_flag) {
                 sc_list.css('padding', '0px 14px 0px 11px');
             } else {
                 sc_list.css('padding', '0px 13px 0px 10px');
             }
 
-            sc_data_show.css('color', '');
+            sc_data_show.css('color', '#000');
             sc_button_item.css('background', 'linear-gradient(90deg, #A7C9D3, #eeeeee, #5c95d7, #A7C9D3)');
             sc_button_item.css('background-size', '350%');
             sc_button_item.css('border', 0);
@@ -1510,6 +1988,9 @@
             update_sc_switch_rooms('add');
             // 切换到题记的配置
             let sc_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record');
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record_fullscreen');
+            }
             if (sc_switch_record !== null && sc_switch_record !== 'null' && sc_switch_record !== '') {
                 sc_switch = parseInt(sc_switch_record, 10);
                 sc_switch_css();
@@ -1521,6 +2002,18 @@
             sc_fold_mode_store();
             sc_panel_side_fold_flag_store();
             sc_side_fold_simple_store();
+            sc_func_btn_mode_store();
+            sc_side_fold_custom_config_store();
+            sc_rectangle_width_store();
+            sc_panel_list_height_store();
+            sc_item_order_up_flag_store();
+            sc_data_show_bottom_store();
+            sc_panel_allow_drag_store();
+            sc_welt_hide_circle_half_store();
+            sc_start_time_show_store();
+            sc_live_sidebar_left_flag_store();
+            sc_fullscreen_separate_memory_config_store();
+            sc_live_other_config_store();
 
             const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
             if (rect_circle.width === 0 && rect_circle.height === 0) {
@@ -1537,6 +2030,18 @@
             sc_fold_mode_store();
             sc_panel_side_fold_flag_store();
             sc_side_fold_simple_store();
+            sc_func_btn_mode_store();
+            sc_side_fold_custom_config_store();
+            sc_rectangle_width_store();
+            sc_panel_list_height_store();
+            sc_item_order_up_flag_store();
+            sc_data_show_bottom_store();
+            sc_panel_allow_drag_store();
+            sc_welt_hide_circle_half_store();
+            sc_start_time_show_store();
+            sc_live_sidebar_left_flag_store();
+            sc_fullscreen_separate_memory_config_store();
+            sc_live_other_config_store();
 
             const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
             if (rect_circle.width === 0 && rect_circle.height === 0) {
@@ -1555,50 +2060,65 @@
         let sc_circles = $(document).find('.sc_long_circle');
         let sc_rectangles = $(document).find('.sc_long_rectangle');
 
-        if (sc_panel_fold_mode) {
+        let the_ms_sc_panel_fold_mode = sc_panel_fold_mode;
+        let the_ms_sc_panel_drag_left = sc_panel_drag_left;
+        let the_ms_sc_panel_drag_top = sc_panel_drag_top;
+        let the_ms_sc_panel_side_fold_simple = sc_panel_side_fold_simple;
+        let the_ms_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_ms_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            the_ms_sc_panel_drag_left = sc_panel_drag_left_fullscreen;
+            the_ms_sc_panel_drag_top = sc_panel_drag_top_fullscreen;
+            the_ms_sc_panel_side_fold_simple = sc_panel_side_fold_simple_fullscreen;
+            the_ms_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+        }
+
+        if (the_ms_sc_panel_fold_mode) {
             sc_circles.each(function() {
-                if (sc_panel_drag_left >= 0) {
-                    $(this).css('left', sc_panel_drag_left + 'px');
+                if (the_ms_sc_panel_drag_left >= 0) {
+                    $(this).css('left', the_ms_sc_panel_drag_left + 'px');
                 }
 
-                if (sc_panel_drag_top >= 0) {
-                    $(this).css('top', sc_panel_drag_top + 'px');
+                if (the_ms_sc_panel_drag_top >= 0) {
+                    $(this).css('top', the_ms_sc_panel_drag_top + 'px');
                 }
 
                 $(this).hide();
             });
 
             sc_rectangles.each(function() {
-                if (sc_panel_drag_left >= 0) {
-                    $(this).css('left', sc_panel_drag_left + 'px');
+                if (the_ms_sc_panel_drag_left >= 0) {
+                    $(this).css('left', the_ms_sc_panel_drag_left + 'px');
                 }
 
-                if (sc_panel_drag_top >= 0) {
-                    $(this).css('top', sc_panel_drag_top + 'px');
+                if (the_ms_sc_panel_drag_top >= 0) {
+                    $(this).css('top', the_ms_sc_panel_drag_top + 'px');
                 }
 
-                if (sc_panel_fold_mode === 1 && !sc_panel_side_fold_simple) {
+                if (the_ms_sc_panel_fold_mode === 1 && !the_ms_sc_panel_side_fold_simple) {
                     $(document).find('.sc_data_show').show();
                 }
 
                 $(this).slideDown(500);
             });
 
-            if (sc_panel_fold_mode === 1) { sc_sidefold(false); sc_btn_mode_apply(); }
+            if (the_ms_sc_panel_fold_mode === 1) { sc_sidefold(false); sc_btn_mode_apply(); }
         } else {
-            if (sc_panel_side_fold_flag) { sc_sidefold(false); sc_btn_mode_apply(); }
+
+            if (the_ms_sc_panel_side_fold_flag) { sc_sidefold(false); sc_btn_mode_apply(); }
 
             sc_circles.each(function() {
-                if (sc_panel_drag_left >= 0) {
-                    $(this).css('left', sc_panel_drag_left + 'px');
+                if (the_ms_sc_panel_drag_left >= 0) {
+                    $(this).css('left', the_ms_sc_panel_drag_left + 'px');
                 }
 
-                if (sc_panel_drag_top >= 0) {
-                    $(this).css('top', sc_panel_drag_top + 'px');
+                if (the_ms_sc_panel_drag_top >= 0) {
+                    $(this).css('top', the_ms_sc_panel_drag_top + 'px');
                 }
             });
 
-            if (sc_welt_hide_circle_half_flag) { sc_circle_welt_hide_half(sc_panel_drag_left, sc_panel_drag_top); }
+            if (sc_welt_hide_circle_half_flag) { sc_circle_welt_hide_half(the_ms_sc_panel_drag_left, the_ms_sc_panel_drag_top); }
         }
 
         if (sc_live_sidebar_left_flag) { setTimeout(() => { sc_live_sidebar_position_left_apply() }, 1000); }
@@ -1660,8 +2180,13 @@
 
         e = e || unsafeWindow.event;
 
+        let the_sd_sc_panel_fold_mode = sc_panel_fold_mode;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_sd_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+        }
+
         let sc_drag_target_classname = e.target.className;
-        if (sc_panel_fold_mode === 1 && sc_drag_target_classname !== 'sc_long_list' && sc_drag_target_classname !== 'sc_data_show' && sc_drag_target_classname !== 'sc_long_buttons' && !sc_drag_target_classname.includes('sc_button_item')) {
+        if (the_sd_sc_panel_fold_mode === 1 && sc_drag_target_classname !== 'sc_long_list' && sc_drag_target_classname !== 'sc_data_show' && sc_drag_target_classname !== 'sc_long_buttons' && !sc_drag_target_classname.includes('sc_button_item')) {
             // 侧折模式下，禁止用SC拖拽
             return;
         }
@@ -1727,7 +2252,7 @@
 
             sc_isClickAllowed = false;
 
-            if (e.clientY < 0 || e.clientX < 0 || e.clientY >= unsafeWindow.innerHeight || e.clientX >= unsafeWindow.innerWidth - 5) {
+            if (e.clientY <= 0 || e.clientX <= 0 || e.clientY >= unsafeWindow.innerHeight || e.clientX >= unsafeWindow.innerWidth - 5) {
                 // 页面外时触发 mouseup 事件的逻辑
                 sc_isDragging = false;
                 sc_stopDragging();
@@ -1745,13 +2270,26 @@
         let sc_data_model = document.getElementsByClassName('sc_data_show');
         let sc_btn_model = document.getElementsByClassName('sc_long_buttons');
 
-        if (sc_panel_side_fold_flag) {
+        let the_aca_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+        let the_aca_sc_panel_side_fold_simple = sc_panel_side_fold_simple;
+        let the_aca_sc_func_btn_mode = sc_func_btn_mode;
+        let the_aca_sc_panel_fold_mode = sc_panel_fold_mode;
+        let the_aca_sc_rectangle_width = sc_rectangle_width;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_aca_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+            the_aca_sc_panel_side_fold_simple = sc_panel_side_fold_simple_fullscreen;
+            the_aca_sc_func_btn_mode = sc_func_btn_mode_fullscreen;
+            the_aca_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            the_aca_sc_rectangle_width = sc_rectangle_width_fullscreen;
+        }
+
+        if (the_aca_sc_panel_side_fold_flag) {
 
             if (click_page_x < sc_rect_left || click_page_x - sc_rect_left > 72
                 || click_page_y < sc_rect_top
                 || (click_page_y > sc_rect_top && click_page_y - sc_rect_top > $(sc_rectangle_model).outerHeight())) {
 
-                if (animate_flag && sc_panel_side_fold_simple) {
+                if (animate_flag && the_aca_sc_panel_side_fold_simple) {
                     $(sc_data_model).slideUp(500);
                 }
 
@@ -1759,17 +2297,17 @@
                     sc_rectangle_is_slide_up = false;
                 });
 
-                if (!sc_panel_side_fold_simple) {
-                    $(sc_rectangle_model).css('border-bottom', '');
+                if (!the_aca_sc_panel_side_fold_simple) {
+                    $(sc_rectangle_model).css('border-bottom', 'unset');
                 }
             }
 
-            if (!sc_panel_side_fold_simple && sc_func_btn_mode === 1) {
-                $(sc_rectangle_model).css('border-bottom', '');
+            if (!the_aca_sc_panel_side_fold_simple && the_aca_sc_func_btn_mode === 1) {
+                $(sc_rectangle_model).css('border-bottom', 'unset');
             }
-        } else if (sc_panel_fold_mode == 2) {
+        } else if (the_aca_sc_panel_fold_mode == 2) {
 
-            if (click_page_x < sc_rect_left || click_page_x - sc_rect_left > sc_rectangle_width
+            if (click_page_x < sc_rect_left || click_page_x - sc_rect_left > the_aca_sc_rectangle_width
                 || click_page_y < sc_rect_top
                 || (click_page_y > sc_rect_top && click_page_y - sc_rect_top > $(sc_rectangle_model).outerHeight())) {
                 $(sc_data_model).slideUp(500);
@@ -1781,6 +2319,15 @@
     }
 
     function update_sc_item(sc_data, realtime = true) {
+        let the_usi_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+        let the_usi_sc_rectangle_width = sc_rectangle_width;
+        let the_usi_sc_panel_fold_mode = sc_panel_fold_mode;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_usi_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+            the_usi_sc_rectangle_width = sc_rectangle_width_fullscreen;
+            the_usi_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+        }
+
         // 追加SC 显示
         let sc_background_bottom_color = sc_data["background_bottom_color"];
         let sc_background_image = sc_data["background_image"];
@@ -1844,7 +2391,7 @@
         let sc_msg_head_style_border_radius = 'border-radius: 6px 6px 0px 0px;';
         let sc_msg_head_left_style_display = '';
         let sc_msg_head_right_style_display = '';
-        if (sc_panel_side_fold_flag) {
+        if (the_usi_sc_panel_side_fold_flag) {
             sc_msg_item_style_width = 'width: 50px;';
             sc_msg_item_style_border_radius = 'border-radius: 8px;';
             sc_msg_body_style_display = 'display: none;';
@@ -1864,7 +2411,7 @@
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
             '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;'+ sc_msg_head_left_style_display +'">'+
             metal_and_start_time_html+
-            '<div class="sc_uname_div" style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((sc_rectangle_width / 2) + 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;" data-color="'+ sc_font_color_data +'">' + sc_user_info_uname + '</span></div>'+
+            '<div class="sc_uname_div" style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((the_usi_sc_rectangle_width / 2) + 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;" data-color="'+ sc_font_color_data +'">' + sc_user_info_uname + '</span></div>'+
             '</div>'+
             '<div class="sc_msg_head_right" style="float: right; box-sizing: border-box; height: 40px;'+ sc_msg_head_right_style_display +'">'+
             '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right; color: #000;">￥'+ sc_price +'</span></div>'+
@@ -1876,7 +2423,7 @@
 
         if (sc_item_order_up_flag) {
             $(document).find('.sc_long_list').append(sc_item_html);
-            if (realtime && sc_panel_fold_mode === 2) {
+            if (realtime && the_usi_sc_panel_fold_mode === 2) {
                 sc_scroll_list_to_bottom();
             }
         } else {
@@ -1930,16 +2477,58 @@
     }
 
     function update_rank_count(n_count, n_online_count) {
+        // 判断依据：高能 >= 同接，目前都是只有 n_online_count = 0（未来不一定，可能变为有的房间 n_count = 0 ,已兼容），并且有的房间 n_online_count 是同接，有的房间 n_online_count 是高能
+        let n_gao_neng = 0;
+        let n_tong_jie = 0;
+
+        let the_urc_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag;
+        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+            the_urc_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag_fullscreen;
+        }
+
         if (n_online_count) {
-            high_energy_num = n_online_count;
+            if (n_count) {
+                if (n_count > n_online_count) {
+                    n_gao_neng = n_count;
+                    n_tong_jie =n_online_count;
+                } else {
+                    n_gao_neng = n_online_count;
+                    n_tong_jie =n_count;
+                }
+            } else {
+                n_gao_neng = 0;
+                n_tong_jie = n_count;
+            }
+
         } else {
-            n_online_count = high_energy_num;
+            n_gao_neng = n_count;
+            n_tong_jie = 0;
+        }
+
+        if (n_gao_neng) {
+            if (high_energy_contribute_num >= n_gao_neng && n_tong_jie === 0) {
+                high_energy_contribute_num = n_gao_neng;
+            } else {
+                high_energy_num = n_gao_neng;
+            }
+        }
+
+        if (n_tong_jie) {
+            if (high_energy_num <= n_tong_jie && n_gao_neng === 0) {
+                high_energy_num = n_tong_jie;
+            } else {
+                high_energy_contribute_num = n_tong_jie;
+            }
+        }
+
+        if (high_energy_contribute_num > high_energy_num) {
+            high_energy_contribute_num = high_energy_num;
         }
 
         // SC记录板的
-        if (n_count > n_online_count) {
+        if (high_energy_contribute_num === 0) {
             $(document).find('.sc_high_energy_num_left').text('高能：');
-            $(document).find('.sc_high_energy_num_right').text(n_count);
+            $(document).find('.sc_high_energy_num_right').text(high_energy_num);
             $(document).find('.sc_data_show_label').attr('title', '');
 
             if (!sc_update_date_guard_once) {
@@ -1950,34 +2539,47 @@
                 }
             }
         } else {
-            $(document).find('.sc_high_energy_num_left').text('同接：');
-            $(document).find('.sc_high_energy_num_right').text(n_count);
-            $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ n_count + '/' + n_online_count +') = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
+
+            if (the_urc_sc_data_show_high_energy_num_flag) {
+                $(document).find('.sc_high_energy_num_left').text('高能：');
+                $(document).find('.sc_high_energy_num_right').text(high_energy_num);
+            } else {
+                $(document).find('.sc_high_energy_num_left').text('同接：');
+                $(document).find('.sc_high_energy_num_right').text(high_energy_contribute_num);
+            }
+
+            $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
         }
 
         // 页面的
         if (data_show_top_flag) {
             const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
             if (rank_data_show_div.length) {
-                if (n_count > n_online_count) {
-                    rank_data_show_div.first().text('高能用户(' + n_count + ')');
+                if (high_energy_contribute_num === 0) {
+                    rank_data_show_div.first().text('高能用户(' + high_energy_num + ')');
                     rank_data_show_div.first().attr('title', '');
                 } else {
-                    rank_data_show_div.first().text('高能用户(' + n_count + '/' + n_online_count + ')');
-                    rank_data_show_div.first().attr('title', '同接/高能 = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
+                    rank_data_show_div.first().text('高能用户(' + high_energy_contribute_num + '/' + high_energy_num + ')');
+                    rank_data_show_div.first().attr('title', '同接/高能 = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
                 }
             }
         }
 
         if (data_show_bottom_flag) {
-            const sc_data_show_bottom_rank_num_div = $(document).find('#sc_data_show_bottom_rank_num');
-            if (sc_data_show_bottom_rank_num_div.length) {
-                if (n_count > n_online_count) {
-                    sc_data_show_bottom_rank_num_div.text('高能：'+ n_count);
-                    sc_data_show_bottom_rank_num_div.attr('title', '');
+            const sc_urc_data_show_bottom_rank_num_div = $(document).find('#sc_data_show_bottom_rank_num');
+            if (sc_urc_data_show_bottom_rank_num_div.length) {
+                const sc_urc_data_show_bottom_div = $(document).find('#sc_data_show_bottom_div');
+                if (high_energy_contribute_num === 0) {
+                    sc_urc_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
+                    sc_urc_data_show_bottom_div.attr('title', '');
                 } else {
-                    sc_data_show_bottom_rank_num_div.text('同接：'+ n_count);
-                    sc_data_show_bottom_rank_num_div.attr('title', '同接/高能('+ n_count + '/' + n_online_count +') = ' + (n_count / n_online_count * 100).toFixed(2) + '%');
+                    if (the_urc_sc_data_show_high_energy_num_flag) {
+                        sc_urc_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
+                    } else {
+                        sc_urc_data_show_bottom_rank_num_div.text('同接：'+ high_energy_contribute_num);
+                    }
+
+                    sc_urc_data_show_bottom_div.attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
                 }
             } else {
                 const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
@@ -1993,10 +2595,14 @@
                         }
                     }
 
-                    if (n_count > n_online_count) {
-                        $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">高能：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
+                    if (high_energy_contribute_num === 0) {
+                        $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">高能：'+ high_energy_num +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
                     } else {
-                        $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" title="'+ (n_count / n_online_count * 100).toFixed(2) +'%" style="width: 100%;margin-bottom: 5px;">同接：'+ n_count +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
+                        if (the_urc_sc_data_show_high_energy_num_flag) {
+                            $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div" title="'+ (high_energy_contribute_num / high_energy_num * 100).toFixed(2) +'%"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">高能：'+ high_energy_num +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
+                        } else {
+                            $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div" title="'+ (high_energy_contribute_num / high_energy_num * 100).toFixed(2) +'%"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">同接：'+ high_energy_contribute_num +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
+                        }
                     }
                 }
             }
@@ -2116,6 +2722,59 @@
         });
     }
 
+    function sc_fullscreen_width_high_mode_show() {
+        let the_whm_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+        let the_whm_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+        let the_whm_sc_rectangle_width = sc_rectangle_width;
+
+        let the_reset_sc_panel_fold_mode = sc_panel_fold_mode;
+        let the_reset_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+        if (sc_isFullscreen) {
+            the_whm_sc_panel_fold_mode = sc_panel_fold_mode;
+            the_whm_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+
+            if (sc_live_fullscreen_config_separate_memory_flag) {
+                the_whm_sc_rectangle_width = sc_rectangle_width_fullscreen;
+
+                the_reset_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+                the_reset_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+            }
+        }
+
+        $(document).find('.sc_long_rectangle').width(the_whm_sc_rectangle_width);
+        $(document).find('.sc_uname_div').width(the_whm_sc_rectangle_width / 2 + 5);
+
+        sc_panel_list_height_config_apply();
+
+        if (the_whm_sc_panel_fold_mode === 1) {
+            if (sc_side_fold_custom_first_class) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+            sc_foldback(false);
+            sc_minimize();
+        } else if (the_whm_sc_panel_fold_mode === 2) {
+            sc_minimize();
+        } else {
+            if (the_whm_sc_panel_side_fold_flag) {
+                sc_foldback();
+            }
+        }
+
+        sc_live_panel_fold_mode_change(the_reset_sc_panel_fold_mode);
+        sc_live_panel_side_fold_flag_change(the_reset_sc_panel_side_fold_flag);
+        sc_fold_mode_store();
+        sc_panel_side_fold_flag_store();
+
+        sc_memory_show();
+    }
+
+    function sc_fullscreen_separate_memory_apply() {
+
+        sc_fullscreen_width_high_mode_show();
+        sc_switch_css();
+        sc_live_other_config_data_show_apply();
+
+        sc_live_fullscreen_config_all_store();
+    }
+
     function sc_process_start() {
         if (sc_panel_list_height < 0) { sc_panel_list_height = 0; }
         if (sc_panel_list_height > 500) { sc_panel_list_height = 500; }
@@ -2213,27 +2872,30 @@
         sc_buttonsContainer.style.position = 'sticky';
         sc_buttonsContainer.style.top = '0';
         sc_buttonsContainer.style.zIndex = '3';
+        sc_buttonsContainer.style.height = 'auto';
 
         // Create a container for the dataShow
         const sc_dataShowContainer = document.createElement('div');
         sc_dataShowContainer.className = 'sc_data_show';
         sc_dataShowContainer.style.display = 'none';
         sc_dataShowContainer.style.backgroundColor = 'rgba(255,255,255,0)';
+        sc_dataShowContainer.style.color = '#000';
         sc_dataShowContainer.style.textAlign = 'center';
         sc_dataShowContainer.style.position = 'sticky';
         sc_dataShowContainer.style.zIndex = '3';
         sc_dataShowContainer.style.height = '20px';
         sc_dataShowContainer.style.fontSize = '15px';
-        sc_dataShowContainer.style.paddingLeft = '10px';
-        sc_dataShowContainer.style.paddingRight = '10px';
-        sc_dataShowContainer.style.paddingTop = '10px';
-        sc_dataShowContainer.style.marginBottom = '20px';
+        sc_dataShowContainer.style.padding = '10px';
+        sc_dataShowContainer.style.marginBottom = '10px';
 
         // Create labels for the dataShow
         const sc_label_high_energy_num_left = document.createElement('label');
         sc_label_high_energy_num_left.textContent = '同接：';
         sc_label_high_energy_num_left.classList.add('sc_data_show_label', 'sc_high_energy_num_left');
         sc_label_high_energy_num_left.style.float = 'left';
+        if (sc_data_show_high_energy_num_flag) {
+            sc_label_high_energy_num_left.textContent = '高能：';
+        }
 
         const sc_label_high_energy_num_right = document.createElement('label');
         sc_label_high_energy_num_right.textContent = '0';
@@ -2479,6 +3141,11 @@
         $(document).on('mouseup', '.sc_drag_div', sc_stopDragging);
 
         function sc_handleFullscreenChange() {
+            let the_hfc_sc_panel_fold_mode = sc_panel_fold_mode;
+            if (sc_live_fullscreen_config_separate_memory_flag) {
+                the_hfc_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            }
+
             if (document.fullscreenElement ||
                 document.webkitFullscreenElement ||
                 document.mozFullScreenElement ||
@@ -2488,9 +3155,17 @@
                 $(live_player_div).append(sc_circle_clone);
                 $(live_player_div).append(sc_rectangle_clone);
                 sc_isFullscreen = true;
+
+                sc_fullscreen_separate_memory_apply();
+
+                if (the_hfc_sc_panel_fold_mode === 1 && sc_side_fold_fullscreen_auto_hide_list_flag) {
+                    sc_panel_list_no_remember_hide();
+                }
+
             } else {
                 $(live_player_div).find('.sc_drag_div').remove();
                 sc_isFullscreen = false;
+                sc_side_fold_hide_list_ing_flag = false;
 
                 // 判断sc_circle界限
                 let xPos = 0;
@@ -2532,6 +3207,13 @@
                     yPos = unsafeWindow.innerHeight - sc_rectangles_height - 10;
                     sc_rectangles.css('top', yPos + 'px');
                 }
+
+                if (the_hfc_sc_panel_fold_mode === 1 && sc_side_fold_fullscreen_auto_hide_list_flag) {
+                    sc_panel_list_no_remember_show(false);
+                }
+
+                sc_fullscreen_separate_memory_apply();
+
             }
         }
 
@@ -2543,6 +3225,15 @@
 
         $(document).on('click', '.sc_long_circle', () => {
             if (sc_isClickAllowed) {
+                let the_cc_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+                let the_cc_sc_rectangle_width = sc_rectangle_width;
+                let the_cc_sc_panel_list_height = sc_panel_list_height;
+                if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                    the_cc_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+                    the_cc_sc_rectangle_width = sc_rectangle_width_fullscreen;
+                    the_cc_sc_panel_list_height = sc_panel_list_height_fullscreen;
+                }
+
                 let xPos = 0;
                 let yPos = 0;
                 let sc_circles = $(document).find('.sc_long_circle');
@@ -2563,22 +3254,22 @@
                     $(this).hide();
                 });
 
-                if (sc_panel_side_fold_flag) {
+                if (the_cc_sc_panel_side_fold_flag) {
                     if (unsafeWindow.innerWidth - xPos < 72) {
                         xPos = unsafeWindow.innerWidth - 72;
                     }
 
-                    sc_panel_fold_mode = 1;
+                    sc_live_panel_fold_mode_change(1);
                 } else {
-                    if (unsafeWindow.innerWidth - xPos < sc_rectangle_width) {
-                        xPos = unsafeWindow.innerWidth - sc_rectangle_width;
+                    if (unsafeWindow.innerWidth - xPos < the_cc_sc_rectangle_width) {
+                        xPos = unsafeWindow.innerWidth - the_cc_sc_rectangle_width;
                     }
 
-                    sc_panel_fold_mode = 2;
+                    sc_live_panel_fold_mode_change(2);
                 }
 
-                if (unsafeWindow.innerHeight - yPos < sc_panel_list_height) {
-                    yPos = unsafeWindow.innerHeight - sc_panel_list_height - 150;
+                if (unsafeWindow.innerHeight - yPos < the_cc_sc_panel_list_height) {
+                    yPos = unsafeWindow.innerHeight - the_cc_sc_panel_list_height - 150;
                 }
 
                 let sc_rectangles = $(document).find('.sc_long_rectangle');
@@ -2660,21 +3351,36 @@
             let sc_rectangle_model = document.getElementsByClassName('sc_long_rectangle');
             let sc_list_model = document.getElementsByClassName('sc_long_list');
 
+            let the_enter_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+            let the_enter_sc_func_btn_mode = sc_func_btn_mode;
+            let the_enter_sc_panel_fold_mode = sc_panel_fold_mode;
+            let the_enter_sc_panel_side_fold_simple = sc_panel_side_fold_simple;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_enter_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+                the_enter_sc_func_btn_mode = sc_func_btn_mode_fullscreen;
+                the_enter_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+                the_enter_sc_panel_side_fold_simple = sc_panel_side_fold_simple_fullscreen;
+            }
+
             function sc_change_show() {
 
-                if (!sc_panel_side_fold_flag || (sc_panel_side_fold_flag && sc_func_btn_mode !== 1)) {
+                if (!the_enter_sc_panel_side_fold_flag || (the_enter_sc_panel_side_fold_flag && the_enter_sc_func_btn_mode !== 1)) {
 
                     $(sc_btn_model).slideDown(500, () => {
                         sc_rectangle_is_slide_down = false;
+                        $(sc_btn_model).css('height', 'auto');
+
                         if (sc_rectangle_mouse_out) {
                             $(sc_btn_model).slideUp(500);
                         }
                     });
                 }
 
-                if (!sc_panel_side_fold_flag || (sc_panel_side_fold_flag && sc_panel_side_fold_simple)) {
+                if (!the_enter_sc_panel_side_fold_flag || (the_enter_sc_panel_side_fold_flag && the_enter_sc_panel_side_fold_simple)) {
 
                     $(sc_data_model).slideDown(500, () => {
+                        $(sc_btn_model).show();
+                        $(sc_btn_model).css('height', 'auto');
                         sc_rectangle_is_slide_down = false;
                         if (sc_rectangle_mouse_out) {
                             $(sc_data_model).slideUp(500);
@@ -2687,15 +3393,15 @@
                 $(sc_data_model).attr('data-anime', '0');
             }
 
-            if (sc_panel_fold_mode === 1) {
+            if (the_enter_sc_panel_fold_mode === 1) {
 
                 let sc_extra_height = 0;
                 let sc_enter_change = $(sc_btn_model).outerHeight() + $(sc_data_model).outerHeight() + 20;
                 let sc_diff_height = unsafeWindow.innerHeight - sc_rectangle_model[0].offsetTop - $(sc_list_model).outerHeight() - $(sc_btn_model).outerHeight() - $(sc_data_model).outerHeight() - 25;
 
-                if (!sc_panel_side_fold_simple) {
+                if (!the_enter_sc_panel_side_fold_simple) {
                     sc_extra_height = $(sc_data_model).outerHeight();
-                    if (sc_func_btn_mode !== 1) {
+                    if (the_enter_sc_func_btn_mode !== 1) {
                         sc_enter_change = $(sc_btn_model).outerHeight() + 10;
                     } else {
                         sc_enter_change = $(sc_btn_model).outerHeight();
@@ -2712,6 +3418,7 @@
                     $(sc_data_lable_model).show();
                     $(sc_data_model).show();
                     $(sc_btn_model).show();
+                    $(sc_btn_model).css('height', 'auto');
 
                     $(sc_rectangle_model).animate({top: sc_rectangle_model[0].offsetTop - sc_enter_change}, 500, () => {
                         sc_rectangle_is_slide_down = false;
@@ -2740,7 +3447,7 @@
                 sc_change_show();
             }
 
-            if (sc_panel_side_fold_flag && sc_func_btn_mode !== 1) {
+            if (the_enter_sc_panel_side_fold_flag && the_enter_sc_func_btn_mode !== 1) {
                 $(sc_rectangle_model).css('border-bottom', '10px solid transparent');
             }
 
@@ -2766,6 +3473,15 @@
             let sc_rectangle_model = document.getElementsByClassName('sc_long_rectangle');
             let sc_list_model = document.getElementsByClassName('sc_long_list');
 
+            let the_leave_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+            let the_leave_sc_panel_fold_mode = sc_panel_fold_mode;
+            let the_leave_sc_panel_side_fold_simple = sc_panel_side_fold_simple;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_leave_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+                the_leave_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+                the_leave_sc_panel_side_fold_simple = sc_panel_side_fold_simple_fullscreen;
+            }
+
             let sc_rectangle_top = sc_rectangle_model[0].offsetTop;
 
             sc_btn_mode_apply();
@@ -2774,30 +3490,45 @@
                 sc_rectangle_is_slide_up = false;
                 if (!sc_rectangle_mouse_out) {
                     $(sc_btn_model).slideDown(500);
-                    if (sc_panel_side_fold_flag && !sc_panel_side_fold_simple) {
+                    if (the_leave_sc_panel_side_fold_flag && !the_leave_sc_panel_side_fold_simple) {
                         $(sc_rectangle_model).css('border-bottom', '10px solid transparent');
                     }
                 }
             });
 
-            if (sc_panel_side_fold_flag) {
+            if (the_leave_sc_panel_side_fold_flag) {
                 // 应对鼠标的快速移入移出时，动画进行中的情况
                 let sc_edge_mouse_enter_anime = $(sc_data_model).attr('data-anime');
                 if (sc_edge_mouse_enter_anime === '1') {
                     sc_rectangle_top = parseInt($(sc_data_model).attr('data-rectangleTop'), 10);
                 }
 
-                if (sc_panel_side_fold_simple) {
+                if (the_leave_sc_panel_side_fold_simple) {
                     $(sc_data_lable_model).animate({opacity: 0}, 200);
                     $(sc_data_model).slideUp(500, () => {
+                        // 预防快速操作
+                        let the_leave_delay_sc_panel_side_fold_simple = sc_panel_side_fold_simple;
+                        if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                            the_leave_delay_sc_panel_side_fold_simple = sc_panel_side_fold_simple_fullscreen;
+                        }
+
                         sc_rectangle_is_slide_up = false;
-                        if (!sc_rectangle_mouse_out) {
+                        if (!sc_rectangle_mouse_out || !the_leave_delay_sc_panel_side_fold_simple) {
                             $(sc_data_model).slideDown(500);
+                            $(sc_rectangle_model).css('border-bottom', 'unset');
                         }
                     });
                     $(sc_rectangle_model).css('border-bottom', '10px solid transparent');
+
                 } else {
-                    $(sc_rectangle_model).css('border-bottom', '');
+                    $(sc_rectangle_model).css('border-bottom', 'unset');
+
+                    // 预防快速操作
+                    setTimeout(()=> {
+                        if ($(sc_data_model).css('display') === 'none') {
+                            $(sc_data_model).slideDown(500);
+                        }
+                    }, 1000)
                 }
             } else {
                 $(sc_data_lable_model).animate({opacity: 0}, 200);
@@ -2805,13 +3536,14 @@
                     sc_rectangle_is_slide_up = false;
                     if (!sc_rectangle_mouse_out) {
                         $(sc_data_model).slideDown(500);
+                        $(sc_btn_model).show();
                     }
                 });
             }
 
             let sc_change_height = $(sc_btn_model).outerHeight() + $(sc_data_model).outerHeight();
             let sc_leave_change = sc_change_height + 20;
-            if (sc_panel_fold_mode === 1 && !sc_panel_side_fold_simple) {
+            if (the_leave_sc_panel_fold_mode === 1 && !the_leave_sc_panel_side_fold_simple) {
                 sc_leave_change = $(sc_btn_model).outerHeight() + 10;
             }
 
@@ -2824,23 +3556,32 @@
         });
 
         $(document).on('mouseenter', '.sc_msg_head', function(e) {
-            if (!sc_panel_side_fold_flag || sc_item_side_fold_touch_flag) { return; }
+            let the_enter_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+            let the_enter_sc_panel_list_height = sc_panel_list_height;
+            let the_enter_sc_rectangle_width = sc_rectangle_width;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_enter_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+                the_enter_sc_panel_list_height = sc_panel_list_height_fullscreen;
+                the_enter_sc_rectangle_width = sc_rectangle_width_fullscreen;
+            }
+
+            if (!the_enter_sc_panel_side_fold_flag || sc_item_side_fold_touch_flag) { return; }
 
             let sc_fold_out_show_top = $(this).offset().top - $(this).parent().parent().parent().offset().top - 10;
-            if (sc_panel_list_height === 0) {
+            if (the_enter_sc_panel_list_height === 0) {
                 sc_fold_out_show_top = sc_fold_out_show_top + 10;
             }
             $(this).parent().css('position', 'absolute');
             $(this).parent().css('top', sc_fold_out_show_top);
             $(this).parent().css('z-index', '10');
-            $(this).parent().css('width', (sc_rectangle_width - 22) + 'px'); // 22 约为总padding
+            $(this).parent().css('width', (the_enter_sc_rectangle_width - 22) + 'px'); // 22 约为总padding
             $(this).parent().css('height', '');
 
             if (($(this).offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
-                if (sc_panel_list_height === 0) {
-                    $(this).parent().css('left', -(sc_rectangle_width - 22 - 72 + 10 + 60)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+                if (the_enter_sc_panel_list_height === 0) {
+                    $(this).parent().css('left', -(the_enter_sc_rectangle_width - 22 - 72 + 10 + 60)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
                 } else {
-                    $(this).parent().css('left', -(sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
+                    $(this).parent().css('left', -(the_enter_sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
                 }
             }
             sc_side_fold_out_one($(this).parent(), true);
@@ -2850,7 +3591,12 @@
         });
 
         $(document).on('mouseleave', '.sc_msg_head', function() {
-            if (!sc_panel_side_fold_flag) { return; }
+            let the_leave_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_leave_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+            }
+
+            if (!the_leave_sc_panel_side_fold_flag) { return; }
 
             $(this).parent().css('position', '');
             $(this).parent().css('top', '');
@@ -2867,20 +3613,29 @@
         $(document).on('click', '.sc_long_item', sc_toggle_msg_body);
 
         $(document).on('click', '.sc_data_show', function(e) {
-            if (sc_panel_side_fold_flag) {
+            let the_cds_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+            let the_cds_sc_panel_side_fold_simple = sc_panel_side_fold_simple;
+            let the_cds_sc_func_btn_mode = sc_func_btn_mode;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_cds_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+                the_cds_sc_panel_side_fold_simple = sc_panel_side_fold_simple_fullscreen;
+                the_cds_sc_func_btn_mode = sc_func_btn_mode_fullscreen;
+            }
+
+            if (the_cds_sc_panel_side_fold_flag) {
                 e = e || unsafeWindow.event;
 
-                if (sc_panel_side_fold_simple) {
-                    sc_panel_side_fold_simple = false;
+                if (the_cds_sc_panel_side_fold_simple) {
+                    sc_live_panel_side_fold_simple_change(false);
                     open_and_close_sc_modal('已退出 侧折的极简模式 ✓', '#A7C9D3', e, 1);
                 } else {
-                    sc_panel_side_fold_simple = true;
+                    sc_live_panel_side_fold_simple_change(true);
                     open_and_close_sc_modal('已设置 侧折的极简模式 ✓', '#A7C9D3', e, 1);
                 }
 
                 sc_side_fold_simple_store();
 
-                if (sc_func_btn_mode === 1) {
+                if (the_cds_sc_func_btn_mode === 1) {
                     sc_rectangle_is_slide_down = false;
                 }
             }
@@ -2888,7 +3643,12 @@
 
         // 侧折状态下，展开一个SC时也可以滚动
         $(document).on('wheel', '.sc_long_list', function(e) {
-            if (sc_panel_side_fold_flag && sc_item_side_fold_touch_flag) {
+            let the_wl_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_wl_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+            }
+
+            if (the_wl_sc_panel_side_fold_flag && sc_item_side_fold_touch_flag) {
                 e = e || unsafeWindow.event;
 
                 let the_sc_item_mov = 60; // 60是侧折后头像框高度+间隙
@@ -3111,12 +3871,17 @@
         });
 
         $(document).on('click', '#sc_custom_confirm_btn', function(e) {
+            let the_ccb_sc_panel_fold_mode = sc_panel_fold_mode;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_ccb_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            }
+
             let sc_custom_select_val = $(document).find('.sc_custom_radio_group input[name="sc_custom_option"]:checked').val();
 
-            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+            if (sc_side_fold_custom_first_class && the_ccb_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
             if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
 
-            if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+            if (sc_side_fold_custom_each_same_time_class && the_ccb_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
             if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
 
             sc_side_fold_custom_auto_run_flag = false;
@@ -3147,7 +3912,7 @@
                     sc_side_fold_custom_time = sc_side_fold_custom_time + 1.5; // 1.5s是动画时间，补回来
                 }
 
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
+                if (sc_side_fold_custom_first_class && the_ccb_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
 
             } else if (sc_custom_select_val === '2') {
                 sc_side_fold_custom_each_same_time_flag = $(document).find('#sc_custom_each_same_time_input').is(':checked');
@@ -3170,12 +3935,12 @@
 
                 sc_side_fold_custom_time = sc_side_fold_custom_time + 1.5; // 1.5s是动画时间，补回来
 
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                if (sc_side_fold_custom_first_class && the_ccb_sc_panel_fold_mode === 1) {
                     sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class);
 
                     if (!sc_side_fold_custom_each_same_time_flag) {
                         sc_side_fold_custom_first_timeout_id = setTimeout(function() {
-                            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                            if (sc_side_fold_custom_first_class && the_ccb_sc_panel_fold_mode === 1) {
                                 sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class);
                             }
                         }, sc_side_fold_custom_time * 1000);
@@ -3192,12 +3957,17 @@
         });
 
         $(document).on('click', '#sc_custom_confirm_btn_fullscreen', function(e) {
+            let the_ccb_sc_panel_fold_mode = sc_panel_fold_mode;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_ccb_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            }
+
             let sc_custom_select_val = $(document).find('.sc_custom_radio_group_fullscreen input[name="sc_custom_option_fullscreen"]:checked').val();
 
-            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+            if (sc_side_fold_custom_first_class && the_ccb_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
             if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
 
-            if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+            if (sc_side_fold_custom_each_same_time_class && the_ccb_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
             if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
 
             sc_side_fold_custom_auto_run_flag = false;
@@ -3229,7 +3999,7 @@
 
                 }
 
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
+                if (sc_side_fold_custom_first_class && the_ccb_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
 
             } else if (sc_custom_select_val === '2') {
                 sc_side_fold_custom_each_same_time_flag = $(document).find('#sc_custom_each_same_time_input_fullscreen').is(':checked');
@@ -3252,12 +4022,12 @@
 
                 sc_side_fold_custom_time = sc_side_fold_custom_time + 1.5; // 1.5s是动画时间，补回来
 
-                if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                if (sc_side_fold_custom_first_class && the_ccb_sc_panel_fold_mode === 1) {
                     sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class);
 
                     if (!sc_side_fold_custom_each_same_time_flag) {
                         sc_side_fold_custom_first_timeout_id = setTimeout(function() {
-                            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) {
+                            if (sc_side_fold_custom_first_class && the_ccb_sc_panel_fold_mode === 1) {
                                 sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class);
                             }
                         }, sc_side_fold_custom_time * 1000);
@@ -3447,16 +4217,6 @@
             $(document).find('.sc_panel_width_config_modal').hide();
         }
 
-        function sc_panel_width_config_apply() {
-            if (sc_panel_fold_mode === 1) {
-                if (sc_side_fold_custom_first_class) { sc_side_fold_custom_auto_run_flag = false; sc_trigger_item_side_fold_out(sc_side_fold_custom_first_class); }
-            } else if (sc_panel_fold_mode === 2) {
-                $(document).find('.sc_long_rectangle').width(sc_rectangle_width);
-            }
-
-            $(document).find('.sc_uname_div').width(sc_rectangle_width / 2 + 5);
-        }
-
         $(document).on('click', '.sc_panel_width_close, .sc_panel_width_modal_close_btn', function() {
             sc_close_panel_width_modal();
         });
@@ -3481,14 +4241,14 @@
             let sc_panel_width_config = $(document).find('#sc_panel_width_input').val();
             sc_panel_width_config = parseInt(sc_panel_width_config, 10);
             if (sc_panel_width_config >= 300 && sc_panel_width_config <= 500) {
-                sc_rectangle_width = sc_panel_width_config;
+                sc_live_panel_width_change(sc_panel_width_config);
             } else {
                 if (sc_panel_width_config < 300) {
-                    sc_rectangle_width = 300;
+                    sc_live_panel_width_change(300);
                 } else if (sc_panel_width_config > 500) {
-                    sc_rectangle_width = 500;
+                    sc_live_panel_width_change(500);
                 } else {
-                    sc_rectangle_width = 325;
+                    sc_live_panel_width_change(325);
                 }
             }
             sc_rectangle_width_store();
@@ -3502,14 +4262,14 @@
             let sc_panel_width_config = $(document).find('#sc_panel_width_input_fullscreen').val();
             sc_panel_width_config = parseInt(sc_panel_width_config, 10);
             if (sc_panel_width_config >= 300 && sc_panel_width_config <= 500) {
-                sc_rectangle_width = sc_panel_width_config;
+                sc_live_panel_width_change(sc_panel_width_config);
             } else {
                 if (sc_panel_width_config < 300) {
-                    sc_rectangle_width = 300;
+                    sc_live_panel_width_change(300);
                 } else if (sc_panel_width_config > 500) {
-                    sc_rectangle_width = 500;
+                    sc_live_panel_width_change(500);
                 } else {
-                    sc_rectangle_width = 325;
+                    sc_live_panel_width_change(325);
                 }
             }
             sc_rectangle_width_store();
@@ -3679,25 +4439,6 @@
             $(document).find('.sc_panel_height_config_modal').hide();
         }
 
-        function sc_panel_list_height_config_apply() {
-            let height_apply_sc_long_list = $(document).find('.sc_long_list');
-            let height_apply_sc_long_rectangle = $(document).find('.sc_long_rectangle');
-
-            if (sc_panel_list_height === 0) {
-                height_apply_sc_long_rectangle.css('border-top', 'unset');
-            } else {
-                height_apply_sc_long_rectangle.css('border-top', '10px solid transparent');
-            }
-
-            if (sc_panel_list_height >= 200) {
-                height_apply_sc_long_list.css('min-height', '200px');
-                height_apply_sc_long_list.css('max-height', sc_panel_list_height + 'px');
-            } else {
-                height_apply_sc_long_list.css('min-height', sc_panel_list_height + 'px');
-                height_apply_sc_long_list.css('max-height', sc_panel_list_height + 'px');
-            }
-        }
-
         $(document).on('click', '.sc_panel_height_close, .sc_panel_height_modal_close_btn', function() {
             sc_close_panel_height_modal();
         });
@@ -3727,42 +4468,94 @@
         });
 
         $(document).on('click', '#sc_panel_height_confirm_btn', function(e) {
+            sc_side_fold_hide_list_ing_flag = false;
+
+            let the_phc_sc_panel_fold_mode = sc_panel_fold_mode;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_phc_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            }
+
+            let sc_phc_long_list = $(document).find('.sc_long_list');
             let sc_panel_height_config = $(document).find('#sc_panel_height_input').val();
             sc_panel_height_config = parseInt(sc_panel_height_config, 10);
             if (sc_panel_height_config >= 0 && sc_panel_height_config <= 500) {
-                sc_panel_list_height = sc_panel_height_config;
+                sc_live_panel_height_change(sc_panel_height_config);
+                sc_phc_long_list.attr('data-height', sc_panel_height_config);
+
+                if (sc_panel_height_config === 0) {
+                    sc_side_fold_hide_list_ing_flag = true;
+                }
             } else {
                 if (sc_panel_height_config < 0) {
-                    sc_panel_list_height = 0;
+                    sc_live_panel_height_change(0);
+                    sc_phc_long_list.attr('data-height', 0);
+
+                    sc_side_fold_hide_list_ing_flag = true;
                 } else if (sc_panel_height_config > 500) {
-                    sc_panel_list_height = 500;
+                    sc_live_panel_height_change(500);
+                    sc_phc_long_list.attr('data-height', 500);
                 } else {
-                    sc_panel_list_height = 170;
+                    sc_live_panel_height_change(170);
+                    sc_phc_long_list.attr('data-height', 170);
                 }
             }
             sc_panel_list_height_store();
             sc_panel_list_height_config_apply();
+
+            if (sc_side_fold_custom_first_class && the_phc_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
+            if (sc_side_fold_custom_each_same_time_class && the_phc_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+            if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+            if (sc_side_fold_custom_first_class && the_phc_sc_panel_fold_mode === 1) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
 
             sc_close_panel_height_modal();
             open_and_close_sc_modal('✓', '#A7C9D3', e);
         });
 
         $(document).on('click', '#sc_panel_height_confirm_btn_fullscreen', function(e) {
+            sc_side_fold_hide_list_ing_flag = false;
+
+            let the_phc_sc_panel_fold_mode = sc_panel_fold_mode;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_phc_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+            }
+
+            let sc_phc_long_list = $(document).find('.sc_long_list');
             let sc_panel_height_config = $(document).find('#sc_panel_height_input_fullscreen').val();
             sc_panel_height_config = parseInt(sc_panel_height_config, 10);
             if (sc_panel_height_config >= 0 && sc_panel_height_config <= 500) {
-                sc_panel_list_height = sc_panel_height_config;
+                sc_live_panel_height_change(sc_panel_height_config);
+                sc_phc_long_list.attr('data-height', sc_panel_height_config);
+
+                if (sc_panel_height_config === 0) {
+                    sc_side_fold_hide_list_ing_flag = true;
+                }
             } else {
                 if (sc_panel_height_config < 0) {
-                    sc_panel_list_height = 0;
+                    sc_live_panel_height_change(0);
+                    sc_phc_long_list.attr('data-height', 0);
+
+                    sc_side_fold_hide_list_ing_flag = true;
                 } else if (sc_panel_height_config > 500) {
-                    sc_panel_list_height = 500;
+                    sc_live_panel_height_change(500);
+                    sc_phc_long_list.attr('data-height', 500);
                 } else {
-                    sc_panel_list_height = 170;
+                    sc_live_panel_height_change(170);
+                    sc_phc_long_list.attr('data-height', 170);
                 }
             }
             sc_panel_list_height_store();
             sc_panel_list_height_config_apply();
+
+            if (sc_side_fold_custom_first_class && the_phc_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
+            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
+
+            if (sc_side_fold_custom_each_same_time_class && the_phc_sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
+            if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
+
+            if (sc_side_fold_custom_first_class && the_phc_sc_panel_fold_mode === 1) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
 
             sc_close_panel_height_modal();
             open_and_close_sc_modal('✓', '#A7C9D3', e);
@@ -3834,19 +4627,6 @@
 
             .sc_item_order_btn_div_fullscreen {
                 margin-top: 30px;
-            }
-
-            .sc_item_order_checkbox_div,
-            .sc_item_order_input_div {
-                display: none;
-                text-align: center;
-                margin-top: 20px;
-            }
-
-            .sc_item_order_checkbox_inline {
-                vertical-align: middle;
-                display: inline-block;
-                color: #000;
             }
 
             #sc_item_order_form {
@@ -3970,6 +4750,377 @@
                 alert('更新设置成功！刷新页面后生效~');
                 unsafeWindow.location.reload();
             }
+        });
+
+        let sc_fullscreen_separate_memory_modal_style = document.createElement('style');
+        sc_fullscreen_separate_memory_modal_style.textContent = `
+            .sc_fullscreen_separate_memory_config_modal {
+                display: none;
+                position: fixed;
+                z-index: 3333;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                overflow: auto;
+                background-color: rgba(0, 0, 0, 0.3);
+            }
+
+            .sc_fullscreen_separate_memory_modal_content {
+                background-color: #fefefe;
+                margin: 15% auto;
+                padding: 20px;
+                border: 1px solid #888;
+                width: 42%;
+            }
+
+            .sc_fullscreen_separate_memory_modal_content p {
+                color: #000;
+            }
+
+            .sc_fullscreen_separate_memory_close {
+                color: #aaa;
+                float: right;
+                font-size: 28px;
+                font-weight: bold;
+            }
+
+            .sc_fullscreen_separate_memory_close:hover,
+            .sc_fullscreen_separate_memory_close:focus {
+                color: black;
+                text-decoration: none;
+                cursor: pointer;
+            }
+
+            .sc_fullscreen_separate_memory_btn_div {
+                margin-top: 30px;
+            }
+
+            .sc_fullscreen_separate_memory_btn_div_fullscreen {
+                margin-top: 30px;
+            }
+
+            .sc_fullscreen_separate_memory_checkbox_div{
+                text-align: center;
+                margin-top: 20px;
+            }
+
+            .sc_fullscreen_separate_memory_checkbox_inline {
+                vertical-align: middle;
+                display: inline-block;
+                color: #000;
+            }
+
+            #sc_fullscreen_separate_memory_form {
+                margin-top: 30px;
+                text-align: center;
+            }
+
+            #sc_fullscreen_separate_memory_form_fullscreen {
+                margin-top: 30px;
+                text-align: center;
+            }
+
+            #sc_fullscreen_separate_memory_confirm_btn {
+                float: right;
+            }
+
+            #sc_fullscreen_separate_memory_confirm_btn_fullscreen {
+                float: right;
+            }
+
+            .sc_fullscreen_separate_memory_modal_btn {
+                padding: 5px 20px;
+            }
+        `;
+
+        document.head.appendChild(sc_fullscreen_separate_memory_modal_style);
+
+        let sc_fullscreen_separate_memory_modal_html = document.createElement('div');
+        sc_fullscreen_separate_memory_modal_html.id = 'sc_fullscreen_separate_memory_config_div';
+        sc_fullscreen_separate_memory_modal_html.className = 'sc_fullscreen_separate_memory_config_modal';
+        sc_fullscreen_separate_memory_modal_html.innerHTML = `
+                <div class="sc_fullscreen_separate_memory_modal_content">
+                    <span class="sc_fullscreen_separate_memory_close">&times;</span>
+                    <p>一些设置在全屏时分开记忆：</p>
+                    <form id="sc_fullscreen_separate_memory_form">
+                        <div class="sc_fullscreen_separate_memory_checkbox_div">
+                            <input type="checkbox" id="sc_some_fullscreen_separate_memory" class="sc_fullscreen_separate_memory_checkbox_inline"/>
+                            <label for="sc_some_fullscreen_separate_memory" class="sc_fullscreen_separate_memory_checkbox_inline">全屏状态下一些配置分开单独记忆</label>
+                        </div>
+                        <p>（宽高、主题、模式、位置、数据）</p>
+                    </form>
+                    <div class="sc_fullscreen_separate_memory_btn_div">
+                        <button id="sc_fullscreen_separate_memory_cancel_btn" class="sc_fullscreen_separate_memory_modal_btn sc_fullscreen_separate_memory_modal_close_btn">取消</button>
+                        <button id="sc_fullscreen_separate_memory_confirm_btn" class="sc_fullscreen_separate_memory_modal_btn sc_fullscreen_separate_memory_modal_close_btn">确定</button>
+                    </div>
+                </div>
+        `;
+
+        document.body.appendChild(sc_fullscreen_separate_memory_modal_html);
+
+        let sc_fullscreen_separate_memory_modal_html_fullscreen = document.createElement('div');
+        sc_fullscreen_separate_memory_modal_html_fullscreen.id = 'sc_fullscreen_separate_memory_config_div_fullscreen';
+        sc_fullscreen_separate_memory_modal_html_fullscreen.className = 'sc_fullscreen_separate_memory_config_modal';
+        sc_fullscreen_separate_memory_modal_html_fullscreen.innerHTML = `
+                <div class="sc_fullscreen_separate_memory_modal_content">
+                    <span class="sc_fullscreen_separate_memory_close">&times;</span>
+                    <p>一些设置在全屏时分开记忆：</p>
+                    <form id="sc_fullscreen_separate_memory_form_fullscreen">
+                        <div class="sc_fullscreen_separate_memory_checkbox_div">
+                            <input type="checkbox" id="sc_some_fullscreen_separate_memory_fullscreen" class="sc_fullscreen_separate_memory_checkbox_inline"/>
+                            <label for="sc_some_fullscreen_separate_memory_fullscreen" class="sc_fullscreen_separate_memory_checkbox_inline">全屏状态下一些配置分开单独记忆</label>
+                        </div>
+                        <p>（宽高、主题、模式、位置、数据）</p>
+                    </form>
+                    <div class="sc_fullscreen_separate_memory_btn_div_fullscreen">
+                        <button id="sc_fullscreen_separate_memory_cancel_btn" class="sc_fullscreen_separate_memory_modal_btn sc_fullscreen_separate_memory_modal_close_btn">取消</button>
+                        <button id="sc_fullscreen_separate_memory_confirm_btn_fullscreen" class="sc_fullscreen_separate_memory_modal_btn sc_fullscreen_separate_memory_modal_close_btn">确定</button>
+                    </div>
+                </div>
+        `;
+
+        $(live_player_div).append(sc_fullscreen_separate_memory_modal_html_fullscreen);
+
+        function sc_close_fullscreen_separate_memory_modal() {
+            $(document).find('.sc_fullscreen_separate_memory_config_modal').hide();
+        }
+
+        $(document).on('click', '.sc_fullscreen_separate_memory_close, .sc_fullscreen_separate_memory_modal_close_btn', function() {
+            sc_close_fullscreen_separate_memory_modal();
+        });
+
+        $(document).on('click', '#sc_fullscreen_separate_memory_confirm_btn', function(e) {
+            let old_fullscreen_config_separate_memory_flag = sc_live_fullscreen_config_separate_memory_flag;
+            sc_live_fullscreen_config_separate_memory_flag = $(document).find('#sc_some_fullscreen_separate_memory').is(':checked');
+
+            if (sc_live_fullscreen_config_separate_memory_flag && !old_fullscreen_config_separate_memory_flag) {
+                sc_fullscreen_separate_memory_var_copy();
+            }
+
+            sc_live_fullscreen_config_all_store();
+
+            open_and_close_sc_modal('✓', '#A7C9D3', e);
+        });
+
+        $(document).on('click', '#sc_fullscreen_separate_memory_confirm_btn_fullscreen', function(e) {
+            let old_fullscreen_config_separate_memory_flag = sc_live_fullscreen_config_separate_memory_flag;
+            sc_live_fullscreen_config_separate_memory_flag = $(document).find('#sc_some_fullscreen_separate_memory_fullscreen').is(':checked');
+
+            if (sc_live_fullscreen_config_separate_memory_flag && !old_fullscreen_config_separate_memory_flag) {
+                sc_fullscreen_separate_memory_var_copy();
+            }
+
+            sc_live_fullscreen_config_all_store();
+
+            open_and_close_sc_modal('✓', '#A7C9D3', e);
+        });
+
+
+        let sc_live_other_modal_style = document.createElement('style');
+        sc_live_other_modal_style.textContent = `
+            .sc_live_other_config_modal {
+                display: none;
+                position: fixed;
+                z-index: 3333;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                overflow: auto;
+                background-color: rgba(0, 0, 0, 0.3);
+            }
+
+            .sc_live_other_modal_content {
+                background-color: #fefefe;
+                margin: 15% auto;
+                padding: 20px;
+                border: 1px solid #888;
+                width: 42%;
+            }
+
+            .sc_live_other_modal_content p {
+                color: #000;
+            }
+
+            .sc_live_other_close {
+                color: #aaa;
+                float: right;
+                font-size: 28px;
+                font-weight: bold;
+            }
+
+            .sc_live_other_close:hover,
+            .sc_live_other_close:focus {
+                color: black;
+                text-decoration: none;
+                cursor: pointer;
+            }
+
+            .sc_live_other_radio_group {
+                display: inline-flex;
+                color: #000;
+            }
+
+            .sc_live_other_radio_group_fullscreen {
+                display: inline-flex;
+                color: #000;
+            }
+
+            .sc_live_other_radio_group label {
+                padding-right: 80px;
+                padding-left: 10px;
+            }
+
+            .sc_live_other_radio_group_fullscreen label {
+                padding-right: 80px;
+                padding-left: 10px;
+            }
+
+            .sc_live_other_btn_div {
+                margin-top: 30px;
+            }
+
+            .sc_live_other_btn_div_fullscreen {
+                margin-top: 30px;
+            }
+
+            .sc_live_other_checkbox_div{
+                text-align: center;
+                margin-top: 20px;
+            }
+
+            .sc_live_other_checkbox_inline {
+                vertical-align: middle;
+                display: inline-block;
+                color: #000;
+            }
+
+            #sc_live_other_form {
+                margin-top: 30px;
+                text-align: center;
+            }
+
+            #sc_live_other_form_fullscreen {
+                margin-top: 30px;
+                text-align: center;
+            }
+
+            #sc_live_other_confirm_btn {
+                float: right;
+            }
+
+            #sc_live_other_confirm_btn_fullscreen {
+                float: right;
+            }
+
+            .sc_live_other_modal_btn {
+                padding: 5px 20px;
+            }
+        `;
+
+        document.head.appendChild(sc_live_other_modal_style);
+
+        let sc_live_other_modal_html = document.createElement('div');
+        sc_live_other_modal_html.id = 'sc_live_other_config_div';
+        sc_live_other_modal_html.className = 'sc_live_other_config_modal';
+        sc_live_other_modal_html.innerHTML = `
+                <div class="sc_live_other_modal_content">
+                    <span class="sc_live_other_close">&times;</span>
+                    <p>其他一些功能的自定义设置：</p>
+                    <form id="sc_live_other_form">
+                        <div class="sc_live_other_radio_group">
+                            <input type="radio" id="sc_live_other_default_option" name="sc_live_other_option" value="1" checked />
+                            <label for="sc_live_other_default_option">数据模块显示 [同接]</label>
+
+                            <input type="radio" id="sc_live_other_open_option" name="sc_live_other_option" value="0" />
+                            <label for="sc_live_other_open_option">数据模块显示 [高能]</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_fullscreen_auto_hide_list" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_fullscreen_auto_hide_list" class="sc_live_other_checkbox_inline">侧折模式下，切换全屏时，自动隐藏醒目留言列表</label>
+                        </div>
+                    </form>
+                    <div class="sc_live_other_btn_div">
+                        <button id="sc_live_other_cancel_btn" class="sc_live_other_modal_btn sc_live_other_modal_close_btn">取消</button>
+                        <button id="sc_live_other_confirm_btn" class="sc_live_other_modal_btn sc_live_other_modal_close_btn">确定</button>
+                    </div>
+                </div>
+        `;
+
+        document.body.appendChild(sc_live_other_modal_html);
+
+        let sc_live_other_modal_html_fullscreen = document.createElement('div');
+        sc_live_other_modal_html_fullscreen.id = 'sc_live_other_config_div_fullscreen';
+        sc_live_other_modal_html_fullscreen.className = 'sc_live_other_config_modal';
+        sc_live_other_modal_html_fullscreen.innerHTML = `
+                <div class="sc_live_other_modal_content">
+                    <span class="sc_live_other_close">&times;</span>
+                    <p>其他一些功能的自定义设置：</p>
+                    <form id="sc_live_other_form_fullscreen">
+                        <div class="sc_live_other_radio_group_fullscreen">
+                            <input type="radio" id="sc_live_other_default_option_fullscreen" name="sc_live_other_option_fullscreen" value="1" checked />
+                            <label for="sc_live_other_default_option_fullscreen">数据模块显示 [同接]</label>
+
+                            <input type="radio" id="sc_live_other_open_option_fullscreen" name="sc_live_other_option_fullscreen" value="0" />
+                            <label for="sc_live_other_open_option_fullscreen">数据模块显示 [高能]</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_fullscreen_auto_hide_list_fullscreen" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_fullscreen_auto_hide_list_fullscreen" class="sc_live_other_checkbox_inline">侧折模式下，切换全屏时，自动隐藏醒目留言列表</label>
+                        </div>
+                    </form>
+                    <div class="sc_live_other_btn_div_fullscreen">
+                        <button id="sc_live_other_cancel_btn" class="sc_live_other_modal_btn sc_live_other_modal_close_btn">取消</button>
+                        <button id="sc_live_other_confirm_btn_fullscreen" class="sc_live_other_modal_btn sc_live_other_modal_close_btn">确定</button>
+                    </div>
+                </div>
+        `;
+
+        $(live_player_div).append(sc_live_other_modal_html_fullscreen);
+
+        function sc_close_live_other_modal() {
+            $(document).find('.sc_live_other_config_modal').hide();
+        }
+
+        $(document).on('click', '.sc_live_other_close, .sc_live_other_modal_close_btn', function() {
+            sc_close_live_other_modal();
+        });
+
+        $(document).on('click', '#sc_live_other_confirm_btn', function(e) {
+
+            let sc_live_other_select_val = $(document).find('.sc_live_other_radio_group input[name="sc_live_other_option"]:checked').val();
+            if (sc_live_other_select_val === '0') {
+                sc_live_data_show_high_energy_num_flag_change(true);
+            } else if (sc_live_other_select_val === '1') {
+                sc_live_data_show_high_energy_num_flag_change(false);
+            }
+
+            sc_side_fold_fullscreen_auto_hide_list_flag = $(document).find('#sc_live_other_fullscreen_auto_hide_list').is(':checked');
+
+            sc_live_other_config_store();
+
+            sc_live_other_config_data_show_apply();
+
+            open_and_close_sc_modal('✓', '#A7C9D3', e);
+        });
+
+        $(document).on('click', '#sc_live_other_confirm_btn_fullscreen', function(e) {
+
+            let sc_live_other_select_val = $(document).find('.sc_live_other_radio_group_fullscreen input[name="sc_live_other_option_fullscreen"]:checked').val();
+            if (sc_live_other_select_val === '0') {
+                sc_live_data_show_high_energy_num_flag_change(true);
+            } else if (sc_live_other_select_val === '1') {
+                sc_live_data_show_high_energy_num_flag_change(false);
+            }
+
+            sc_side_fold_fullscreen_auto_hide_list_flag = $(document).find('#sc_live_other_fullscreen_auto_hide_list_fullscreen').is(':checked');
+
+            sc_live_other_config_store();
+
+            sc_live_other_config_data_show_apply();
+
+            open_and_close_sc_modal('✓', '#A7C9D3', e);
         });
 
         // 创建一个自定义右键菜单
@@ -4105,6 +5256,18 @@
         sc_func_button22.innerHTML = '恢复直播间功能按钮在右侧';
         sc_func_button22.style.marginBottom = '2px';
 
+        let sc_func_button23 = document.createElement('button');
+        sc_func_button23.className = 'sc_func_btn';
+        sc_func_button23.id = 'sc_func_fullscreen_separate_memory_btn';
+        sc_func_button23.innerHTML = '一些设置在全屏时分开记忆';
+        sc_func_button23.style.marginBottom = '2px';
+
+        let sc_func_button24 = document.createElement('button');
+        sc_func_button24.className = 'sc_func_btn';
+        sc_func_button24.id = 'sc_func_live_other_config_btn';
+        sc_func_button24.innerHTML = '其他一些功能的自定义设置';
+        sc_func_button24.style.marginBottom = '2px';
+
         let sc_func_br1 = document.createElement('br');
         let sc_func_br2 = document.createElement('br');
         let sc_func_br3 = document.createElement('br');
@@ -4126,6 +5289,8 @@
         let sc_func_br19 = document.createElement('br');
         let sc_func_br20 = document.createElement('br');
         let sc_func_br21 = document.createElement('br');
+        let sc_func_br22 = document.createElement('br');
+        let sc_func_br23 = document.createElement('br');
 
         let sc_func_context_menu = document.createElement('div');
         sc_func_context_menu.id = 'sc_context_menu_func_body';
@@ -4180,6 +5345,10 @@
         sc_func_context_menu.appendChild(sc_func_button21);
         sc_func_context_menu.appendChild(sc_func_br21);
         sc_func_context_menu.appendChild(sc_func_button22);
+        sc_func_context_menu.appendChild(sc_func_br22);
+        sc_func_context_menu.appendChild(sc_func_button23);
+        sc_func_context_menu.appendChild(sc_func_br23);
+        sc_func_context_menu.appendChild(sc_func_button24);
 
         // 将功能的右键菜单添加到body中
         document.body.appendChild(sc_func_context_menu);
@@ -4192,7 +5361,12 @@
             e = e || unsafeWindow.event;
             e.preventDefault();
 
-            sc_func_btn_mode = 0;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_func_btn_mode_fullscreen = 0;
+            } else {
+                sc_func_btn_mode = 0;
+            }
+
             sc_func_btn_mode_store();
             sc_btn_mode_apply();
             sc_after_click_func_btn_apply(e);
@@ -4205,7 +5379,12 @@
             e = e || unsafeWindow.event;
             e.preventDefault();
 
-            sc_func_btn_mode = 1;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_func_btn_mode_fullscreen = 1;
+            } else {
+                sc_func_btn_mode = 1;
+            }
+
             sc_func_btn_mode_store();
             sc_btn_mode_apply();
             sc_after_click_func_btn_apply(e);
@@ -4218,7 +5397,12 @@
             e = e || unsafeWindow.event;
             e.preventDefault();
 
-            sc_func_btn_mode = 2;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_func_btn_mode_fullscreen = 2;
+            } else {
+                sc_func_btn_mode = 2;
+            }
+
             sc_func_btn_mode_store();
             sc_btn_mode_apply();
             sc_after_click_func_btn_apply(e);
@@ -4231,7 +5415,12 @@
             e = e || unsafeWindow.event;
             e.preventDefault();
 
-            sc_func_btn_mode = 3;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_func_btn_mode_fullscreen = 3;
+            } else {
+                sc_func_btn_mode = 3;
+            }
+
             sc_func_btn_mode_store();
             sc_btn_mode_apply();
             sc_after_click_func_btn_apply(e);
@@ -4244,7 +5433,12 @@
             e = e || unsafeWindow.event;
             e.preventDefault();
 
-            sc_func_btn_mode = 4;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_func_btn_mode_fullscreen = 4;
+            } else {
+                sc_func_btn_mode = 4;
+            }
+
             sc_func_btn_mode_store();
             sc_btn_mode_apply();
             sc_after_click_func_btn_apply(e);
@@ -4444,25 +5638,7 @@
             e = e || unsafeWindow.event;
             e.preventDefault();
 
-            let func_btn_sc_long_list = $(document).find('.sc_long_list');
-            let old_rect_height = func_btn_sc_long_list.attr('data-height');
-
-            if (old_rect_height !== undefined) {
-                sc_panel_list_height = parseInt(old_rect_height, 10);
-            }
-            if (sc_panel_list_height === 0) {
-                sc_panel_list_height = 400;
-            }
-
-            sc_panel_list_height_config_apply();
-
-            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
-            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
-
-            if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
-            if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
-
-            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
+            sc_panel_list_no_remember_show();
 
             $(this).parent().fadeOut();
             open_and_close_sc_modal('已显示醒目留言列表，该操作不会记忆 ✓', '#A7C9D3', e, 1);
@@ -4472,21 +5648,36 @@
             e = e || unsafeWindow.event;
             e.preventDefault();
 
-            sc_panel_list_height = 0;
-            let func_btn_sc_long_list = $(document).find('.sc_long_list');
-            func_btn_sc_long_list.attr('data-height', func_btn_sc_long_list.height());
-            sc_panel_list_height_config_apply();
-
-            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class); }
-            if (sc_side_fold_custom_first_timeout_id) { clearTimeout(sc_side_fold_custom_first_timeout_id); }
-
-            if (sc_side_fold_custom_each_same_time_class && sc_panel_fold_mode === 1) { sc_trigger_item_side_fold_in(sc_side_fold_custom_each_same_time_class); }
-            if (sc_side_fold_custom_each_same_time_timeout_id) { clearTimeout(sc_side_fold_custom_each_same_time_timeout_id); }
-
-            if (sc_side_fold_custom_first_class && sc_panel_fold_mode === 1) { sc_side_fold_custom_auto_run_flag = false; sc_custom_config_apply(sc_side_fold_custom_first_class); }
+            sc_panel_list_no_remember_hide();
 
             $(this).parent().fadeOut();
             open_and_close_sc_modal('已隐藏醒目留言列表，该操作不会记忆 ✓', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_func_fullscreen_separate_memory_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let sc_fullscreen_separate_memory_config_div_id = 'sc_fullscreen_separate_memory_config_div';
+            if (sc_isFullscreen) {
+                sc_fullscreen_separate_memory_config_div_id = 'sc_fullscreen_separate_memory_config_div_fullscreen';
+            }
+            $(document).find('#' + sc_fullscreen_separate_memory_config_div_id).show();
+
+            $(this).parent().fadeOut();
+        });
+
+        $(document).on('click', '#sc_func_live_other_config_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let sc_live_other_config_div_id = 'sc_live_other_config_div';
+            if (sc_isFullscreen) {
+                sc_live_other_config_div_id = 'sc_live_other_config_div_fullscreen';
+            }
+            $(document).find('#' + sc_live_other_config_div_id).show();
+
+            $(this).parent().fadeOut();
         });
 
         // 创建一个自定义右键菜单
@@ -4549,6 +5740,13 @@
 
             sc_after_click_func_btn_apply(e, true);
 
+            let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+            let the_copy_sc_rectangle_width = sc_rectangle_width;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+                the_copy_sc_rectangle_width = sc_rectangle_width_fullscreen;
+            }
+
             function capture_gen_canvas(tmp_sc_item_div, current_sc_div) {
 
                 return new Promise((resolve, reject) => {
@@ -4575,8 +5773,8 @@
             $(this).parent().fadeOut(function() {
                 let current_sc_div = $(sc_copy_context_menu).data('current_sc_div');
 
-                if (sc_panel_side_fold_flag) {
-                    $(current_sc_div).css('width', (sc_rectangle_width - 22) + 'px');
+                if (the_copy_sc_panel_side_fold_flag) {
+                    $(current_sc_div).css('width', (the_copy_sc_rectangle_width - 22) + 'px');
                     sc_side_fold_out_one($(current_sc_div));
                     if ($(current_sc_div).attr('data-fold') === '0') {
                         $(current_sc_div).css('height', $(current_sc_div).attr('data-height') + 'px');
@@ -4586,7 +5784,7 @@
                 let tmp_sc_item = $(current_sc_div).clone(); // 为了去掉animation的影响
                 tmp_sc_item.width(current_sc_div.clientWidth);
                 tmp_sc_item.height(current_sc_div.clientHeight);
-                tmp_sc_item.css('animation', '');
+                tmp_sc_item.css('animation', 'unset');
                 tmp_sc_item.find('.sc_font_color').css('color', '#000000');
                 tmp_sc_item.find('.sc_start_time').show();
 
@@ -4624,7 +5822,7 @@
 
                 document.body.removeChild(tmp_sc_item[0]);
 
-                if (sc_panel_side_fold_flag) {
+                if (the_copy_sc_panel_side_fold_flag) {
                     $(current_sc_div).css('width', '');
                     $(current_sc_div).css('height', '');
                     sc_side_fold_in_one($(current_sc_div));
@@ -4693,8 +5891,8 @@
             if (unsafeWindow.innerWidth - e.clientX <= 200) {
                 e.clientX = unsafeWindow.innerWidth - 200;
             }
-            if (unsafeWindow.innerHeight - e.clientY <= 600) {
-                e.clientY = unsafeWindow.innerHeight - 600;
+            if (unsafeWindow.innerHeight - e.clientY <= 650) {
+                e.clientY = unsafeWindow.innerHeight - 650;
             }
             $(document).find('#' + the_sc_ctx_menu_id).css('left', e.clientX + 'px');
             $(document).find('#' + the_sc_ctx_menu_id).css('top', e.clientY + 'px');
@@ -4710,78 +5908,78 @@
 
     }
 
-    sc_process_start();
+sc_process_start();
 
-    if (!sc_room_blacklist_flag) {
-        const originalParse = JSON.parse;
-        JSON.parse = function (str) {
-            try {
-                const parsedArr = originalParse(str);
-                if (parsedArr && parsedArr.cmd !== undefined) {
-                    if (parsedArr.cmd === 'ONLINE_RANK_COUNT') {
-                        let n_count = parsedArr.data.count;
-                        let n_online_count = parsedArr.data.online_count ?? 0;
-                        update_rank_count(n_count, n_online_count);
-                    } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
-                        let store_flag = store_sc_item(parsedArr.data);
-                        if (store_flag) {
-                            update_sc_item(parsedArr.data);
-                        }
+if (!sc_room_blacklist_flag) {
+    const originalParse = JSON.parse;
+    JSON.parse = function (str) {
+        try {
+            const parsedArr = originalParse(str);
+            if (parsedArr && parsedArr.cmd !== undefined) {
+                if (parsedArr.cmd === 'ONLINE_RANK_COUNT') {
+                    let n_count = parsedArr.data.count ?? 0;
+                    let n_online_count = parsedArr.data.online_count ?? 0;
+                    update_rank_count(n_count, n_online_count);
+                } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
+                    let store_flag = store_sc_item(parsedArr.data);
+                    if (store_flag) {
+                        update_sc_item(parsedArr.data);
                     }
                 }
-
-                return parsedArr;
-            } catch (error) {
-                throw error;
-            }
-        };
-
-        setTimeout(() => {
-            // setTimeout的时间差内先更新一下再定时
-            const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-            if (_rank_list_ctnr_box_li.length) {
-                const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
-
-                $(document).find('.sc_captain_num_right').text(_guard_n);
-                sc_update_date_guard_once = true;
-
-                if (data_show_bottom_flag) {
-                    $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + _guard_n);
-                }
             }
 
-            let rank_list_ctnr_box_interval = setInterval(() => {
-                const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-                if (rank_list_ctnr_box_item.length) {
-                    const guard_text_target = rank_list_ctnr_box_item.last();
+            return parsedArr;
+        } catch (error) {
+            throw error;
+        }
+    };
 
-                    const guard_test_observer = new MutationObserver((mutationsList) => {
-                        for (const mutation of mutationsList) {
-                            if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
-                                const guard_newNum = mutation.target.textContent.match(/\d+/) ?? 0;
-                                // SC记录板的
-                                $(document).find('.sc_captain_num_right').text(guard_newNum);
+    setTimeout(() => {
+        // setTimeout的时间差内先更新一下再定时
+        const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+        if (_rank_list_ctnr_box_li.length) {
+            const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
 
-                                // 页面的
-                                if (data_show_bottom_flag) {
-                                    $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
-                                }
+            $(document).find('.sc_captain_num_right').text(_guard_n);
+            sc_update_date_guard_once = true;
+
+            if (data_show_bottom_flag) {
+                $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + _guard_n);
+            }
+        }
+
+        let rank_list_ctnr_box_interval = setInterval(() => {
+            const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (rank_list_ctnr_box_item.length) {
+                const guard_text_target = rank_list_ctnr_box_item.last();
+
+                const guard_test_observer = new MutationObserver((mutationsList) => {
+                    for (const mutation of mutationsList) {
+                        if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
+                            const guard_newNum = mutation.target.textContent.match(/\d+/) ?? 0;
+                            // SC记录板的
+                            $(document).find('.sc_captain_num_right').text(guard_newNum);
+
+                            // 页面的
+                            if (data_show_bottom_flag) {
+                                $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
                             }
                         }
-                    });
-                    const guard_text_watch_config = { characterData: true, childList: true, subtree: true }
-                    guard_test_observer.observe(guard_text_target[0], guard_text_watch_config);
+                    }
+                });
+                const guard_text_watch_config = { characterData: true, childList: true, subtree: true }
+                guard_test_observer.observe(guard_text_target[0], guard_text_watch_config);
 
-                    clearInterval(rank_list_ctnr_box_interval);
-                }
-            });
-        }, 3000);
+                clearInterval(rank_list_ctnr_box_interval);
+            }
+        });
+    }, 3000);
 
-        setInterval(() => {
-            updateTimestampDiff(); // 每30秒更新时间差
-            check_all_memory_status(); // 每30秒检查全记状态
-        }, 30000);
+    setInterval(() => {
+        updateTimestampDiff(); // 每30秒更新时间差
+        check_all_memory_status(); // 每30秒检查全记状态
+    }, 30000);
 
-    }
+}
 
 })();

@@ -57,9 +57,9 @@ B站直播间SC记录板-实时同步SC、同接、高能和舰长数据，可�
 让SC保留长时间：
 -> 存储-本地存储空间 -> 选择https://live.bilibili.com -> 找到相应的 live_房间id_sc_keep_time -> 右键，选择删除
 
-方法:
-将sc_custom_config_start_class_by_store函数里的
-let first_store_sc = sc_store_arr.at(-1); 修改为 let first_store_sc = sc_store_arr[0];
+方法: 
+将sc_custom_config_start_class_by_store函数里的 
+let first_store_sc = sc_store_arr.at(-1); 修改为 let first_store_sc = sc_store_arr[0]; 
 
 注意：
 调试完记得修好回去！

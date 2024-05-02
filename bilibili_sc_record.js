@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      10.0.1
+// @version      10.0.2
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -166,7 +166,7 @@
 
     let sc_side_fold_hide_list_ing_flag = false; // 是否已经不记忆的隐藏醒目留言列表
 
-    let sc_live_fullscreen_config_separate_memory_flag = false; // 是否设置全屏状态下所有（除开排序）分开单独记忆
+    let sc_live_fullscreen_config_separate_memory_flag = false; // 是否设置全屏状态下一些功能设置分开单独记忆
 
     // fullscreen var 全屏的变量
     let sc_panel_list_height_fullscreen = 400; // 高
@@ -2486,138 +2486,70 @@
     }
 
     function update_rank_count(n_count, n_online_count) {
-        // 判断依据：高能 >= 同接，目前都是只有 n_online_count = 0（未来不一定，可能变为有的房间 n_count = 0 ,已兼容），并且有的房间 n_online_count 是同接，有的房间 n_online_count 是高能
-        let n_gao_neng = 0;
-        let n_tong_jie = 0;
+        // n_count 贡献用户数（同接数）
+        // n_online_count 高能用户数（App显示的）（在线的）
 
         let the_urc_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag;
         if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
             the_urc_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag_fullscreen;
         }
 
+        if (n_count) {
+            high_energy_contribute_num = n_count;
+        }
+
         if (n_online_count) {
-            if (n_count) {
-                if (n_count > n_online_count) {
-                    n_gao_neng = n_count;
-                    n_tong_jie =n_online_count;
-                } else {
-                    n_gao_neng = n_online_count;
-                    n_tong_jie =n_count;
-                }
-            } else {
-                n_gao_neng = 0;
-                n_tong_jie = n_count;
-            }
-
-        } else {
-            n_gao_neng = n_count;
-            n_tong_jie = 0;
+            high_energy_num = n_online_count;
         }
 
-        if (n_gao_neng) {
-            if (n_tong_jie === 0) {
-                if (high_energy_contribute_num >= n_gao_neng) {
-                    // 左侧
-                    high_energy_contribute_num = n_gao_neng;
-                } else if (high_energy_num <= n_gao_neng) {
-                    // 右侧
-                    high_energy_num = n_gao_neng;
-                } else {
-                    // 中间
-                    if (high_energy_num - n_gao_neng >= n_gao_neng - high_energy_contribute_num) {
-                        high_energy_contribute_num = n_gao_neng;
-                    } else {
-                        high_energy_num = n_gao_neng;
-                    }
-                }
-
-            } else {
-                high_energy_num = n_gao_neng;
+        if (!sc_update_date_guard_once) {
+            const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (rank_data_show_div.length) {
+                $(document).find('.sc_captain_num_right').text(rank_data_show_div.last().text().match(/\d+/) ?? 0);
+                sc_update_date_guard_once = true;
             }
-        }
-
-        if (n_tong_jie) {
-            if (n_gao_neng === 0) {
-                if (high_energy_contribute_num >= n_tong_jie) {
-                    // 左侧
-                    high_energy_contribute_num = n_tong_jie;
-                } else if (high_energy_num <= n_tong_jie) {
-                    // 右侧
-                    high_energy_num = n_tong_jie;
-                } else {
-                    // 中间
-                    if (high_energy_num - n_tong_jie >= n_tong_jie - high_energy_contribute_num) {
-                        high_energy_contribute_num = n_tong_jie;
-                    } else {
-                        high_energy_num = n_tong_jie;
-                    }
-                }
-
-            } else {
-                high_energy_contribute_num = n_tong_jie;
-            }
-        }
-
-        if (high_energy_contribute_num > high_energy_num) {
-            high_energy_contribute_num = high_energy_num;
         }
 
         // SC记录板的
-        if (high_energy_contribute_num === 0) {
+        if (the_urc_sc_data_show_high_energy_num_flag) {
             $(document).find('.sc_high_energy_num_left').text('高能：');
             $(document).find('.sc_high_energy_num_right').text(high_energy_num);
-            $(document).find('.sc_data_show_label').attr('title', '');
-
-            if (!sc_update_date_guard_once) {
-                const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-                if (rank_data_show_div.length) {
-                    $(document).find('.sc_captain_num_right').text(rank_data_show_div.last().text().match(/\d+/) ?? 0);
-                    sc_update_date_guard_once = true;
-                }
-            }
         } else {
-
-            if (the_urc_sc_data_show_high_energy_num_flag) {
-                $(document).find('.sc_high_energy_num_left').text('高能：');
-                $(document).find('.sc_high_energy_num_right').text(high_energy_num);
-            } else {
-                $(document).find('.sc_high_energy_num_left').text('同接：');
-                $(document).find('.sc_high_energy_num_right').text(high_energy_contribute_num);
-            }
-
-            $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
+            $(document).find('.sc_high_energy_num_left').text('同接：');
+            $(document).find('.sc_high_energy_num_right').text(high_energy_contribute_num);
         }
 
+        $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
+
+
         // 页面的
+        // 弹幕框顶部
         if (data_show_top_flag) {
             const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
             if (rank_data_show_div.length) {
-                if (high_energy_contribute_num === 0) {
+                const default_high_energy_match = rank_data_show_div.first().text().match(/高能用户\(([^)]+)\)/) ?? 0;
+                if (default_high_energy_match === 0) {
                     rank_data_show_div.first().text('高能用户(' + high_energy_num + ')');
-                    rank_data_show_div.first().attr('title', '');
-                } else {
-                    rank_data_show_div.first().text('高能用户(' + high_energy_contribute_num + '/' + high_energy_num + ')');
-                    rank_data_show_div.first().attr('title', '同接/高能 = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
                 }
+
+                rank_data_show_div.first().attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
             }
         }
 
+        // 弹幕框底部
         if (data_show_bottom_flag) {
             const sc_urc_data_show_bottom_rank_num_div = $(document).find('#sc_data_show_bottom_rank_num');
             if (sc_urc_data_show_bottom_rank_num_div.length) {
                 const sc_urc_data_show_bottom_div = $(document).find('#sc_data_show_bottom_div');
-                if (high_energy_contribute_num === 0) {
-                    sc_urc_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
-                    sc_urc_data_show_bottom_div.attr('title', '');
-                } else {
-                    if (the_urc_sc_data_show_high_energy_num_flag) {
-                        sc_urc_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
-                    } else {
-                        sc_urc_data_show_bottom_rank_num_div.text('同接：'+ high_energy_contribute_num);
-                    }
 
-                    sc_urc_data_show_bottom_div.attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
+                if (the_urc_sc_data_show_high_energy_num_flag) {
+                    sc_urc_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
+                } else {
+                    sc_urc_data_show_bottom_rank_num_div.text('同接：'+ high_energy_contribute_num);
                 }
+
+                sc_urc_data_show_bottom_div.attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
+
             } else {
                 const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
                 if (rank_data_show_div.length) {
@@ -2632,14 +2564,10 @@
                         }
                     }
 
-                    if (high_energy_contribute_num === 0) {
-                        $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">高能：'+ high_energy_num +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
+                    if (the_urc_sc_data_show_high_energy_num_flag) {
+                        $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div" title="'+ (high_energy_contribute_num / high_energy_num * 100).toFixed(2) +'%"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">高能：'+ high_energy_num +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
                     } else {
-                        if (the_urc_sc_data_show_high_energy_num_flag) {
-                            $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div" title="'+ (high_energy_contribute_num / high_energy_num * 100).toFixed(2) +'%"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">高能：'+ high_energy_num +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
-                        } else {
-                            $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div" title="'+ (high_energy_contribute_num / high_energy_num * 100).toFixed(2) +'%"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">同接：'+ high_energy_contribute_num +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
-                        }
+                        $(document).find('#control-panel-ctnr-box').append('<div style="width: 50%; position: relative;color: '+ sc_data_show_bottom_div_color +';" id="sc_data_show_bottom_div" title="'+ (high_energy_contribute_num / high_energy_num * 100).toFixed(2) +'%"><div id="sc_data_show_bottom_rank_num" style="width: 100%;margin-bottom: 5px;">同接：'+ high_energy_contribute_num +'</div><div id="sc_data_show_bottom_guard_num" style="width: 100%;">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
                     }
                 }
             }
@@ -5945,78 +5873,78 @@
 
     }
 
-sc_process_start();
+    sc_process_start();
 
-if (!sc_room_blacklist_flag) {
-    const originalParse = JSON.parse;
-    JSON.parse = function (str) {
-        try {
-            const parsedArr = originalParse(str);
-            if (parsedArr && parsedArr.cmd !== undefined) {
-                if (parsedArr.cmd === 'ONLINE_RANK_COUNT') {
-                    let n_count = parsedArr.data.count ?? 0;
-                    let n_online_count = parsedArr.data.online_count ?? 0;
-                    update_rank_count(n_count, n_online_count);
-                } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
-                    let store_flag = store_sc_item(parsedArr.data);
-                    if (store_flag) {
-                        update_sc_item(parsedArr.data);
+    if (!sc_room_blacklist_flag) {
+        const originalParse = JSON.parse;
+        JSON.parse = function (str) {
+            try {
+                const parsedArr = originalParse(str);
+                if (parsedArr && parsedArr.cmd !== undefined) {
+                    if (parsedArr.cmd === 'ONLINE_RANK_COUNT') {
+                        let n_count = parsedArr.data.count ?? 0;
+                        let n_online_count = parsedArr.data.online_count ?? 0;
+                        update_rank_count(n_count, n_online_count);
+                    } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
+                        let store_flag = store_sc_item(parsedArr.data);
+                        if (store_flag) {
+                            update_sc_item(parsedArr.data);
+                        }
                     }
+                }
+
+                return parsedArr;
+            } catch (error) {
+                throw error;
+            }
+        };
+
+        setTimeout(() => {
+            // setTimeout的时间差内先更新一下再定时
+            const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (_rank_list_ctnr_box_li.length) {
+                const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
+
+                $(document).find('.sc_captain_num_right').text(_guard_n);
+                sc_update_date_guard_once = true;
+
+                if (data_show_bottom_flag) {
+                    $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + _guard_n);
                 }
             }
 
-            return parsedArr;
-        } catch (error) {
-            throw error;
-        }
-    };
+            let rank_list_ctnr_box_interval = setInterval(() => {
+                const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                if (rank_list_ctnr_box_item.length) {
+                    const guard_text_target = rank_list_ctnr_box_item.last();
 
-    setTimeout(() => {
-        // setTimeout的时间差内先更新一下再定时
-        const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-        if (_rank_list_ctnr_box_li.length) {
-            const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
+                    const guard_test_observer = new MutationObserver((mutationsList) => {
+                        for (const mutation of mutationsList) {
+                            if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
+                                const guard_newNum = mutation.target.textContent.match(/\d+/) ?? 0;
+                                // SC记录板的
+                                $(document).find('.sc_captain_num_right').text(guard_newNum);
 
-            $(document).find('.sc_captain_num_right').text(_guard_n);
-            sc_update_date_guard_once = true;
-
-            if (data_show_bottom_flag) {
-                $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + _guard_n);
-            }
-        }
-
-        let rank_list_ctnr_box_interval = setInterval(() => {
-            const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
-            if (rank_list_ctnr_box_item.length) {
-                const guard_text_target = rank_list_ctnr_box_item.last();
-
-                const guard_test_observer = new MutationObserver((mutationsList) => {
-                    for (const mutation of mutationsList) {
-                        if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
-                            const guard_newNum = mutation.target.textContent.match(/\d+/) ?? 0;
-                            // SC记录板的
-                            $(document).find('.sc_captain_num_right').text(guard_newNum);
-
-                            // 页面的
-                            if (data_show_bottom_flag) {
-                                $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
+                                // 页面的
+                                if (data_show_bottom_flag) {
+                                    $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
+                                }
                             }
                         }
-                    }
-                });
-                const guard_text_watch_config = { characterData: true, childList: true, subtree: true }
-                guard_test_observer.observe(guard_text_target[0], guard_text_watch_config);
+                    });
+                    const guard_text_watch_config = { characterData: true, childList: true, subtree: true }
+                    guard_test_observer.observe(guard_text_target[0], guard_text_watch_config);
 
-                clearInterval(rank_list_ctnr_box_interval);
-            }
-        });
-    }, 3000);
+                    clearInterval(rank_list_ctnr_box_interval);
+                }
+            });
+        }, 3000);
 
-    setInterval(() => {
-        updateTimestampDiff(); // 每30秒更新时间差
-        check_all_memory_status(); // 每30秒检查全记状态
-    }, 30000);
+        setInterval(() => {
+            updateTimestampDiff(); // 每30秒更新时间差
+            check_all_memory_status(); // 每30秒检查全记状态
+        }, 30000);
 
-}
+    }
 
 })();

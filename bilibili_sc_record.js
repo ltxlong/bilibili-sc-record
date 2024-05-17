@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      10.0.2
+// @version      10.0.3
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -106,6 +106,7 @@
     let high_energy_num = 0; // 高能数
     let high_energy_contribute_num = 0; // 同接数
     let sc_update_date_guard_once = false;
+    let sc_nesting_live_room_flag = false;
 
     let sc_room_blacklist_flag = false;
 
@@ -2388,7 +2389,7 @@
         if (!sc_start_time_show_flag) {
             sc_start_time_display = 'display: none;';
         }
-        let metal_and_start_time_html = '<div class="sc_start_time" style="height: 20px; padding-left: 5px;'+ sc_start_time_display +'"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>';
+        let metal_and_start_time_html = '<div class="sc_start_time" style="height: 20px; padding-left: 5px; margin-top: -1px;'+ sc_start_time_display +'"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">'+ sc_start_time +'</span></div>';
         if (sc_medal_flag) {
             metal_and_start_time_html = '<div style="display: inline-flex;"><div class="fans_medal_item" style="background-color: '+ sc_medal_color +';border: 1px solid '+ sc_medal_color +';"><div class="fans_medal_label"><span class="fans_medal_content">'+ sc_medal_name +'</span></div><div class="fans_medal_level">'+ sc_medal_level +'</div></div>' +
                 '<div class="sc_start_time" style="height: 20px; padding-left: 5px;'+ sc_start_time_display +'"><span style="color: rgba(0,0,0,0.3); font-size: 10px;">' + sc_start_time + '</span></div></div>'
@@ -2418,11 +2419,11 @@
             '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center;'+ sc_msg_head_style_border_radius +'">'+
             '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
-            '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px;'+ sc_msg_head_left_style_display +'">'+
+            '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px; padding-top: 2px;'+ sc_msg_head_left_style_display +'">'+
             metal_and_start_time_html+
             '<div class="sc_uname_div" style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((the_usi_sc_rectangle_width / 2) + 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;" data-color="'+ sc_font_color_data +'">' + sc_user_info_uname + '</span></div>'+
             '</div>'+
-            '<div class="sc_msg_head_right" style="float: right; box-sizing: border-box; height: 40px;'+ sc_msg_head_right_style_display +'">'+
+            '<div class="sc_msg_head_right" style="float: right; box-sizing: border-box; height: 40px; padding: 2px 2px 0px 0px;'+ sc_msg_head_right_style_display +'">'+
             '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right; color: #000;">￥'+ sc_price +'</span></div>'+
             '<div style="height: 20px; color: #666666" data-html2canvas-ignore><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span></div>'+
             '</div>'+
@@ -2502,7 +2503,16 @@
             high_energy_num = n_online_count;
         }
 
-        if (!sc_update_date_guard_once) {
+        if (sc_update_date_guard_once) {
+            if (high_energy_contribute_num >= high_energy_num * 2) {
+                // 这种情况，应该是，非直播态直播间 或者 嵌套直播间，如虚拟区官方频道，同接就是App的高能
+                sc_nesting_live_room_flag = true;
+            }
+
+            if (sc_nesting_live_room_flag) {
+                high_energy_num = high_energy_contribute_num;
+            }
+        } else {
             const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
             if (rank_data_show_div.length) {
                 $(document).find('.sc_captain_num_right').text(rank_data_show_div.last().text().match(/\d+/) ?? 0);
@@ -2513,10 +2523,20 @@
         // SC记录板的
         if (the_urc_sc_data_show_high_energy_num_flag) {
             $(document).find('.sc_high_energy_num_left').text('高能：');
-            $(document).find('.sc_high_energy_num_right').text(high_energy_num);
+            if (high_energy_num >= 100000) {
+                $(document).find('.sc_high_energy_num_right').text(parseInt(high_energy_num/10000) + 'w+');
+            } else {
+                $(document).find('.sc_high_energy_num_right').text(high_energy_num);
+            }
+            
         } else {
             $(document).find('.sc_high_energy_num_left').text('同接：');
-            $(document).find('.sc_high_energy_num_right').text(high_energy_contribute_num);
+            if (high_energy_contribute_num >= 100000) {
+                $(document).find('.sc_high_energy_num_right').text(parseInt(high_energy_contribute_num/10000) + 'w+');
+            } else {
+                $(document).find('.sc_high_energy_num_right').text(high_energy_contribute_num);
+            }
+            
         }
 
         $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
@@ -2529,7 +2549,15 @@
             if (rank_data_show_div.length) {
                 const default_high_energy_match = rank_data_show_div.first().text().match(/高能用户\(([^)]+)\)/) ?? 0;
                 if (default_high_energy_match === 0) {
-                    rank_data_show_div.first().text('高能用户(' + high_energy_num + ')');
+                    const default_support_day_match = rank_data_show_div.first().text().match(/应援日榜\(([^)]+)\)/) ?? 0;
+                    if (default_support_day_match === 0) {
+                        if (high_energy_num >= 100000) {
+                            rank_data_show_div.first().text('高能用户(' + parseInt(high_energy_num/10000) + 'w+)');
+                        } else {
+                            rank_data_show_div.first().text('高能用户(' + high_energy_num + ')');
+                        }
+
+                    }
                 }
 
                 rank_data_show_div.first().attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
@@ -2543,9 +2571,19 @@
                 const sc_urc_data_show_bottom_div = $(document).find('#sc_data_show_bottom_div');
 
                 if (the_urc_sc_data_show_high_energy_num_flag) {
-                    sc_urc_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
+                    if (high_energy_num >= 100000) {
+                        sc_urc_data_show_bottom_rank_num_div.text('高能：'+ parseInt(high_energy_num/10000) + 'w+');
+                    } else {
+                        sc_urc_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
+                    }
+                    
                 } else {
-                    sc_urc_data_show_bottom_rank_num_div.text('同接：'+ high_energy_contribute_num);
+                    if (high_energy_contribute_num >= 100000) {
+                        sc_urc_data_show_bottom_rank_num_div.text('同接：'+ parseInt(high_energy_contribute_num/10000) + 'w+');
+                    } else {
+                        sc_urc_data_show_bottom_rank_num_div.text('同接：'+ high_energy_contribute_num);
+                    }
+                    
                 }
 
                 sc_urc_data_show_bottom_div.attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
@@ -3533,7 +3571,7 @@
             if (!the_enter_sc_panel_side_fold_flag || sc_item_side_fold_touch_flag) { return; }
 
             let sc_fold_out_show_top = $(this).offset().top - $(this).parent().parent().parent().offset().top - 10;
-            if (the_enter_sc_panel_list_height === 0) {
+            if (the_enter_sc_panel_list_height === 0 || sc_side_fold_hide_list_ing_flag) {
                 sc_fold_out_show_top = sc_fold_out_show_top + 10;
             }
             $(this).parent().css('position', 'absolute');
@@ -3543,7 +3581,7 @@
             $(this).parent().css('height', '');
 
             if (($(this).offset().left - (unsafeWindow.innerWidth / 2)) > 0) {
-                if (the_enter_sc_panel_list_height === 0) {
+                if (the_enter_sc_panel_list_height === 0 || sc_side_fold_hide_list_ing_flag) {
                     $(this).parent().css('left', -(the_enter_sc_rectangle_width - 22 - 72 + 10 + 60)); // 22 约为总padding, 72为侧折后的宽，10为一个padding
                 } else {
                     $(this).parent().css('left', -(the_enter_sc_rectangle_width - 22 - 72 + 10)); // 22 约为总padding, 72为侧折后的宽，10为一个padding

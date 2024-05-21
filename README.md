@@ -127,6 +127,8 @@ let first_store_sc = sc_store_arr.at(-1); 修改为 let first_store_sc = sc_stor
 
 - 自动清除超过12小时的房间SC存储
 
+- 对指定用户进入直播间提示
+
 - 全屏和非全屏可以分开记忆一些设置
 
   >在SC记录板的右键菜单中设置

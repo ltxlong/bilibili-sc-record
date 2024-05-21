@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      10.0.3
+// @version      10.1.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -105,8 +105,10 @@
 
     let high_energy_num = 0; // 高能数
     let high_energy_contribute_num = 0; // 同接数
+    let sc_guard_num = 0; // 舰长数
     let sc_update_date_guard_once = false;
     let sc_nesting_live_room_flag = false;
+    let sc_date_num_nesting_judge_n = 0;
 
     let sc_room_blacklist_flag = false;
 
@@ -169,6 +171,16 @@
 
     let sc_live_fullscreen_config_separate_memory_flag = false; // 是否设置全屏状态下一些功能设置分开单独记忆
 
+    let sc_live_special_tip_location = 0; // 0-显示在顶部，1-显示在中间，2-显示在底部
+
+    let sc_live_special_tip_uid_arr = []; // 特定用户进入直播间进行提示的用户id数组
+
+    let sc_live_special_tip_remark_arr = []; // 特定用户进入直播间进行提示的用户id:备注映射数组
+
+    let sc_live_special_tip_await_arr = []; //正待展示的用户id数组
+
+    let sc_live_special_tip_str = ''; // 设置提示的原始字符串
+
     // fullscreen var 全屏的变量
     let sc_panel_list_height_fullscreen = 400; // 高
     let sc_rectangle_width_fullscreen = 302; // 宽
@@ -180,6 +192,48 @@
     let sc_panel_drag_top_fullscreen = -1; // 位置top
     let sc_panel_side_fold_flag_fullscreen = false; // 侧折
     let sc_data_show_high_energy_num_flag_fullscreen = false; // 是否设置数据模块显示高能（默认显示同接）
+
+    function sc_live_special_tip_str_to_arr() {
+        let sc_special_tip_arr = [];
+        if (sc_live_special_tip_str) {
+            sc_special_tip_arr = sc_live_special_tip_str.split(",");
+
+            for (let t = 0; t < sc_special_tip_arr.length; t++) {
+                let sc_special_tip_item_str = sc_special_tip_arr[t].replace(/\n/g, '');
+                let sc_special_tip_item_arr = sc_special_tip_item_str.split("-");
+                let sc_special_tip_uid = sc_special_tip_item_arr[0];
+                if (!isNaN(sc_special_tip_uid)) {
+                    sc_live_special_tip_uid_arr.push(sc_special_tip_uid)
+
+                    if (sc_special_tip_item_arr.length > 1 && sc_special_tip_item_arr[1] !== '') {
+                        sc_live_special_tip_remark_arr['"' + sc_special_tip_uid + '"'] = sc_special_tip_item_arr[1] ?? '';
+                    }
+                }
+            }
+
+            sc_live_special_tip_uid_arr = sc_live_special_tip_uid_arr.filter((value, index, self) => {
+                return self.indexOf(value) === index;
+            });
+
+        } else {
+            sc_live_special_tip_uid_arr = [];
+            sc_live_special_tip_remark_arr = [];
+        }
+    }
+
+    function sc_config_get_live_special_tip_location() {
+        let sc_live_special_tip_location_get = unsafeWindow.localStorage.getItem('sc_live_special_tip_location');
+        if (sc_live_special_tip_location_get !== null && sc_live_special_tip_location_get !== 'null' && sc_live_special_tip_location_get !== '') {
+            sc_live_special_tip_location = parseInt(sc_live_special_tip_location_get, 10);
+        }
+    }
+
+    function sc_config_get_live_special_tip_str() {
+        let sc_live_special_tip_str_get = unsafeWindow.localStorage.getItem('sc_live_special_tip_str');
+        if (sc_live_special_tip_str_get !== null && sc_live_special_tip_str_get !== 'null' && sc_live_special_tip_str_get !== '') {
+            sc_live_special_tip_str = sc_live_special_tip_str_get;
+        }
+    }
 
     function sc_memory_get_store_mode_all(sc_all_memory_config_json) {
         let sc_all_memory_config = JSON.parse(sc_all_memory_config_json);
@@ -205,6 +259,10 @@
         sc_data_show_high_energy_num_flag = sc_all_memory_config['sc_data_show_high_energy_num_flag'] ?? false;
         sc_side_fold_fullscreen_auto_hide_list_flag = sc_all_memory_config['sc_side_fold_fullscreen_auto_hide_list_flag'] ?? false;
         sc_live_fullscreen_config_separate_memory_flag = sc_all_memory_config['sc_live_fullscreen_config_separate_memory_flag'] ?? false;
+
+        sc_config_get_live_special_tip_location();
+        sc_config_get_live_special_tip_str();
+        sc_live_special_tip_str_to_arr();
 
         if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
             sc_panel_drag_left = unsafeWindow.innerWidth - 72;
@@ -271,6 +329,10 @@
         sc_data_show_high_energy_num_flag = sc_self_memory_config['sc_data_show_high_energy_num_flag'] ?? false;
         sc_side_fold_fullscreen_auto_hide_list_flag = sc_self_memory_config['sc_side_fold_fullscreen_auto_hide_list_flag'] ?? false;
         sc_live_fullscreen_config_separate_memory_flag = sc_self_memory_config['sc_live_fullscreen_config_separate_memory_flag'] ?? false;
+
+        sc_config_get_live_special_tip_location();
+        sc_config_get_live_special_tip_str();
+        sc_live_special_tip_str_to_arr();
 
         if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
             sc_panel_drag_left = unsafeWindow.innerWidth - 72;
@@ -513,6 +575,13 @@
             let new_timestamp_diff = getTimestampDiff($(this).html());
             $(this).prev().html(new_timestamp_diff);
         });
+    }
+
+    // 同步特定用户提示的设置
+    function sycn_live_special_tip_config() {
+        sc_config_get_live_special_tip_location();
+        sc_config_get_live_special_tip_str();
+        sc_live_special_tip_str_to_arr();
     }
 
     function close_and_remove_sc_modal() {
@@ -1237,6 +1306,14 @@
             // 全记
             update_sc_memory_config('sc_live_fullscreen_config_separate_memory_flag', sc_live_fullscreen_config_separate_memory_flag, 'all');
         }
+    }
+
+    function sc_live_special_tip_location_store() {
+        unsafeWindow.localStorage.setItem('sc_live_special_tip_location', sc_live_special_tip_location);
+    }
+
+    function sc_live_special_tip_str_store() {
+        unsafeWindow.localStorage.setItem('sc_live_special_tip_str', sc_live_special_tip_str);
     }
 
     function sc_live_other_config_store() {
@@ -2328,6 +2405,80 @@
         }
     }
 
+    function update_guard_count(sc_data_guard_count) {
+        if (sc_guard_num !== sc_data_guard_count) {
+            sc_guard_num = sc_data_guard_count;
+
+            $(document).find('.sc_captain_num_right').text(sc_data_guard_count);
+
+            if (data_show_bottom_flag) {
+                const ugc_sc_data_show_bottom_guard_num_div = $(document).find('#sc_data_show_bottom_guard_num');
+                if (ugc_sc_data_show_bottom_guard_num_div.length) {
+                    ugc_sc_data_show_bottom_guard_num_div.text('舰长：' + sc_data_guard_count);
+                }
+
+                // 兼容页面的不会自动更新舰长数的问题
+                const ugc_rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                if (ugc_rank_list_ctnr_box_li.length) {
+                    const ugc_guard_n = ugc_rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
+
+                    if (sc_data_guard_count !== parseInt(ugc_guard_n, 10)) {
+                        ugc_rank_list_ctnr_box_li.last().text('大航海('+ sc_data_guard_count +')');
+                    }
+                }
+            }
+        }
+    }
+
+    function handle_special_tip(parseArr_data) {
+        let sc_live_the_enter_uid = parseArr_data.uid.toString();
+
+        if (sc_live_special_tip_uid_arr.includes(sc_live_the_enter_uid)) {
+            let sc_special_tip_div_custom_style = 'style="top: 0px"';
+            if (sc_live_special_tip_location === 1) {
+                sc_special_tip_div_custom_style = 'style="top: '+ (Math.floor(Math.random() * (80 - 10)) + 10) +'%"';
+            } else if (sc_live_special_tip_location === 2) {
+                sc_special_tip_div_custom_style = 'style="bottom: 0px"';
+            }
+
+            let sc_special_tip_remark = sc_live_special_tip_remark_arr['"' + sc_live_the_enter_uid + '"'] ?? '';
+            let sc_special_tip_remark_html = '';
+            if (sc_special_tip_remark) {
+                sc_special_tip_remark_html = '（' + sc_special_tip_remark + '）';
+            }
+
+            let sc_special_tip_div_the_id = sc_live_the_enter_uid + '_' + (new Date()).getTime();
+
+            let sc_special_tip_face = parseArr_data?.uinfo?.base?.face || '';
+
+            let sc_special_tip_div = '<div id="'+ sc_special_tip_div_the_id +'"'+ sc_special_tip_div_custom_style + 'class="sc_special_tip_div">' +
+                '<div style="height: 50px;width: 50px;"><img style="border-radius: 50px;" src="' + sc_special_tip_face + '" height="50" width="50"></div>' +
+                '<div style="margin-left: 10px;margin-right: 50px;"><span>' + parseArr_data.uname + sc_special_tip_remark_html + ' 进入直播间</span></div>' +
+                '</div>';
+
+            if (sc_live_special_tip_await_arr.includes(sc_live_the_enter_uid)) { return; }
+
+            sc_live_special_tip_await_arr.push(sc_live_the_enter_uid);
+
+            if (sc_special_tip_remark) {
+                sc_catch_log('[用户id]' + sc_live_the_enter_uid + '_[用户名]' + parseArr_data.uname + '_[备注]' + sc_special_tip_remark + '_进入直播间');
+            } else {
+                sc_catch_log('[用户id]' + sc_live_the_enter_uid + '_[用户名]' + parseArr_data.uname + '_进入直播间');
+            }
+
+            setTimeout(() => {
+                $(document).find('#live-player').append(sc_special_tip_div);
+
+                setTimeout(() => {
+                    $(document).find('#' + sc_special_tip_div_the_id).remove();
+                    sc_live_special_tip_await_arr = sc_live_special_tip_await_arr.filter(item => item !== sc_live_the_enter_uid)
+                }, 16000);
+
+            }, 5000 * (sc_live_special_tip_await_arr.length - 1));
+
+        }
+    }
+
     function update_sc_item(sc_data, realtime = true) {
         let the_usi_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
         let the_usi_sc_rectangle_width = sc_rectangle_width;
@@ -2416,7 +2567,7 @@
         }
 
         let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;'+ sc_item_show_animation + sc_msg_item_style_border_radius + box_shadow_css +'">'+
-            '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: cover;background-position: left center;'+ sc_msg_head_style_border_radius +'">'+
+            '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: contain;background-repeat: no-repeat;background-position: right center;'+ sc_msg_head_style_border_radius +'">'+
             '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
             '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px; padding-top: 2px;'+ sc_msg_head_left_style_display +'">'+
@@ -2504,9 +2655,17 @@
         }
 
         if (sc_update_date_guard_once) {
-            if (high_energy_contribute_num >= high_energy_num * 2) {
+            if (high_energy_contribute_num >= high_energy_num * 2 && n_online_count === 0) {
                 // 这种情况，应该是，非直播态直播间 或者 嵌套直播间，如虚拟区官方频道，同接就是App的高能
-                sc_nesting_live_room_flag = true;
+                // 如果连续5个数据包是这样就判定
+                if (sc_date_num_nesting_judge_n === 5) {
+                    sc_nesting_live_room_flag = true;
+                } else {
+                    sc_date_num_nesting_judge_n++;
+                }
+            } else {
+                sc_date_num_nesting_judge_n = 0;
+                sc_nesting_live_room_flag = false;
             }
 
             if (sc_nesting_live_room_flag) {
@@ -2528,7 +2687,7 @@
             } else {
                 $(document).find('.sc_high_energy_num_right').text(high_energy_num);
             }
-            
+
         } else {
             $(document).find('.sc_high_energy_num_left').text('同接：');
             if (high_energy_contribute_num >= 100000) {
@@ -2536,7 +2695,7 @@
             } else {
                 $(document).find('.sc_high_energy_num_right').text(high_energy_contribute_num);
             }
-            
+
         }
 
         $(document).find('.sc_data_show_label').attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
@@ -2576,14 +2735,14 @@
                     } else {
                         sc_urc_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
                     }
-                    
+
                 } else {
                     if (high_energy_contribute_num >= 100000) {
                         sc_urc_data_show_bottom_rank_num_div.text('同接：'+ parseInt(high_energy_contribute_num/10000) + 'w+');
                     } else {
                         sc_urc_data_show_bottom_rank_num_div.text('同接：'+ high_energy_contribute_num);
                     }
-                    
+
                 }
 
                 sc_urc_data_show_bottom_div.attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
@@ -2620,15 +2779,15 @@
             let sc_catch = [];
             if (ret.code === 0) {
                 // 高能数
-                high_energy_num = ret.data.room_rank_info.user_rank_entry.user_contribution_rank_entry?.count || 0;
+                high_energy_num = ret.data?.room_rank_info?.user_rank_entry?.user_contribution_rank_entry?.count || 0;
 
                 // 舰长数
-                let captain_num = ret.data.guard_info.count;
+                let captain_num = ret.data?.guard_info?.count || 0;
                 $(document).find('.sc_captain_num_right').text(captain_num);
 
-                sc_live_room_title = ret.data.anchor_info.base_info.uname + '_' + ret.data.room_info.title;
+                sc_live_room_title = (ret.data?.anchor_info?.base_info?.uname || '') + '_' + (ret.data?.room_info?.title || '');
 
-                sc_catch = ret.data.super_chat_info.message_list;
+                sc_catch = ret.data?.super_chat_info?.message_list || [];
             }
 
             // 追加到localstorage 和 SC显示板
@@ -3123,6 +3282,32 @@
             }
             .sc_circle_y_bottom_show_animate {
                 animation: sc_circle_show_y_bottom .2s linear forwards;
+            }
+
+            @keyframes slideInFromRightToLeft {
+                from {
+                    left: 100%;
+                }
+                to {
+                    left: 0;
+                }
+            }
+            .sc_special_tip_div {
+                font-size: 16px;
+                color: #fff;
+                height: auto;
+                width: auto;
+                background: linear-gradient(to right, lightblue, transparent);
+                position: absolute;
+                left: 100%;
+                height: 50px;
+                animation: slideInFromRightToLeft 15s linear forwards;
+                border-radius: 50px 0 0 50px;
+                padding: 10px;
+                display: flex;
+                align-items: center;
+                white-space: nowrap;
+                z-index: 2222;
             }
         `;
         document.head.appendChild(sc_other_style);
@@ -4781,6 +4966,10 @@
                 color: #000;
             }
 
+            .sc_modal_label_tip {
+                color: #000;
+            }
+
             .sc_fullscreen_separate_memory_close {
                 color: #aaa;
                 float: right;
@@ -4851,7 +5040,7 @@
                             <input type="checkbox" id="sc_some_fullscreen_separate_memory" class="sc_fullscreen_separate_memory_checkbox_inline"/>
                             <label for="sc_some_fullscreen_separate_memory" class="sc_fullscreen_separate_memory_checkbox_inline">全屏状态下一些配置分开单独记忆</label>
                         </div>
-                        <p>（宽高、主题、模式、位置、数据）</p>
+                        <div class="sc_modal_label_tip" style="padding: 10px 0px 10px 0px;">（宽高、主题、模式、位置、数据）</div>
                     </form>
                     <div class="sc_fullscreen_separate_memory_btn_div">
                         <button id="sc_fullscreen_separate_memory_cancel_btn" class="sc_fullscreen_separate_memory_modal_btn sc_fullscreen_separate_memory_modal_close_btn">取消</button>
@@ -4874,7 +5063,7 @@
                             <input type="checkbox" id="sc_some_fullscreen_separate_memory_fullscreen" class="sc_fullscreen_separate_memory_checkbox_inline"/>
                             <label for="sc_some_fullscreen_separate_memory_fullscreen" class="sc_fullscreen_separate_memory_checkbox_inline">全屏状态下一些配置分开单独记忆</label>
                         </div>
-                        <p>（宽高、主题、模式、位置、数据）</p>
+                        <div class="sc_modal_label_tip" style="padding: 10px 0px 10px 0px;">（宽高、主题、模式、位置、数据）</div>
                     </form>
                     <div class="sc_fullscreen_separate_memory_btn_div_fullscreen">
                         <button id="sc_fullscreen_separate_memory_cancel_btn" class="sc_fullscreen_separate_memory_modal_btn sc_fullscreen_separate_memory_modal_close_btn">取消</button>
@@ -4919,6 +5108,207 @@
             open_and_close_sc_modal('✓', '#A7C9D3', e);
         });
 
+        let sc_live_special_tip_modal_style = document.createElement('style');
+        sc_live_special_tip_modal_style.textContent = `
+              .sc_live_special_tip_config_modal {
+                  display: none;
+                  position: fixed;
+                  z-index: 3333;
+                  left: 0;
+                  top: 0;
+                  width: 100%;
+                  height: 100%;
+                  overflow: auto;
+                  background-color: rgba(0, 0, 0, 0.3);
+              }
+
+              .sc_live_special_tip_modal_content {
+                  background-color: #fefefe;
+                  margin: 15% auto;
+                  padding: 20px;
+                  border: 1px solid #888;
+                  width: 42%;
+              }
+
+              .sc_live_special_tip_modal_content p {
+                  color: #000;
+              }
+
+              .sc_modal_label_tip {
+                  color: #000;
+              }
+
+              .sc_live_special_tip_close {
+                  color: #aaa;
+                  float: right;
+                  font-size: 28px;
+                  font-weight: bold;
+              }
+
+              .sc_live_special_tip_close:hover,
+              .sc_live_special_tip_close:focus {
+                  color: black;
+                  text-decoration: none;
+                  cursor: pointer;
+              }
+
+              .sc_live_special_tip_radio_group {
+                  display: inline-flex;
+                  text-align: center;
+                  color: #000;
+              }
+              .sc_live_special_tip_radio_group input[type="radio"] {
+                  margin-right: 10px;
+              }
+
+              .sc_live_special_tip_radio_group label {
+                  margin-right: 30px;
+              }
+
+              .sc_live_special_tip_radio_group_fullscreen {
+                  display: inline-flex;
+                  text-align: center;
+                  color: #000;
+              }
+              .sc_live_special_tip_radio_group_fullscreen input[type="radio"] {
+                  margin-right: 10px;
+              }
+
+              .sc_live_special_tip_radio_group_fullscreen label {
+                  margin-right: 30px;
+              }
+
+              .sc_live_special_tip_btn_div {
+                  margin-top: 30px;
+              }
+
+              .sc_live_special_tip_btn_div_fullscreen {
+                  margin-top: 30px;
+              }
+
+              #sc_live_special_tip_confirm_btn {
+                  float: right;
+              }
+
+              #sc_live_special_tip_confirm_btn_fullscreen {
+                  float: right;
+              }
+
+              .sc_live_special_tip_modal_btn {
+                  padding: 3px 10px;
+              }
+
+              #sc_live_special_tip_form {
+                  margin-top: 20px;
+                  text-align: center;
+              }
+              #sc_live_special_tip_form_fullscreen {
+                  margin-top: 20px;
+                  text-align: center;
+              }
+        `;
+
+        document.head.appendChild(sc_live_special_tip_modal_style);
+
+        let sc_live_special_tip_modal_html = document.createElement('div');
+        sc_live_special_tip_modal_html.id = 'sc_live_special_tip_config_div';
+        sc_live_special_tip_modal_html.className = 'sc_live_special_tip_config_modal';
+        sc_live_special_tip_modal_html.innerHTML = `
+                <div class="sc_live_special_tip_modal_content">
+                    <span class="sc_live_special_tip_close">&times;</span>
+                    <p>对特定用户进入直播间提示（基于数据包解析，活动页面若没数据包会失效）（本功能需要用户登录）：</p>
+                    <form id="sc_live_special_tip_form">
+                        <div class="sc_live_special_tip_radio_group">
+                            <input type="radio" id="sc_live_special_tip_top_option" name="sc_live_special_tip_option" value="0" checked />
+                            <label for="sc_live_special_tip_top_option">显示在顶部</label>
+
+                            <input type="radio" id="sc_live_special_tip_middle_option" name="sc_live_special_tip_option" value="1" />
+                            <label for="sc_live_special_tip_middle_option">显示在中间随机</label>
+
+                            <input type="radio" id="sc_live_special_tip_bottom_option" name="sc_live_special_tip_option" value="2" />
+                            <label for="sc_live_special_tip_bottom_option">显示在底部</label>
+                        </div>
+                        <div class="sc_live_special_tip_textarea_div">
+                            <div class="sc_modal_label_tip" style="padding: 10px 0px 10px 0px;">规则：用户id,用户id-备注（英文的逗号，以及横杠，逗号后可换行，不加备注就只显示用户名）</div>
+                            <textarea id="sc_live_special_tip_textarea_content" style="min-width: 60%; min-height: 100px; max-width: 90%; max-height: 160px;" placeholder="示例：111111,222222,333333,444444-小张"></textarea>
+                        </div>
+                    </form>
+                    <div class="sc_live_special_tip_btn_div">
+                        <button id="sc_live_special_tip_cancel_btn" class="sc_live_special_tip_modal_btn sc_live_special_tip_modal_close_btn">取消</button>
+                        <button id="sc_live_special_tip_confirm_btn" class="sc_live_special_tip_modal_btn sc_live_special_tip_modal_close_btn">确定</button>
+                    </div>
+                </div>
+        `;
+
+        document.body.appendChild(sc_live_special_tip_modal_html);
+
+        let sc_live_special_tip_modal_html_fullscreen = document.createElement('div');
+        sc_live_special_tip_modal_html_fullscreen.id = 'sc_live_special_tip_config_div_fullscreen';
+        sc_live_special_tip_modal_html_fullscreen.className = 'sc_live_special_tip_config_modal';
+        sc_live_special_tip_modal_html_fullscreen.innerHTML = `
+                <div class="sc_live_special_tip_modal_content">
+                    <span class="sc_live_special_tip_close">&times;</span>
+                    <p>对特定用户进入直播间提示（基于数据包解析，活动页面若没数据包会失效）（本功能需要用户登录）：</p>
+                    <form id="sc_live_special_tip_form_fullscreen">
+                        <div class="sc_live_special_tip_radio_group_fullscreen">
+                            <input type="radio" id="sc_live_special_tip_top_option_fullscreen" name="sc_live_special_tip_option_fullscreen" value="0" checked />
+                            <label for="sc_live_special_tip_top_option_fullscreen">显示在顶部</label>
+
+                            <input type="radio" id="sc_live_special_tip_middle_option_fullscreen" name="sc_live_special_tip_option_fullscreen" value="1" />
+                            <label for="sc_live_special_tip_middle_option_fullscreen">显示在中间随机</label>
+
+                            <input type="radio" id="sc_live_special_tip_bottom_option_fullscreen" name="sc_live_special_tip_option_fullscreen" value="2" />
+                            <label for="sc_live_special_tip_bottom_option_fullscreen">显示在底部</label>
+                        </div>
+                        <div class="sc_live_special_tip_textarea_div">
+                            <div class="sc_modal_label_tip" style="padding: 10px 0px 10px 0px;">规则：用户id,用户id-备注（英文的逗号，以及横杠，逗号后可换行，不加备注就只显示用户名）</div>
+                            <textarea id="sc_live_special_tip_textarea_content_fullscreen" style="min-width: 60%; min-height: 100px; max-width: 90%; max-height: 160px;" placeholder="示例：111111,222222,333333,444444-小张"></textarea>
+                        </div>
+                    </form>
+                    <div class="sc_live_special_tip_btn_div_fullscreen">
+                        <button id="sc_live_special_tip_cancel_btn" class="sc_live_special_tip_modal_btn sc_live_special_tip_modal_close_btn">取消</button>
+                        <button id="sc_live_special_tip_confirm_btn_fullscreen" class="sc_live_special_tip_modal_btn sc_live_special_tip_modal_close_btn">确定</button>
+                    </div>
+                </div>
+        `;
+
+        $(live_player_div).append(sc_live_special_tip_modal_html_fullscreen);
+
+        function sc_close_live_special_tip_modal() {
+            $(document).find('.sc_live_special_tip_config_modal').hide();
+        }
+
+        $(document).on('click', '.sc_live_special_tip_close, .sc_live_special_tip_modal_close_btn', function() {
+            sc_close_live_special_tip_modal();
+        });
+
+        $(document).on('click', '#sc_live_special_tip_confirm_btn', function(e) {
+
+            let sc_live_special_tip_select_val = $(document).find('.sc_live_special_tip_radio_group input[name="sc_live_special_tip_option"]:checked').val();
+            sc_live_special_tip_location = parseInt(sc_live_special_tip_select_val, 10);
+            sc_live_special_tip_location_store();
+
+            sc_live_special_tip_str = $(document).find('#sc_live_special_tip_textarea_content').val().replace(/ /g, '');
+            sc_live_special_tip_str_store();
+
+            sc_live_special_tip_str_to_arr();
+
+            open_and_close_sc_modal('✓', '#A7C9D3', e);
+        });
+
+        $(document).on('click', '#sc_live_special_tip_confirm_btn_fullscreen', function(e) {
+
+            let sc_live_special_tip_select_val = $(document).find('.sc_live_special_tip_radio_group_fullscreen input[name="sc_live_special_tip_option_fullscreen"]:checked').val();
+            sc_live_special_tip_location = parseInt(sc_live_special_tip_select_val, 10);
+            sc_live_special_tip_location_store();
+
+            sc_live_special_tip_str = $(document).find('#sc_live_special_tip_textarea_content_fullscreen').val().replace(/ /g, '');
+            sc_live_special_tip_str_store();
+
+            sc_live_special_tip_str_to_arr();
+
+            open_and_close_sc_modal('✓', '#A7C9D3', e);
+        });
 
         let sc_live_other_modal_style = document.createElement('style');
         sc_live_other_modal_style.textContent = `
@@ -5267,9 +5657,15 @@
 
         let sc_func_button24 = document.createElement('button');
         sc_func_button24.className = 'sc_func_btn';
-        sc_func_button24.id = 'sc_func_live_other_config_btn';
-        sc_func_button24.innerHTML = '其他一些功能的自定义设置';
+        sc_func_button24.id = 'sc_func_live_special_tip_config_btn';
+        sc_func_button24.innerHTML = '对特定用户进入直播间提示';
         sc_func_button24.style.marginBottom = '2px';
+
+        let sc_func_button25 = document.createElement('button');
+        sc_func_button25.className = 'sc_func_btn';
+        sc_func_button25.id = 'sc_func_live_other_config_btn';
+        sc_func_button25.innerHTML = '其他一些功能的自定义设置';
+        sc_func_button25.style.marginBottom = '2px';
 
         let sc_func_br1 = document.createElement('br');
         let sc_func_br2 = document.createElement('br');
@@ -5294,6 +5690,7 @@
         let sc_func_br21 = document.createElement('br');
         let sc_func_br22 = document.createElement('br');
         let sc_func_br23 = document.createElement('br');
+        let sc_func_br24 = document.createElement('br');
 
         let sc_func_context_menu = document.createElement('div');
         sc_func_context_menu.id = 'sc_context_menu_func_body';
@@ -5352,6 +5749,8 @@
         sc_func_context_menu.appendChild(sc_func_button23);
         sc_func_context_menu.appendChild(sc_func_br23);
         sc_func_context_menu.appendChild(sc_func_button24);
+        sc_func_context_menu.appendChild(sc_func_br24);
+        sc_func_context_menu.appendChild(sc_func_button25);
 
         // 将功能的右键菜单添加到body中
         document.body.appendChild(sc_func_context_menu);
@@ -5670,6 +6069,23 @@
             $(this).parent().fadeOut();
         });
 
+        $(document).on('click', '#sc_func_live_special_tip_config_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let sc_live_special_tip_config_div_id = 'sc_live_special_tip_config_div';
+            let sc_live_special_tip_textarea_id = 'sc_live_special_tip_textarea_content';
+            if (sc_isFullscreen) {
+                sc_live_special_tip_config_div_id = 'sc_live_special_tip_config_div_fullscreen';
+                sc_live_special_tip_textarea_id = 'sc_live_special_tip_textarea_content_fullscreen';
+            }
+            $(document).find('#' + sc_live_special_tip_config_div_id).show();
+
+            $(document).find('#' + sc_live_special_tip_textarea_id).val(sc_live_special_tip_str);
+
+            $(this).parent().fadeOut();
+        });
+
         $(document).on('click', '#sc_func_live_other_config_btn', function(e) {
             e = e || unsafeWindow.event;
             e.preventDefault();
@@ -5894,8 +6310,8 @@
             if (unsafeWindow.innerWidth - e.clientX <= 200) {
                 e.clientX = unsafeWindow.innerWidth - 200;
             }
-            if (unsafeWindow.innerHeight - e.clientY <= 650) {
-                e.clientY = unsafeWindow.innerHeight - 650;
+            if (unsafeWindow.innerHeight - e.clientY <= 700) {
+                e.clientY = unsafeWindow.innerHeight - 700;
             }
             $(document).find('#' + the_sc_ctx_menu_id).css('left', e.clientX + 'px');
             $(document).find('#' + the_sc_ctx_menu_id).css('top', e.clientY + 'px');
@@ -5928,6 +6344,17 @@
                         if (store_flag) {
                             update_sc_item(parsedArr.data);
                         }
+                    } else if (parsedArr.cmd === 'USER_TOAST_MSG') {
+                        let sc_data_guard_count = parsedArr.data.target_guard_count ?? 0;
+                        if (sc_data_guard_count) {
+                            update_guard_count(sc_data_guard_count);
+                        }
+                    } else if (parsedArr.cmd === 'INTERACT_WORD') {
+                        if (parsedArr.data.msg_type === 1) {
+                            if (sc_live_special_tip_uid_arr.length) {
+                                handle_special_tip(parsedArr.data);
+                            }
+                        }
                     }
                 }
 
@@ -5941,7 +6368,11 @@
             // setTimeout的时间差内先更新一下再定时
             const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
             if (_rank_list_ctnr_box_li.length) {
-                const _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
+                let _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
+                _guard_n = parseInt(_guard_n, 10);
+                if (sc_guard_num > _guard_n) {
+                    _guard_n = sc_guard_num;
+                }
 
                 $(document).find('.sc_captain_num_right').text(_guard_n);
                 sc_update_date_guard_once = true;
@@ -5960,12 +6391,14 @@
                         for (const mutation of mutationsList) {
                             if (mutation.type === 'characterData' || mutation.type === 'childList' || mutation.type === 'subtree') {
                                 const guard_newNum = mutation.target.textContent.match(/\d+/) ?? 0;
-                                // SC记录板的
-                                $(document).find('.sc_captain_num_right').text(guard_newNum);
+                                if (sc_guard_num !== parseInt(guard_newNum, 10)) {
+                                    // SC记录板的
+                                    $(document).find('.sc_captain_num_right').text(guard_newNum);
 
-                                // 页面的
-                                if (data_show_bottom_flag) {
-                                    $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
+                                    // 页面的
+                                    if (data_show_bottom_flag) {
+                                        $(document).find('#sc_data_show_bottom_guard_num').text('舰长：' + guard_newNum);
+                                    }
                                 }
                             }
                         }
@@ -5976,11 +6409,14 @@
                     clearInterval(rank_list_ctnr_box_interval);
                 }
             });
+
+
         }, 3000);
 
         setInterval(() => {
             updateTimestampDiff(); // 每30秒更新时间差
             check_all_memory_status(); // 每30秒检查全记状态
+            sycn_live_special_tip_config(); // 每30秒同步最新的特定用户提示设置
         }, 30000);
 
     }

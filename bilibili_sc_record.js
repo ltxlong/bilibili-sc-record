@@ -2,8 +2,8 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      10.1.0
-// @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储
+// @version      10.1.1
+// @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储，可指定用户进入直播间提示
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
 // @match        *://live.bilibili.com/2*
@@ -2665,7 +2665,6 @@
                 }
             } else {
                 sc_date_num_nesting_judge_n = 0;
-                sc_nesting_live_room_flag = false;
             }
 
             if (sc_nesting_live_room_flag) {

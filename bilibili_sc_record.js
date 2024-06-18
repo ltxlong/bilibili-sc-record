@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      11.0.0
+// @version      11.0.1
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -2971,8 +2971,10 @@
 
             let the_sc_live_no_remain_flag = true;
             let the_danmu_location_val_type = 0;
+            let the_sc_live_danmu_mode = sc_live_special_danmu_mode;
             if (all_sc_to_danmu_show_flag) {
                 the_danmu_location_val_type = 1;
+                the_sc_live_danmu_mode = sc_live_sc_to_danmu_show_mode;
                 if (!sc_live_sc_to_danmu_no_remain_flag) {
                     the_sc_live_no_remain_flag = false;
                 }
@@ -2993,14 +2995,14 @@
                     let sc_special_sc_img_px = '50';
                     let sc_special_sc_msg_margin_left = '10';
                     let sc_special_sc_div_custom_style = ' style="background:linear-gradient(to right, '+ sc_data["background_bottom_color"] +',transparent);';
-                    if (sc_live_special_danmu_mode === 1) {
+                    if (the_sc_live_danmu_mode === 1) {
                         sc_speical_sc_div_class = 'sc_special_tip_div_no_padding';
                         sc_special_sc_img_px = '40';
                         sc_special_sc_msg_margin_left = '5';
-                    } else if (sc_live_special_danmu_mode === 2) {
+                    } else if (the_sc_live_danmu_mode === 2) {
                         sc_speical_sc_div_class = 'sc_special_tip_div_no_opaque';
                         sc_special_sc_div_custom_style = ' style="background:linear-gradient(to right, '+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +',transparent);';
-                    } else if (sc_live_special_danmu_mode === 3) {
+                    } else if (the_sc_live_danmu_mode === 3) {
                         sc_speical_sc_div_class = 'sc_special_tip_div_no_opaque_no_padding';
                         sc_special_sc_img_px = '40';
                         sc_special_sc_msg_margin_left = '5';

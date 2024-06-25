@@ -1,6 +1,6 @@
 # 详细的说明文档
 
-https://sc-catch-doc.view.cloudns.ch/ 或者 https://sc-catch-doc.pages.dev/ 或者 https://ltxlong.github.io/sc-catch-doc/
+https://sc-catch-doc.ltxlong.cloudns.ch/ 或者 https://sc-catch-doc.pages.dev/ 或者 https://ltxlong.github.io/sc-catch-doc/
 
 # bilibili-sc-record
 B站直播间SC记录板-实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现

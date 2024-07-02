@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      11.0.1
+// @version      11.0.2
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -2960,14 +2960,18 @@
         }
     }
 
-    function handle_special_sc(sc_data, all_sc_to_danmu_show_flag = false) {
+    function handle_special_sc(sc_data, all_sc_to_danmu_show_flag = false, first_time_flag = false) {
 
         if (all_sc_to_danmu_show_flag || sc_live_special_tip_uid_arr.includes(sc_data["uid"].toString() ?? '0')) {
 
             let sc_live_the_sc_uid = sc_data["uid"].toString() ?? '0';
             let sc_live_the_sc_id = sc_data["id"].toString() ?? '0';
 
-            if (sc_live_special_sc_await_arr.includes(sc_live_the_sc_uid + sc_live_the_sc_id)) { return; }
+            if (first_time_flag) {
+                if (sc_live_special_sc_await_arr.includes(sc_live_the_sc_uid + sc_live_the_sc_id)) { return; }
+
+                sc_live_special_sc_await_arr.push(sc_live_the_sc_uid + sc_live_the_sc_id);
+            }
 
             let the_sc_live_no_remain_flag = true;
             let the_danmu_location_val_type = 0;
@@ -2987,8 +2991,6 @@
             if (sc_live_sc_danmu_show_n <= 0) {
                 let get_free_danmu_show_arr = get_free_danmu_show_index(the_danmu_location_val_type);
                 if (get_free_danmu_show_arr['the_free_danmu_show_flag']) {
-                    sc_live_special_sc_await_arr.push(sc_live_the_sc_uid + sc_live_the_sc_id);
-
                     sc_live_sc_danmu_show_n = 1;
                     // 发送
                     let sc_speical_sc_div_class = 'sc_special_tip_div';
@@ -3075,13 +3077,21 @@
 
                     }, 25000);
                 } else {
-                    // 回退缓存
-                    sc_live_sc_to_danmu_cache_arr.unshift({ 'sc_data': sc_data, 'all_sc_to_danmu_show_flag': all_sc_to_danmu_show_flag});
+                    if (first_time_flag) {
+                        // 缓存
+                        sc_live_sc_to_danmu_cache_arr.push({ 'sc_data': sc_data, 'all_sc_to_danmu_show_flag': all_sc_to_danmu_show_flag});
+                    } else {
+                        // 回退缓存
+                        sc_live_sc_to_danmu_cache_arr.unshift({ 'sc_data': sc_data, 'all_sc_to_danmu_show_flag': all_sc_to_danmu_show_flag});
+                    }
+                    
                     sc_live_sc_danmu_show_n = -1;
                 }
             } else {
                 // 缓存
-                sc_live_sc_to_danmu_cache_arr.push({ 'sc_data': sc_data, 'all_sc_to_danmu_show_flag': all_sc_to_danmu_show_flag});
+                if (first_time_flag) {
+                    sc_live_sc_to_danmu_cache_arr.push({ 'sc_data': sc_data, 'all_sc_to_danmu_show_flag': all_sc_to_danmu_show_flag});
+                }
             }
         }
     }
@@ -3905,7 +3915,7 @@
                     left: 100%;
                 }
                 to {
-                    left: -100%;
+                    left: -120%;
                 }
             }
             .sc_special_tip_div {
@@ -6515,7 +6525,7 @@
                             <label for="sc_live_special_tip_bottom_option">显示在底部 / 顶部（优先底部）</label>
                         </div>
                         <div class="sc_live_special_tip_textarea_div">
-                            <div class="sc_modal_label_tip" style="padding: 10px 0px 10px 0px;">规则：用户id,用户id-备注（英文的逗号，以及横杠，逗号后可换行，不加备注就只显示用户名）</div>
+                            <div class="sc_modal_label_tip" style="padding: 10px 0px 10px 0px;">规则：用户id,用户id-备注（逗号，以及横杠，逗号后可换行，不加备注就只显示用户名）</div>
                             <textarea id="sc_live_special_tip_textarea_content" style="min-width: 60%; min-height: 100px; max-width: 90%; max-height: 160px;" placeholder="示例：111111,222222,333333,444444-小张"></textarea>
                         </div>
                         <br>
@@ -6576,7 +6586,7 @@
                             <label for="sc_live_special_tip_bottom_option_fullscreen">显示在底部 / 顶部（优先底部）</label>
                         </div>
                         <div class="sc_live_special_tip_textarea_div">
-                            <div class="sc_modal_label_tip" style="padding: 10px 0px 10px 0px;">规则：用户id,用户id-备注（英文的逗号，以及横杠，逗号后可换行，不加备注就只显示用户名）</div>
+                            <div class="sc_modal_label_tip" style="padding: 10px 0px 10px 0px;">规则：用户id,用户id-备注（逗号，以及横杠，逗号后可换行，不加备注就只显示用户名）</div>
                             <textarea id="sc_live_special_tip_textarea_content_fullscreen" style="min-width: 60%; min-height: 100px; max-width: 90%; max-height: 160px;" placeholder="示例：111111,222222,333333,444444-小张"></textarea>
                         </div>
                         <br>
@@ -6633,6 +6643,7 @@
             sc_live_special_tip_location_store();
 
             sc_live_special_tip_str = $(document).find('#sc_live_special_tip_textarea_content').val().replace(/ /g, '');
+            sc_live_special_tip_str = sc_live_special_tip_str.replace(/，/g, ',');
             sc_live_special_tip_str_store();
 
             sc_live_special_tip_str_to_arr();
@@ -6663,6 +6674,7 @@
             sc_live_special_tip_location_store();
 
             sc_live_special_tip_str = $(document).find('#sc_live_special_tip_textarea_content_fullscreen').val().replace(/ /g, '');
+            sc_live_special_tip_str = sc_live_special_tip_str.replace(/，/g, ',');
             sc_live_special_tip_str_store();
 
             sc_live_special_tip_str_to_arr();
@@ -7939,10 +7951,10 @@
                             update_sc_item(parsedArr.data);
                         }
                         if (sc_live_special_sc_flag && sc_live_special_tip_uid_arr.length) {
-                            handle_special_sc(parsedArr.data);
+                            handle_special_sc(parsedArr.data, false, true);
                         }
                         if (sc_live_sc_to_danmu_show_flag) {
-                            handle_special_sc(parsedArr.data, true);
+                            handle_special_sc(parsedArr.data, true, true);
                         }
                     } else if (parsedArr.cmd === 'USER_TOAST_MSG') {
                         let sc_data_guard_count = parsedArr.data.target_guard_count ?? 0;

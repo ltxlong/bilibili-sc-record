@@ -24,8 +24,8 @@
 // @match        *://live.bilibili.com/blanc/8*
 // @match        *://live.bilibili.com/blanc/9*
 // @icon         https://www.bilibili.com/favicon.ico
-// @require      https://cdn.staticfile.net/jquery/3.7.1/jquery.min.js
-// @require      https://cdn.staticfile.net/html2canvas/1.4.1/html2canvas.min.js
+// @require      https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/jquery/3.6.0/jquery.min.js
+// @require      https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/html2canvas/1.4.1/html2canvas.min.js
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
 // @license      GPL-3.0-or-later

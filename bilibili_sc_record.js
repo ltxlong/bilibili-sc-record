@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      11.0.2
+// @version      11.1.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -3323,17 +3323,25 @@
         // 弹幕框顶部
         if (data_show_top_flag) {
             const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+
             if (rank_data_show_div.length) {
-                const default_high_energy_match = rank_data_show_div.first().text().match(/高能用户\(([^)]+)\)/) ?? 0;
-                if (default_high_energy_match === 0) {
-                    const default_support_day_match = rank_data_show_div.first().text().match(/应援日榜\(([^)]+)\)/) ?? 0;
-                    if (default_support_day_match === 0) {
+                const default_high_energy_pattern1 = /房间观众/;
+                const rank_data_show_div_first_text_str = rank_data_show_div.first().text();
+
+                if (default_high_energy_pattern1.test(rank_data_show_div_first_text_str)) {
+                    if (high_energy_num >= 100000) {
+                        rank_data_show_div.first().text('房间观众(' + parseInt(high_energy_num/10000) + '万+)');
+                    } else {
+                        rank_data_show_div.first().text('房间观众(' + high_energy_num + ')');
+                    }
+                } else {
+                    const default_high_energy_pattern2 = /高能用户/;
+                    if (default_high_energy_pattern2.test(rank_data_show_div_first_text_str)) {
                         if (high_energy_num >= 100000) {
-                            rank_data_show_div.first().text('高能用户(' + parseInt(high_energy_num/10000) + 'w+)');
+                            rank_data_show_div.first().text('高能用户(' + parseInt(high_energy_num/10000) + '万+)');
                         } else {
                             rank_data_show_div.first().text('高能用户(' + high_energy_num + ')');
                         }
-
                     }
                 }
 
@@ -3349,14 +3357,14 @@
 
                 if (the_urc_sc_data_show_high_energy_num_flag) {
                     if (high_energy_num >= 100000) {
-                        sc_urc_data_show_bottom_rank_num_div.text('高能：'+ parseInt(high_energy_num/10000) + 'w+');
+                        sc_urc_data_show_bottom_rank_num_div.text('高能：'+ parseInt(high_energy_num/10000) + '万+');
                     } else {
                         sc_urc_data_show_bottom_rank_num_div.text('高能：'+ high_energy_num);
                     }
 
                 } else {
                     if (high_energy_contribute_num >= 100000) {
-                        sc_urc_data_show_bottom_rank_num_div.text('同接：'+ parseInt(high_energy_contribute_num/10000) + 'w+');
+                        sc_urc_data_show_bottom_rank_num_div.text('同接：'+ parseInt(high_energy_contribute_num/10000) + '万+');
                     } else {
                         sc_urc_data_show_bottom_rank_num_div.text('同接：'+ high_energy_contribute_num);
                     }

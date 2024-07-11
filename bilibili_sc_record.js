@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      11.1.0
+// @version      11.1.1
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可记忆配置，可生成图片（右键菜单），活动页可用，黑名单功能，不用登录，多种主题切换，直播全屏也在顶层显示，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -6553,7 +6553,7 @@
                         </div>
                         <div>
                             <input type="checkbox" id="sc_live_special_msg_checkbox" class="sc_live_special_msg_checkbox_inline"/>
-                            <label for="sc_live_special_msg_checkbox" class="sc_live_special_msg_checkbox_inline">相应用户的弹幕高亮（显示在中间随机）</label>
+                            <label for="sc_live_special_msg_checkbox" class="sc_live_special_msg_checkbox_inline">相应用户的弹幕高亮</label>
                         </div>
                         <br>
                         <div>
@@ -6614,7 +6614,7 @@
                         </div>
                         <div>
                             <input type="checkbox" id="sc_live_special_msg_checkbox_fullscreen" class="sc_live_special_msg_checkbox_inline"/>
-                            <label for="sc_live_special_msg_checkbox_fullscreen" class="sc_live_special_msg_checkbox_inline">相应用户的弹幕高亮（显示在中间随机）</label>
+                            <label for="sc_live_special_msg_checkbox_fullscreen" class="sc_live_special_msg_checkbox_inline">相应用户的弹幕高亮</label>
                         </div>
                         <br>
                         <div>

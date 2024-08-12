@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      11.2.1
+// @version      11.2.2
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -44,7 +44,7 @@
     // 通过Hook实时抓取数据
     // 每个直播间隔离保留，用localstorage，并且自动清理时间长的数据
     // SC标明发送时间和距离当前的时间差
-    // SC可折叠，可生成图片（折叠和展开都可以）
+    // SC可折叠，可生成图片（折叠和展开都可以），可搜索
     // 黑名单功能
     // 右键菜单功能
     // 侧折模式功能
@@ -230,6 +230,7 @@
     let sc_panel_drag_left_fullscreen_percent = 0;
     let sc_panel_drag_top_fullscreen_percent = 0;
 
+    // SC搜索相关变量
     let sc_list_search_result_time = 0; // 同一个弹窗的上一次搜索结果的时间戳
     let sc_list_search_str = ''; // 同一个弹窗的上一次的搜索关键字符串
 
@@ -7385,6 +7386,7 @@
 
             .sc_live_search_modal_btn {
                 padding: 5px 20px;
+                color: initial;
             }
 
             .sc_live_search_normal_btn {
@@ -7643,10 +7645,8 @@
 
                 let the_search_result_div_clone = $(the_search_result_div).clone();
                 let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
-                let the_copy_sc_rectangle_width = sc_rectangle_width;
                 if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
                     the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
-                    the_copy_sc_rectangle_width = sc_rectangle_width_fullscreen;
                 }
                 if (the_copy_sc_panel_side_fold_flag) {
                     sc_side_fold_out_one(the_search_result_div_clone);
@@ -7690,10 +7690,8 @@
 
                 let the_search_result_div_clone = $(the_search_result_div).clone();
                 let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
-                let the_copy_sc_rectangle_width = sc_rectangle_width;
                 if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
                     the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
-                    the_copy_sc_rectangle_width = sc_rectangle_width_fullscreen;
                 }
                 if (the_copy_sc_panel_side_fold_flag) {
                     sc_side_fold_out_one(the_search_result_div_clone);
@@ -7736,10 +7734,8 @@
 
                 let the_search_result_div_clone = $(the_search_result_div).clone();
                 let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
-                let the_copy_sc_rectangle_width = sc_rectangle_width;
                 if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
                     the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
-                    the_copy_sc_rectangle_width = sc_rectangle_width_fullscreen;
                 }
                 if (the_copy_sc_panel_side_fold_flag) {
                     sc_side_fold_out_one(the_search_result_div_clone);
@@ -7782,10 +7778,8 @@
 
                 let the_search_result_div_clone = $(the_search_result_div).clone();
                 let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
-                let the_copy_sc_rectangle_width = sc_rectangle_width;
                 if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
                     the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
-                    the_copy_sc_rectangle_width = sc_rectangle_width_fullscreen;
                 }
                 if (the_copy_sc_panel_side_fold_flag) {
                     sc_side_fold_out_one(the_search_result_div_clone);

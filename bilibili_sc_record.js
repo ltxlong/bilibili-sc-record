@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      11.2.2
+// @version      11.3.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -234,6 +234,13 @@
     let sc_list_search_result_time = 0; // 同一个弹窗的上一次搜索结果的时间戳
     let sc_list_search_str = ''; // 同一个弹窗的上一次的搜索关键字符串
 
+    let sc_list_search_shortkey_flag = true; // 是否开启SC搜索快捷键 ctrl + f，默认开启
+
+    let sc_last_item_timestamp = 0; // 精确到s的
+    let sc_last_item_sort = 0; // 区分相同时间s的发送
+
+    let sc_list_search_div_bg_opacity_range = 90; // 搜索弹窗的透明度0~100
+
     function sc_screen_resolution_change_check() {
         let live_sc_screen_resolution_str = unsafeWindow.localStorage.getItem('live_sc_screen_resolution_str');
         let the_now_screen_resolution_str = unsafeWindow.screen.width + '_' + unsafeWindow.screen.height;
@@ -377,6 +384,8 @@
         sc_panel_show_time_mode = sc_all_memory_config['sc_panel_show_time_mode'] ?? 0;
         sc_panel_show_time_each_same = sc_all_memory_config['sc_panel_show_time_each_same'] ?? 0.5;
         sc_live_panel_show_time_click_stop_flag = sc_all_memory_config['sc_live_panel_show_time_click_stop_flag'] ?? false;
+        sc_list_search_shortkey_flag = sc_all_memory_config['sc_list_search_shortkey_flag'] ?? true;
+        sc_list_search_div_bg_opacity_range = sc_all_memory_config['sc_list_search_div_bg_opacity_range'] ?? 90;
 
         sc_panel_drag_left_percent = sc_all_memory_config['sc_panel_drag_left_percent'] ?? 0;
         sc_panel_drag_top_percent = sc_all_memory_config['sc_panel_drag_top_percent'] ?? 0;
@@ -475,6 +484,8 @@
         sc_panel_show_time_mode = sc_self_memory_config['sc_panel_show_time_mode'] ?? 0;
         sc_panel_show_time_each_same = sc_self_memory_config['sc_panel_show_time_each_same'] ?? 0.5;
         sc_live_panel_show_time_click_stop_flag = sc_self_memory_config['sc_live_panel_show_time_click_stop_flag'] ?? false;
+        sc_list_search_shortkey_flag = sc_self_memory_config['sc_list_search_shortkey_flag'] ?? true;
+        sc_list_search_div_bg_opacity_range = sc_self_memory_config['sc_list_search_div_bg_opacity_range'] ?? 90;
 
         sc_panel_drag_left_percent = sc_self_memory_config['sc_panel_drag_left_percent'] ?? 0;
         sc_panel_drag_top_percent = sc_self_memory_config['sc_panel_drag_top_percent'] ?? 0;
@@ -820,11 +831,11 @@
             return the_list_items[0]; // 只有一个元素时直接返回
         }
 
-        if (the_target_time >= parseInt(the_list_items[0].getAttribute('data-start'), 10) * 1000) {
+        if (the_target_time >= parseInt(the_list_items[0].getAttribute('data-start'), 10)) {
             return the_list_items[0];
         }
 
-        if (the_target_time <= parseInt(the_list_items[the_list_items.length - 1].getAttribute('data-start'), 10) * 1000) {
+        if (the_target_time <= parseInt(the_list_items[the_list_items.length - 1].getAttribute('data-start'), 10)) {
             return the_list_items[the_list_items.length - 1];
         }
 
@@ -833,7 +844,7 @@
 
         while (index_left <= index_right) {
             let index_mid = Math.floor((index_left + index_right) / 2);
-            let the_mid_time = parseInt(the_list_items[index_mid].getAttribute('data-start'), 10) * 1000;
+            let the_mid_time = parseInt(the_list_items[index_mid].getAttribute('data-start'), 10);
 
             if (the_mid_time > the_target_time) {
                 index_left = index_mid + 1;
@@ -850,8 +861,8 @@
             return the_list_items[0];
         } else {
             // 比较 left 和 right 哪个更接近目标时间
-            let the_left_time = parseInt(the_list_items[index_left].getAttribute('data-start'), 10) * 1000;
-            let the_right_time = parseInt(the_list_items[index_right].getAttribute('data-start'), 10) * 1000;
+            let the_left_time = parseInt(the_list_items[index_left].getAttribute('data-start'), 10);
+            let the_right_time = parseInt(the_list_items[index_right].getAttribute('data-start'), 10);
 
             if (Math.abs(the_left_time - the_target_time) < Math.abs(the_right_time - the_target_time)) {
                 return the_list_items[index_left];
@@ -882,25 +893,32 @@
 
         // 条件为空直接返回空
         if (the_search_user_name === '' && the_search_content === '' && the_search_time === '' && !sc_list_search_result_time) {
+            sc_list_search_str = '__';
+
             return the_default_result;
         } else if (the_search_user_name === '' && the_search_content === '' && the_search_time === '' && sc_list_search_result_time) {
             // 条件为空但有上一次搜索的结果，直接返回上一个/下一个相邻的SC
-            let the_sc_live_search_last_div = $(document).find(list_class_name + '[data-start="' + sc_list_search_result_time / 1000 + '"]');
-            the_default_result = the_sc_live_search_last_div[0];
+            let the_sc_live_search_last_div = document.querySelector(list_class_name + '[data-start="' + sc_list_search_result_time + '"]');
+
+            the_default_result = the_sc_live_search_last_div;
 
             if (type) {
-                let the_sc_live_search_next_div = the_sc_live_search_last_div.next();
+                let the_sc_live_search_next_div = $(the_sc_live_search_last_div).next();
+
                 if (the_sc_live_search_next_div.length) {
-                    sc_list_search_result_time = parseInt(the_sc_live_search_next_div.attr('data-start'), 10) * 1000;
+                    sc_list_search_result_time = parseInt(the_sc_live_search_next_div.attr('data-start'), 10);
                     the_default_result = the_sc_live_search_next_div[0];
                 }
             } else {
-                let the_sc_live_search_prev_div = the_sc_live_search_last_div.prev();
+                let the_sc_live_search_prev_div = $(the_sc_live_search_last_div).prev();
+
                 if (the_sc_live_search_prev_div.length) {
-                    sc_list_search_result_time = parseInt(the_sc_live_search_prev_div.attr('data-start'), 10) * 1000;
+                    sc_list_search_result_time = parseInt(the_sc_live_search_prev_div.attr('data-start'), 10);
                     the_default_result = the_sc_live_search_prev_div[0];
                 }
             }
+
+            sc_list_search_str = '__';
 
             return the_default_result;
         }
@@ -922,7 +940,7 @@
         let the_last_search_start_time = 0;
 
         for (let the_sc_item of the_list_items_arr) {
-            let the_item_start_time = parseInt(the_sc_item.getAttribute('data-start'), 10) * 1000;
+            let the_item_start_time = parseInt(the_sc_item.getAttribute('data-start'), 10);
             if (!the_search_first_flag) {
                 // 非初次搜索
                 if (type) {
@@ -1002,7 +1020,7 @@
         }
 
         if (!the_default_result && sc_list_search_result_time) {
-            the_default_result = $(document).find(list_class_name + '[data-start="' + sc_list_search_result_time / 1000 + '"]')[0];
+            the_default_result = document.querySelector(list_class_name + '[data-start="' + sc_list_search_result_time + '"]');
         }
 
         return the_default_result;
@@ -1828,6 +1846,202 @@
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_live_panel_show_time_click_stop_flag', sc_live_panel_show_time_click_stop_flag, 'all');
+        }
+    }
+
+    function sc_search_shortkey_flag_config_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_list_search_shortkey_flag', sc_list_search_shortkey_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_list_search_shortkey_flag', sc_list_search_shortkey_flag, 'all');
+        }
+    }
+
+    function sc_search_div_bg_opacity_range_config_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_list_search_div_bg_opacity_range', sc_list_search_div_bg_opacity_range, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_list_search_div_bg_opacity_range', sc_list_search_div_bg_opacity_range, 'all');
+        }
+    }
+
+    // SC搜索上一个
+    function sc_live_search_confirm_prev() {
+        let the_fullscreen_str = '';
+        let the_list_class_name = '.sc_long_item';
+        if (sc_isFullscreen) {
+            the_fullscreen_str = '_fullscreen';
+            the_list_class_name = '#live-player .sc_long_item';
+        }
+
+        let the_search_user_name = $(document).find('#sc_live_search_user_name' + the_fullscreen_str).val();
+        let the_search_content = $(document).find('#sc_live_search_content' + the_fullscreen_str).val();
+        let the_search_time = $(document).find('#sc_live_search_time' + the_fullscreen_str).val();
+
+        let the_search_result_div = custom_search_sc_div(the_search_user_name, the_search_content, the_search_time, the_list_class_name, 0);
+
+        if (the_search_result_div) {
+            the_search_result_div.scrollIntoView({block: 'center' });
+
+            let the_search_result_div_clone = $(the_search_result_div).clone();
+            let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+            }
+            if (the_copy_sc_panel_side_fold_flag) {
+                sc_side_fold_out_one(the_search_result_div_clone);
+            }
+
+            the_search_result_div_clone.css('width', '100%');
+            the_search_result_div_clone.css('height', 'auto');
+            the_search_result_div_clone.css('animation', 'unset');
+            the_search_result_div_clone.show();
+            the_search_result_div_clone.find('.sc_font_color').css('color', '#000000');
+            the_search_result_div_clone.find('.sc_start_time').show();
+            the_search_result_div_clone.find('.sc_msg_head_left').css('text-align', 'left');
+            the_search_result_div_clone.find('.sc_msg_head').removeClass('sc_msg_head');
+
+            let the_search_result_div_clone_msg_body = the_search_result_div_clone.find('.sc_msg_body');
+            if (!the_search_result_div_clone_msg_body.is(":visible")) {
+                the_search_result_div_clone.css('border-radius', '8px 8px 6px 6px');
+                the_search_result_div_clone_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
+                the_search_result_div_clone_msg_body.show();
+                the_search_result_div_clone.find('.sc_value_font span').css('color', '#000');
+                the_search_result_div_clone.attr('data-fold', '0');
+            }
+
+            the_search_result_div_clone.removeClass();
+
+            let the_search_result_div_clone_clone = the_search_result_div_clone.clone();
+
+            $(document).find('.sc_live_search_result_div').html(the_search_result_div_clone);
+            $(document).find('.sc_live_search_result_div_fullscreen').html(the_search_result_div_clone_clone);
+        } else {
+            $(document).find('.sc_live_search_result_div').html('');
+            $(document).find('.sc_live_search_result_div_fullscreen').html('');
+        }
+
+        if (sc_isFullscreen) {
+            $(document).find('#sc_live_search_user_name').val(the_search_user_name);
+            $(document).find('#sc_live_search_content').val(the_search_content);
+            $(document).find('#sc_live_search_time').val(the_search_time);
+        } else {
+            $(document).find('#sc_live_search_user_name_fullscreen').val(the_search_user_name);
+            $(document).find('#sc_live_search_content_fullscreen').val(the_search_content);
+            $(document).find('#sc_live_search_time_fullscreen').val(the_search_time);
+        }
+    }
+
+    // SC搜索下一个
+    function sc_live_search_confirm_next() {
+        let the_fullscreen_str = '';
+        let the_list_class_name = '.sc_long_item';
+        if (sc_isFullscreen) {
+            the_fullscreen_str = '_fullscreen';
+            the_list_class_name = '#live-player .sc_long_item';
+        }
+
+        let the_search_user_name = $(document).find('#sc_live_search_user_name' + the_fullscreen_str).val();
+        let the_search_content = $(document).find('#sc_live_search_content' + the_fullscreen_str).val();
+        let the_search_time = $(document).find('#sc_live_search_time' + the_fullscreen_str).val();
+
+        let the_search_result_div = custom_search_sc_div(the_search_user_name, the_search_content, the_search_time, the_list_class_name, 1);
+
+        if (the_search_result_div) {
+            the_search_result_div.scrollIntoView({block: 'center' });
+
+            let the_search_result_div_clone = $(the_search_result_div).clone();
+            let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+            }
+            if (the_copy_sc_panel_side_fold_flag) {
+                sc_side_fold_out_one(the_search_result_div_clone);
+            }
+
+            the_search_result_div_clone.css('width', '100%');
+            the_search_result_div_clone.css('height', 'auto');
+            the_search_result_div_clone.css('animation', 'unset');
+            the_search_result_div_clone.show();
+            the_search_result_div_clone.find('.sc_font_color').css('color', '#000000');
+            the_search_result_div_clone.find('.sc_start_time').show();
+            the_search_result_div_clone.find('.sc_msg_head_left').css('text-align', 'left');
+            the_search_result_div_clone.find('.sc_msg_head').removeClass('sc_msg_head');
+
+            let the_search_result_div_clone_msg_body = the_search_result_div_clone.find('.sc_msg_body');
+            if (!the_search_result_div_clone_msg_body.is(":visible")) {
+                the_search_result_div_clone.css('border-radius', '8px 8px 6px 6px');
+                the_search_result_div_clone_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
+                the_search_result_div_clone_msg_body.show();
+                the_search_result_div_clone.find('.sc_value_font span').css('color', '#000');
+                the_search_result_div_clone.attr('data-fold', '0');
+            }
+
+            the_search_result_div_clone.removeClass();
+
+            let the_search_result_div_clone_clone = the_search_result_div_clone.clone();
+
+            $(document).find('.sc_live_search_result_div').html(the_search_result_div_clone);
+            $(document).find('.sc_live_search_result_div_fullscreen').html(the_search_result_div_clone_clone);
+        } else {
+            $(document).find('.sc_live_search_result_div').html('');
+            $(document).find('.sc_live_search_result_div_fullscreen').html('');
+        }
+
+        if (sc_isFullscreen) {
+            $(document).find('#sc_live_search_user_name').val(the_search_user_name);
+            $(document).find('#sc_live_search_content').val(the_search_content);
+            $(document).find('#sc_live_search_time').val(the_search_time);
+        } else {
+            $(document).find('#sc_live_search_user_name_fullscreen').val(the_search_user_name);
+            $(document).find('#sc_live_search_content_fullscreen').val(the_search_content);
+            $(document).find('#sc_live_search_time_fullscreen').val(the_search_time);
+        }
+    }
+
+    // 将ctrl+f替换为SC搜索框打开快捷键
+    function sc_search_shortkey_ctrlf(e) {
+        e = e || unsafeWindow.event;
+
+        if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+            e.preventDefault();
+
+            let sc_live_search_config_div_id = 'sc_live_search_config_div';
+            if (sc_isFullscreen) {
+                sc_live_search_config_div_id = 'sc_live_search_config_div_fullscreen';
+            }
+            let the_sc_live_search_modal_div = $(document).find('#' + sc_live_search_config_div_id);
+            the_sc_live_search_modal_div.show();
+        } else if (e.ctrlKey && e.key === 'ArrowLeft') {
+            e.preventDefault();
+
+            sc_live_search_confirm_prev();
+        } else if (e.ctrlKey && e.key === 'ArrowRight') {
+            e.preventDefault();
+
+            sc_live_search_confirm_next();
+        } else if (e.ctrlKey && e.key === 'ArrowUp') {
+            e.preventDefault();
+
+            sc_live_search_confirm_prev();
+        } else if (e.ctrlKey && e.key === 'ArrowDown') {
+            e.preventDefault();
+
+            sc_live_search_confirm_next();
+        }
+    }
+
+    function sc_search_shortkey_flag_config_apply() {
+        if (sc_list_search_shortkey_flag) {
+            $(document).off('keydown', sc_search_shortkey_ctrlf);
+
+            $(document).on('keydown', sc_search_shortkey_ctrlf);
+        } else {
+            $(document).off('keydown', sc_search_shortkey_ctrlf);
         }
     }
 
@@ -2665,6 +2879,8 @@
             sc_panel_show_time_mode_config_store();
             sc_panel_show_time_each_same_config_store();
             sc_live_panel_show_time_click_stop_flag_config_store();
+            sc_search_shortkey_flag_config_store();
+            sc_search_div_bg_opacity_range_config_store();
 
             const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
             if (rect_circle.width === 0 && rect_circle.height === 0) {
@@ -2697,6 +2913,8 @@
             sc_panel_show_time_mode_config_store();
             sc_panel_show_time_each_same_config_store();
             sc_live_panel_show_time_click_stop_flag_config_store();
+            sc_search_shortkey_flag_config_store();
+            sc_search_div_bg_opacity_range_config_store();
 
             const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
             if (rect_circle.width === 0 && rect_circle.height === 0) {
@@ -2777,6 +2995,8 @@
         }
 
         if (sc_live_sidebar_left_flag) { setTimeout(() => { sc_live_sidebar_position_left_apply() }, 1000); }
+
+        sc_search_shortkey_flag_config_apply();
     }
 
     // 导出
@@ -3439,6 +3659,14 @@
         let sc_message = sc_data["message"];
         let sc_start_timestamp = sc_data["start_time"];
 
+        let the_int_sc_start_timestamp = parseInt(sc_start_timestamp, 10);
+        if (the_int_sc_start_timestamp === sc_last_item_timestamp) {
+            sc_last_item_sort++;
+        } else {
+            sc_last_item_timestamp = the_int_sc_start_timestamp;
+            sc_last_item_sort = 0;
+        }
+
         let sc_medal_flag = false;
         let sc_medal_color = '';
         let sc_medal_name = '';
@@ -3509,7 +3737,7 @@
             sc_item_show_animation = 'animation: sc_fadenum_reverse 1s linear forwards;';
         }
 
-        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" data-start="'+ sc_start_timestamp +'" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;'+ sc_item_show_animation + sc_msg_item_style_border_radius + box_shadow_css +'">'+
+        let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" data-start="'+ (sc_start_timestamp * 1000 + sc_last_item_sort)+'" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;'+ sc_item_show_animation + sc_msg_item_style_border_radius + box_shadow_css +'">'+
             '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: contain;background-repeat: no-repeat;background-position: right center;'+ sc_msg_head_style_border_radius +'">'+
             '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
@@ -7182,6 +7410,10 @@
                             <input type="checkbox" id="sc_live_other_start_time_simple_flag" class="sc_live_other_checkbox_inline"/>
                             <label for="sc_live_other_start_time_simple_flag" class="sc_live_other_checkbox_inline">设置SC发送的时间显示为简单的时分</label>
                         </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_search_shortkey_flag" class="sc_live_other_checkbox_inline" checked/>
+                            <label for="sc_live_other_search_shortkey_flag" class="sc_live_other_checkbox_inline">设置SC搜索快捷键[ 开启：ctrl + f ][ 上一个：ctrl + 方向左/上 ][ 下一个：ctrl + 方向右/下 ]</label>
+                        </div>
                     </form>
                     <div class="sc_live_other_btn_div">
                         <button id="sc_live_other_cancel_btn" class="sc_live_other_modal_btn sc_live_other_modal_close_btn">取消</button>
@@ -7214,6 +7446,10 @@
                         <div class="sc_live_other_checkbox_div">
                             <input type="checkbox" id="sc_live_other_start_time_simple_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
                             <label for="sc_live_other_start_time_simple_flag_fullscreen" class="sc_live_other_checkbox_inline">设置SC发送的时间显示为简单的时分</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_search_shortkey_flag_fullscreen" class="sc_live_other_checkbox_inline" checked/>
+                            <label for="sc_live_other_search_shortkey_flag_fullscreen" class="sc_live_other_checkbox_inline">设置SC搜索快捷键[ 开启：ctrl + f ][ 上一个：ctrl + 方向左/上 ][ 下一个：ctrl + 方向右/下 ]</label>
                         </div>
                     </form>
                     <div class="sc_live_other_btn_div_fullscreen">
@@ -7258,6 +7494,12 @@
                 $(document).find('.sc_start_time_simple_span').hide();
             }
 
+            sc_list_search_shortkey_flag = $(document).find('#sc_live_other_search_shortkey_flag').is(':checked');
+
+            sc_search_shortkey_flag_config_store();
+
+            sc_search_shortkey_flag_config_apply();
+
             sc_live_other_config_data_show_apply();
 
             open_and_close_sc_modal('✓', '#A7C9D3', e);
@@ -7288,6 +7530,12 @@
                 $(document).find('.sc_start_time_simple_span').hide();
             }
 
+            sc_list_search_shortkey_flag = $(document).find('#sc_live_other_search_shortkey_flag_fullscreen').is(':checked');
+
+            sc_search_shortkey_flag_config_store();
+
+            sc_search_shortkey_flag_config_apply();
+
             sc_live_other_config_data_show_apply();
 
             open_and_close_sc_modal('✓', '#A7C9D3', e);
@@ -7300,20 +7548,16 @@
                 display: none;
                 position: fixed;
                 z-index: 3333;
-                left: 0;
-                top: 0;
-                width: 100%;
-                height: 100%;
-                overflow: auto;
-                background-color: rgba(0, 0, 0, 0.3);
+                top: 18%;
+                left: 50%;
+                margin-left: -21%;
+                width: 42%;
             }
 
             .sc_live_search_modal_content {
-                background-color: #fefefe;
-                margin: 15% auto;
+                background-color: rgb(255, 255, 255, 0.9);
                 padding: 20px;
                 border: 1px solid #888;
-                width: 42%;
             }
 
             .sc_live_search_modal_content p {
@@ -7461,7 +7705,7 @@
                 <div class="sc_live_search_modal_content">
                     <span class="sc_live_search_close">&times;</span>
                     <p>自定义搜索SC：</p>
-                    <input type="range" min="0" max="100" value="100" class="change_bg_opacity_range">
+                    <input type="range" min="0" max="100" value="90" class="change_bg_opacity_range">
                     <form id="sc_live_search_form">
                         <div class="sc_live_search_div_group">
                             <label for="sc_live_search_user_name">用户昵称：</label>
@@ -7512,7 +7756,7 @@
                 <div class="sc_live_search_modal_content">
                     <span class="sc_live_search_close">&times;</span>
                     <p>自定义搜索SC：</p>
-                    <input type="range" min="0" max="100" value="100" class="change_bg_opacity_range_fullscreen">
+                    <input type="range" min="0" max="100" value="90" class="change_bg_opacity_range_fullscreen">
                     <form id="sc_live_search_form_fullscreen">
                         <div class="sc_live_search_div_group_fullscreen">
                             <label for="sc_live_search_user_name_fullscreen">用户昵称：</label>
@@ -7591,14 +7835,37 @@
             }
         });
 
+        let sc_change_bg_opacity_timeout;
+        let sc_change_bg_opacity_fullscreen_timeout;
+
+        sc_list_search_div_bg_opacity_range = parseInt(sc_list_search_div_bg_opacity_range, 10);
+
+        $(document).find('.sc_live_search_modal_content').css('background-color', 'rgb(255, 255, 255, '+ sc_list_search_div_bg_opacity_range / 100 +')');
+        $(document).find('.change_bg_opacity_range').val(sc_list_search_div_bg_opacity_range);
+        $(document).find('.change_bg_opacity_range_fullscreen').val(sc_list_search_div_bg_opacity_range);
+
         $(document).on('input', '.change_bg_opacity_range', function() {
             $(document).find('.sc_live_search_modal_content').css('background-color', 'rgb(255, 255, 255, '+ $(this).val() / 100 +')');
             $(document).find('.change_bg_opacity_range_fullscreen').val($(this).val());
+
+            clearTimeout(sc_change_bg_opacity_timeout);
+
+            sc_change_bg_opacity_timeout = setTimeout(() => {
+                sc_list_search_div_bg_opacity_range = $(this).val();
+                sc_search_div_bg_opacity_range_config_store();
+            }, 1000);
         });
 
         $(document).on('input', '.change_bg_opacity_range_fullscreen', function() {
             $(document).find('.sc_live_search_modal_content').css('background-color', 'rgb(255, 255, 255, '+ $(this).val() / 100 +')');
             $(document).find('.change_bg_opacity_range').val($(this).val());
+
+            clearTimeout(sc_change_bg_opacity_fullscreen_timeout);
+
+            sc_change_bg_opacity_fullscreen_timeout = setTimeout(() => {
+                sc_list_search_div_bg_opacity_range = $(this).val();
+                sc_search_div_bg_opacity_range_config_store();
+            }, 1000);
         });
 
         $(document).on('click', '.sc_live_search_time_0', function() {
@@ -7634,181 +7901,19 @@
         });
 
         $(document).on('click', '#sc_live_search_prev_btn', function() {
-            let the_search_user_name = $(document).find('#sc_live_search_user_name').val();
-            let the_search_content = $(document).find('#sc_live_search_content').val();
-            let the_search_time = $(document).find('#sc_live_search_time').val();
-
-            let the_search_result_div = custom_search_sc_div(the_search_user_name, the_search_content, the_search_time, '.sc_long_item', 0);
-
-            if (the_search_result_div) {
-                the_search_result_div.scrollIntoView({block: 'center' });
-
-                let the_search_result_div_clone = $(the_search_result_div).clone();
-                let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
-                if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
-                    the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
-                }
-                if (the_copy_sc_panel_side_fold_flag) {
-                    sc_side_fold_out_one(the_search_result_div_clone);
-                }
-
-                the_search_result_div_clone.css('width', '100%');
-                the_search_result_div_clone.css('height', 'auto');
-                the_search_result_div_clone.css('animation', 'unset');
-                the_search_result_div_clone.show();
-                the_search_result_div_clone.find('.sc_font_color').css('color', '#000000');
-                the_search_result_div_clone.find('.sc_start_time').show();
-                the_search_result_div_clone.find('.sc_msg_head_left').css('text-align', 'left');
-                the_search_result_div_clone.find('.sc_msg_head').removeClass('sc_msg_head');
-
-                let the_search_result_div_clone_msg_body = the_search_result_div_clone.find('.sc_msg_body');
-                if (!the_search_result_div_clone_msg_body.is(":visible")) {
-                    the_search_result_div_clone.css('border-radius', '8px 8px 6px 6px');
-                    the_search_result_div_clone_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
-                    the_search_result_div_clone_msg_body.show();
-                    the_search_result_div_clone.find('.sc_value_font span').css('color', '#000');
-                    the_search_result_div_clone.attr('data-fold', '0');
-                }
-
-                the_search_result_div_clone.removeClass();
-
-                $(document).find('.sc_live_search_result_div').html(the_search_result_div_clone);
-            } else {
-                $(document).find('.sc_live_search_result_div').html('');
-            }
+            sc_live_search_confirm_prev();
         });
 
         $(document).on('click', '#sc_live_search_next_btn', function() {
-            let the_search_user_name = $(document).find('#sc_live_search_user_name').val();
-            let the_search_content = $(document).find('#sc_live_search_content').val();
-            let the_search_time = $(document).find('#sc_live_search_time').val();
-
-            let the_search_result_div = custom_search_sc_div(the_search_user_name, the_search_content, the_search_time, '.sc_long_item', 1);
-
-            if (the_search_result_div) {
-                the_search_result_div.scrollIntoView({block: 'center' });
-
-                let the_search_result_div_clone = $(the_search_result_div).clone();
-                let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
-                if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
-                    the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
-                }
-                if (the_copy_sc_panel_side_fold_flag) {
-                    sc_side_fold_out_one(the_search_result_div_clone);
-                }
-
-                the_search_result_div_clone.css('width', '100%');
-                the_search_result_div_clone.css('height', 'auto');
-                the_search_result_div_clone.css('animation', 'unset');
-                the_search_result_div_clone.show();
-                the_search_result_div_clone.find('.sc_font_color').css('color', '#000000');
-                the_search_result_div_clone.find('.sc_start_time').show();
-                the_search_result_div_clone.find('.sc_msg_head_left').css('text-align', 'left');
-                the_search_result_div_clone.find('.sc_msg_head').removeClass('sc_msg_head');
-
-                let the_search_result_div_clone_msg_body = the_search_result_div_clone.find('.sc_msg_body');
-                if (!the_search_result_div_clone_msg_body.is(":visible")) {
-                    the_search_result_div_clone.css('border-radius', '8px 8px 6px 6px');
-                    the_search_result_div_clone_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
-                    the_search_result_div_clone_msg_body.show();
-                    the_search_result_div_clone.find('.sc_value_font span').css('color', '#000');
-                    the_search_result_div_clone.attr('data-fold', '0');
-                }
-
-                the_search_result_div_clone.removeClass();
-
-                $(document).find('.sc_live_search_result_div').html(the_search_result_div_clone);
-            } else {
-                $(document).find('.sc_live_search_result_div').html('');
-            }
+            sc_live_search_confirm_next();
         });
 
         $(document).on('click', '#sc_live_search_prev_btn_fullscreen', function() {
-            let the_search_user_name = $(document).find('#sc_live_search_user_name_fullscreen').val();
-            let the_search_content = $(document).find('#sc_live_search_content_fullscreen').val();
-            let the_search_time = $(document).find('#sc_live_search_time_fullscreen').val();
-
-            let the_search_result_div = custom_search_sc_div(the_search_user_name, the_search_content, the_search_time, '#live-player .sc_long_item', 0);
-            if (the_search_result_div) {
-                the_search_result_div.scrollIntoView({block: 'center' });
-
-                let the_search_result_div_clone = $(the_search_result_div).clone();
-                let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
-                if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
-                    the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
-                }
-                if (the_copy_sc_panel_side_fold_flag) {
-                    sc_side_fold_out_one(the_search_result_div_clone);
-                }
-
-                the_search_result_div_clone.css('width', '100%');
-                the_search_result_div_clone.css('height', 'auto');
-                the_search_result_div_clone.css('animation', 'unset');
-                the_search_result_div_clone.show();
-                the_search_result_div_clone.find('.sc_font_color').css('color', '#000000');
-                the_search_result_div_clone.find('.sc_start_time').show();
-                the_search_result_div_clone.find('.sc_msg_head_left').css('text-align', 'left');
-                the_search_result_div_clone.find('.sc_msg_head').removeClass('sc_msg_head');
-
-                let the_search_result_div_clone_msg_body = the_search_result_div_clone.find('.sc_msg_body');
-                if (!the_search_result_div_clone_msg_body.is(":visible")) {
-                    the_search_result_div_clone.css('border-radius', '8px 8px 6px 6px');
-                    the_search_result_div_clone_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
-                    the_search_result_div_clone_msg_body.show();
-                    the_search_result_div_clone.find('.sc_value_font span').css('color', '#000');
-                    the_search_result_div_clone.attr('data-fold', '0');
-                }
-
-                the_search_result_div_clone.removeClass();
-
-                $(document).find('.sc_live_search_result_div_fullscreen').html(the_search_result_div_clone);
-            } else {
-                $(document).find('.sc_live_search_result_div_fullscreen').html('');
-            }
+            sc_live_search_confirm_prev();
         });
 
         $(document).on('click', '#sc_live_search_next_btn_fullscreen', function() {
-            let the_search_user_name = $(document).find('#sc_live_search_user_name_fullscreen').val();
-            let the_search_content = $(document).find('#sc_live_search_content_fullscreen').val();
-            let the_search_time = $(document).find('#sc_live_search_time_fullscreen').val();
-
-            let the_search_result_div = custom_search_sc_div(the_search_user_name, the_search_content, the_search_time, '#live-player .sc_long_item', 1);
-            if (the_search_result_div) {
-                the_search_result_div.scrollIntoView({block: 'center' });
-
-                let the_search_result_div_clone = $(the_search_result_div).clone();
-                let the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
-                if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
-                    the_copy_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
-                }
-                if (the_copy_sc_panel_side_fold_flag) {
-                    sc_side_fold_out_one(the_search_result_div_clone);
-                }
-
-                the_search_result_div_clone.css('width', '100%');
-                the_search_result_div_clone.css('height', 'auto');
-                the_search_result_div_clone.css('animation', 'unset');
-                the_search_result_div_clone.show();
-                the_search_result_div_clone.find('.sc_font_color').css('color', '#000000');
-                the_search_result_div_clone.find('.sc_start_time').show();
-                the_search_result_div_clone.find('.sc_msg_head_left').css('text-align', 'left');
-                the_search_result_div_clone.find('.sc_msg_head').removeClass('sc_msg_head');
-
-                let the_search_result_div_clone_msg_body = the_search_result_div_clone.find('.sc_msg_body');
-                if (!the_search_result_div_clone_msg_body.is(":visible")) {
-                    the_search_result_div_clone.css('border-radius', '8px 8px 6px 6px');
-                    the_search_result_div_clone_msg_body.prev().css('border-radius', '6px 6px 0px 0px');
-                    the_search_result_div_clone_msg_body.show();
-                    the_search_result_div_clone.find('.sc_value_font span').css('color', '#000');
-                    the_search_result_div_clone.attr('data-fold', '0');
-                }
-
-                the_search_result_div_clone.removeClass();
-
-                $(document).find('.sc_live_search_result_div_fullscreen').html(the_search_result_div_clone);
-            } else {
-                $(document).find('.sc_live_search_result_div_fullscreen').html('');
-            }
+            sc_live_search_confirm_next();
         });
 
 
@@ -8332,9 +8437,6 @@
             let the_sc_live_search_modal_div = $(document).find('#' + sc_live_search_config_div_id);
             the_sc_live_search_modal_div.show();
 
-            sc_list_search_result_time = 0;
-            sc_list_search_str = '';
-
             $(this).parent().fadeOut(function() {
                 open_and_close_sc_modal('✓', '#A7C9D3', e);
             });
@@ -8639,6 +8741,7 @@
             let sc_live_other_config_radio_option_name = 'sc_live_other_option';
             let sc_live_other_auto_hide_config_checkbox_id = 'sc_live_other_fullscreen_auto_hide_list';
             let sc_live_other_start_time_simple_flag_checkbox_id = 'sc_live_other_start_time_simple_flag';
+            let sc_live_other_search_shortkey_flag_checkbox_id = 'sc_live_other_search_shortkey_flag';
             if (sc_isFullscreen) {
                 sc_live_other_config_div_id = 'sc_live_other_config_div_fullscreen';
                 the_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag_fullscreen;
@@ -8646,6 +8749,7 @@
                 sc_live_other_config_radio_option_name = 'sc_live_other_option_fullscreen';
                 sc_live_other_auto_hide_config_checkbox_id = 'sc_live_other_fullscreen_auto_hide_list_fullscreen';
                 sc_live_other_start_time_simple_flag_checkbox_id = 'sc_live_other_start_time_simple_flag_fullscreen';
+                sc_live_other_search_shortkey_flag_checkbox_id = 'sc_live_other_search_shortkey_flag_fullscreen';
             }
             $(document).find('#' + sc_live_other_config_div_id).show();
 
@@ -8663,6 +8767,12 @@
             $(document).find('#sc_live_other_start_time_simple_flag_fullscreen').prop('checked', false);
             if (sc_start_time_simple_flag) {
                 $(document).find('#' + sc_live_other_start_time_simple_flag_checkbox_id).prop('checked', true);
+            }
+
+            $(document).find('#sc_live_other_search_shortkey_flag').prop('checked', false);
+            $(document).find('#sc_live_other_search_shortkey_flag_fullscreen').prop('checked', false);
+            if (sc_list_search_shortkey_flag) {
+                $(document).find('#' + sc_live_other_search_shortkey_flag_checkbox_id).prop('checked', true);
             }
 
             $(this).parent().fadeOut();
@@ -8867,9 +8977,6 @@
             let the_sc_live_search_modal_div = $(document).find('#' + sc_live_search_config_div_id);
             the_sc_live_search_modal_div.show();
 
-            sc_list_search_result_time = 0;
-            sc_list_search_str = '';
-
             let current_sc_div = $(sc_copy_context_menu).data('current_sc_div');
             let the_current_user_name = $(current_sc_div).find('.sc_font_color').text();
             the_sc_live_search_modal_div.find('.sc_live_search_user_name_input').val(the_current_user_name);
@@ -9053,10 +9160,64 @@
         check_and_clear_all_sc_store();
         sc_fetch_and_show();
 
+        // 分辨率变化相关
         if (!sc_screen_resolution_change_flag && (!sc_panel_drag_left_percent || !sc_panel_drag_top_percent || !sc_panel_drag_left_fullscreen_percent || !sc_panel_drag_top_fullscreen_percent)) {
             sc_panel_drag_store(sc_panel_drag_left, sc_panel_drag_top);
         }
 
+        let sc_window_resizeTimeout;
+
+        unsafeWindow.addEventListener('resize', () => {
+
+            clearTimeout(sc_window_resizeTimeout);
+
+            // 设置一个延迟来获取最新的 screen.width 或者 screen.height
+            sc_window_resizeTimeout = setTimeout(() => {
+
+                sc_screen_resolution_change_check();
+
+                if (sc_screen_resolution_change_flag) {
+
+                    if (sc_panel_drag_left_percent) { sc_panel_drag_left = unsafeWindow.screen.width * parseFloat(sc_panel_drag_left_percent); }
+                    if (sc_panel_drag_top_percent) { sc_panel_drag_top = unsafeWindow.screen.height * parseFloat(sc_panel_drag_top_percent); }
+                    if (sc_panel_drag_left_fullscreen_percent) { sc_panel_drag_left_fullscreen = unsafeWindow.screen.width * parseFloat(sc_panel_drag_left_fullscreen_percent); }
+                    if (sc_panel_drag_top_fullscreen_percent) { sc_panel_drag_top_fullscreen = unsafeWindow.screen.height * parseFloat(sc_panel_drag_top_fullscreen_percent); }
+
+                    let the_resize_sc_panel_left = sc_panel_drag_left;
+                    let the_resize_sc_panel_top = sc_panel_drag_top;
+                    if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                        the_resize_sc_panel_left = sc_panel_drag_left_fullscreen;
+                        the_resize_sc_panel_top = sc_panel_drag_top_fullscreen;
+                    }
+
+                    let sc_circles = $(document).find('.sc_long_circle');
+                    let sc_rectangles = $(document).find('.sc_long_rectangle');
+
+                    sc_circles.each(function() {
+                        if (the_resize_sc_panel_left >= 0) {
+                            $(this).css('left', the_resize_sc_panel_left + 'px');
+                        }
+
+                        if (the_resize_sc_panel_top >= 0) {
+                            $(this).css('top', the_resize_sc_panel_top + 'px');
+                        }
+                    });
+
+                    sc_rectangles.each(function() {
+                        if (the_resize_sc_panel_left >= 0) {
+                            $(this).css('left', the_resize_sc_panel_left + 'px');
+                        }
+
+                        if (the_resize_sc_panel_top >= 0) {
+                            $(this).css('top', the_resize_sc_panel_top + 'px');
+                        }
+                    });
+
+                    sc_panel_drag_store(sc_panel_drag_left, sc_panel_drag_top);
+                }
+            }, 300);
+
+        });
     }
 
     sc_process_start();

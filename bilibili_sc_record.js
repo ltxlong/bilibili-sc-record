@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      11.3.1
+// @version      12.0.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -111,6 +111,9 @@
     let sc_date_num_nesting_judge_n = 0;
 
     let sc_room_blacklist_flag = false;
+
+    let sc_follow_api = 'https://api.bilibili.com/x/relation?fid=';
+    let sc_live_room_up_uid = 0; // 主播的uid，查询关注关系用
 
     // 0-侧折模式下显示所有的按钮
     // 1-侧折模式下隐藏所有的按钮
@@ -241,22 +244,34 @@
 
     let sc_list_search_div_bg_opacity_range = 90; // 搜索弹窗的透明度0~100
 
+    // 自动天选的变量
+    let sc_live_auto_tianxuan_flag = false; // 开启自动点击天选（当前直播间，并且已经关注主播）, 默认关闭
+
+    // 跟风发送combo弹幕的变量
+    let sc_last_dm_combo_id = 0; // 上一次combo的id
+    let sc_last_dm_combo_content = ''; // 上一次combo的弹幕
+    let sc_last_dm_combo_send_time = 0; // 上一次发送combo弹幕的时间戳
+    let sc_live_send_dm_combo_flag = false; // 开启跟风发送combo弹幕（当前直播间，并且已经关注主播），默认关闭
+
     function sc_screen_resolution_change_check() {
+        let the_sc_screen_resolution_change_flag = sc_screen_resolution_change_flag;
         let live_sc_screen_resolution_str = unsafeWindow.localStorage.getItem('live_sc_screen_resolution_str');
         let the_now_screen_resolution_str = unsafeWindow.screen.width + '_' + unsafeWindow.screen.height;
         if (live_sc_screen_resolution_str !== null && live_sc_screen_resolution_str !== 'null' && live_sc_screen_resolution_str !== '') {
 
-            sc_screen_resolution_change_flag = the_now_screen_resolution_str !== live_sc_screen_resolution_str;
+            the_sc_screen_resolution_change_flag = the_now_screen_resolution_str !== live_sc_screen_resolution_str;
 
-            if (sc_screen_resolution_change_flag) {
+            if (the_sc_screen_resolution_change_flag) {
                 unsafeWindow.localStorage.setItem('live_sc_screen_resolution_str', the_now_screen_resolution_str);
             }
         } else {
             unsafeWindow.localStorage.setItem('live_sc_screen_resolution_str', the_now_screen_resolution_str);
         }
+
+        return the_sc_screen_resolution_change_flag;
     }
 
-    sc_screen_resolution_change_check();
+    sc_screen_resolution_change_flag = sc_screen_resolution_change_check();
 
     function sc_live_special_tip_str_to_arr() {
         let sc_special_tip_arr = [];
@@ -386,14 +401,14 @@
         sc_live_panel_show_time_click_stop_flag = sc_all_memory_config['sc_live_panel_show_time_click_stop_flag'] ?? false;
         sc_list_search_shortkey_flag = sc_all_memory_config['sc_list_search_shortkey_flag'] ?? true;
         sc_list_search_div_bg_opacity_range = sc_all_memory_config['sc_list_search_div_bg_opacity_range'] ?? 90;
+        sc_live_auto_tianxuan_flag = sc_all_memory_config['sc_live_auto_tianxuan_flag'] ?? false;
+        sc_live_send_dm_combo_flag = sc_all_memory_config['sc_live_send_dm_combo_flag'] ?? false;
 
         sc_panel_drag_left_percent = sc_all_memory_config['sc_panel_drag_left_percent'] ?? 0;
         sc_panel_drag_top_percent = sc_all_memory_config['sc_panel_drag_top_percent'] ?? 0;
 
-        if (sc_screen_resolution_change_flag) {
-            if (sc_panel_drag_left_percent) { sc_panel_drag_left = unsafeWindow.screen.width * parseFloat(sc_panel_drag_left_percent); }
-            if (sc_panel_drag_top_percent) { sc_panel_drag_top = unsafeWindow.screen.height * parseFloat(sc_panel_drag_top_percent); }
-        }
+        if (sc_panel_drag_left_percent) { sc_panel_drag_left = unsafeWindow.top.document.documentElement.clientWidth * parseFloat(sc_panel_drag_left_percent); }
+        if (sc_panel_drag_top_percent) { sc_panel_drag_top = unsafeWindow.top.document.documentElement.clientHeight * parseFloat(sc_panel_drag_top_percent); }
 
         sc_config_get_live_special_tip_location();
         sc_config_get_live_special_tip_str();
@@ -436,10 +451,8 @@
         sc_panel_drag_left_fullscreen_percent = sc_all_memory_config['sc_panel_drag_left_fullscreen_percent'] ?? 0;
         sc_panel_drag_top_fullscreen_percent = sc_all_memory_config['sc_panel_drag_top_fullscreen_percent'] ?? 0;
 
-        if (sc_screen_resolution_change_flag) {
-            if (sc_panel_drag_left_fullscreen_percent) { sc_panel_drag_left_fullscreen = unsafeWindow.screen.width * parseFloat(sc_panel_drag_left_fullscreen_percent); }
-            if (sc_panel_drag_top_fullscreen_percent) { sc_panel_drag_top_fullscreen = unsafeWindow.screen.height * parseFloat(sc_panel_drag_top_fullscreen_percent); }
-        }
+        if (sc_panel_drag_left_fullscreen_percent) { sc_panel_drag_left_fullscreen = unsafeWindow.top.document.documentElement.clientWidth * parseFloat(sc_panel_drag_left_fullscreen_percent); }
+        if (sc_panel_drag_top_fullscreen_percent) { sc_panel_drag_top_fullscreen = unsafeWindow.top.document.documentElement.clientHeight * parseFloat(sc_panel_drag_top_fullscreen_percent); }
 
         if (sc_panel_fold_mode_fullscreen === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left_fullscreen) < 72) {
             sc_panel_drag_left_fullscreen = unsafeWindow.innerWidth - 72;
@@ -486,14 +499,14 @@
         sc_live_panel_show_time_click_stop_flag = sc_self_memory_config['sc_live_panel_show_time_click_stop_flag'] ?? false;
         sc_list_search_shortkey_flag = sc_self_memory_config['sc_list_search_shortkey_flag'] ?? true;
         sc_list_search_div_bg_opacity_range = sc_self_memory_config['sc_list_search_div_bg_opacity_range'] ?? 90;
+        sc_live_auto_tianxuan_flag = sc_self_memory_config['sc_live_auto_tianxuan_flag'] ?? false;
+        sc_live_send_dm_combo_flag = sc_self_memory_config['sc_live_send_dm_combo_flag'] ?? false;
 
         sc_panel_drag_left_percent = sc_self_memory_config['sc_panel_drag_left_percent'] ?? 0;
         sc_panel_drag_top_percent = sc_self_memory_config['sc_panel_drag_top_percent'] ?? 0;
 
-        if (sc_screen_resolution_change_flag) {
-            if (sc_panel_drag_left_percent) { sc_panel_drag_left = unsafeWindow.screen.width * parseFloat(sc_panel_drag_left_percent); }
-            if (sc_panel_drag_top_percent) { sc_panel_drag_top = unsafeWindow.screen.height * parseFloat(sc_panel_drag_top_percent); }
-        }
+        if (sc_panel_drag_left_percent) { sc_panel_drag_left = unsafeWindow.top.document.documentElement.clientWidth * parseFloat(sc_panel_drag_left_percent); }
+        if (sc_panel_drag_top_percent) { sc_panel_drag_top = unsafeWindow.top.document.documentElement.clientHeight * parseFloat(sc_panel_drag_top_percent); }
 
         sc_config_get_live_special_tip_location();
         sc_config_get_live_special_tip_str();
@@ -538,10 +551,8 @@
         sc_panel_drag_left_fullscreen_percent = sc_self_memory_config['sc_panel_drag_left_fullscreen_percent'] ?? 0;
         sc_panel_drag_top_fullscreen_percent = sc_self_memory_config['sc_panel_drag_top_fullscreen_percent'] ?? 0;
 
-        if (sc_screen_resolution_change_flag) {
-            if (sc_panel_drag_left_fullscreen_percent) { sc_panel_drag_left_fullscreen = unsafeWindow.screen.width * parseFloat(sc_panel_drag_left_fullscreen_percent); }
-            if (sc_panel_drag_top_fullscreen_percent) { sc_panel_drag_top_fullscreen = unsafeWindow.screen.height * parseFloat(sc_panel_drag_top_fullscreen_percent); }
-        }
+        if (sc_panel_drag_left_fullscreen_percent) { sc_panel_drag_left_fullscreen = unsafeWindow.top.document.documentElement.clientWidth * parseFloat(sc_panel_drag_left_fullscreen_percent); }
+        if (sc_panel_drag_top_fullscreen_percent) { sc_panel_drag_top_fullscreen = unsafeWindow.top.document.documentElement.clientHeight * parseFloat(sc_panel_drag_top_fullscreen_percent); }
 
         if (sc_panel_fold_mode_fullscreen === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left_fullscreen) < 72) {
             sc_panel_drag_left_fullscreen = unsafeWindow.innerWidth - 72;
@@ -1074,11 +1085,16 @@
             sc_copy_modal.style.borderRadius = '50%';
             sc_copy_modal.style.left = e.clientX + 10 + 'px';
             sc_copy_modal.style.top = e.clientY - 10 + 'px';
-        } else {
+        } else if(mode === 1) {
             sc_copy_modal.style.borderRadius = '10px';
             sc_copy_modal.style.padding = '10px';
             sc_copy_modal.style.left = e.target.getBoundingClientRect().left + 10 + 'px';
             sc_copy_modal.style.top = e.target.getBoundingClientRect().top - 30 + 'px';
+        } else {
+            sc_copy_modal.style.borderRadius = '10px';
+            sc_copy_modal.style.padding = '10px';
+            sc_copy_modal.style.left = unsafeWindow.innerWidth / 2 + 'px';
+            sc_copy_modal.style.top = unsafeWindow.innerHeight / 2 + 'px';
         }
 
         if (sc_isFullscreen) {
@@ -1550,49 +1566,49 @@
                 sc_memory_config['sc_panel_drag_top_fullscreen'] = config_item_val[1] ?? -1;
 
                 if (config_item_val[0] >= 0) {
-                    sc_memory_config['sc_panel_drag_left_fullscreen_percent'] = (config_item_val[0] / unsafeWindow.screen.width).toFixed(5);
+                    sc_panel_drag_left_fullscreen_percent = (config_item_val[0] / unsafeWindow.top.document.documentElement.clientWidth).toFixed(7);
+                    sc_memory_config['sc_panel_drag_left_fullscreen_percent'] = sc_panel_drag_left_fullscreen_percent;
                 }
                 if (config_item_val[1] >= 0) {
-                    sc_memory_config['sc_panel_drag_top_fullscreen_percent'] = (config_item_val[1] / unsafeWindow.screen.height).toFixed(5);
+                    sc_panel_drag_top_fullscreen_percent = (config_item_val[1] / unsafeWindow.top.document.documentElement.clientHeight).toFixed(7);
+                    sc_memory_config['sc_panel_drag_top_fullscreen_percent'] = sc_panel_drag_top_fullscreen_percent;
                 }
             } else {
                 sc_memory_config['sc_panel_drag_left'] = config_item_val[0] ?? -1;
                 sc_memory_config['sc_panel_drag_top'] = config_item_val[1] ?? -1;
 
                 if (config_item_val[0] >= 0) {
-                    sc_memory_config['sc_panel_drag_left_percent'] = (config_item_val[0] / unsafeWindow.screen.width).toFixed(5);
+                    sc_panel_drag_left_percent = (config_item_val[0] / unsafeWindow.top.document.documentElement.clientWidth).toFixed(7);
+                    sc_memory_config['sc_panel_drag_left_percent'] = sc_panel_drag_left_percent;
                 }
                 if (config_item_val[1] >= 0) {
-                    sc_memory_config['sc_panel_drag_top_percent'] = (config_item_val[1] / unsafeWindow.screen.height).toFixed(5);
+                    sc_panel_drag_top_percent = (config_item_val[1] / unsafeWindow.top.document.documentElement.clientHeight).toFixed(7);
+                    sc_memory_config['sc_panel_drag_top_percent'] = sc_panel_drag_top_percent;
                 }
 
-                if (!sc_screen_resolution_change_flag) {
-                    if (!sc_panel_drag_left_fullscreen_percent && sc_panel_drag_left_fullscreen >= 0) {
-                        sc_memory_config['sc_panel_drag_left_fullscreen_percent'] = (sc_panel_drag_left_fullscreen / unsafeWindow.screen.width).toFixed(5);
-                    }
-                    if (!sc_panel_drag_top_fullscreen_percent && sc_panel_drag_top_fullscreen >= 0) {
-                        sc_memory_config['sc_panel_drag_top_fullscreen_percent'] = (sc_panel_drag_top_fullscreen / unsafeWindow.screen.height).toFixed(5);
-                    }
-                }
             }
         } else {
             sc_memory_config[config_item_name] = config_item_val;
 
             // drag 分辨率适配相关
             if (config_item_name === 'sc_panel_drag_left' && config_item_val >= 0) {
-                sc_memory_config['sc_panel_drag_left_percent'] = (config_item_val / unsafeWindow.screen.width).toFixed(5);
+                sc_panel_drag_left_percent = (config_item_val / unsafeWindow.top.document.documentElement.clientWidth).toFixed(7);
+                sc_memory_config['sc_panel_drag_left_percent'] = sc_panel_drag_left_percent;
             }
 
             if (config_item_name === 'sc_panel_drag_left_fullscreen' && config_item_val >= 0) {
-                sc_memory_config['sc_panel_drag_left_fullscreen_percent'] = (config_item_val / unsafeWindow.screen.width).toFixed(5);
+                sc_panel_drag_left_fullscreen_percent = (config_item_val / unsafeWindow.top.document.documentElement.clientWidth).toFixed(7);
+                sc_memory_config['sc_panel_drag_left_fullscreen_percent'] = sc_panel_drag_left_fullscreen_percent;
             }
 
             if (config_item_name === 'sc_panel_drag_top' && config_item_val >= 0) {
-                sc_memory_config['sc_panel_drag_top_percent'] = (config_item_val / unsafeWindow.screen.height).toFixed(5);
+                sc_panel_drag_top_percent = (config_item_val / unsafeWindow.top.document.documentElement.clientHeight).toFixed(7);
+                sc_memory_config['sc_panel_drag_top_percent'] = sc_panel_drag_top_percent;
             }
 
             if (config_item_name === 'sc_panel_drag_top_fullscreen' && config_item_val >= 0) {
-                sc_memory_config['sc_panel_drag_top_fullscreen_percent'] = (config_item_val / unsafeWindow.screen.height).toFixed(5);
+                sc_panel_drag_top_fullscreen_percent = (config_item_val / unsafeWindow.top.document.documentElement.clientHeight).toFixed(7);
+                sc_memory_config['sc_panel_drag_top_fullscreen_percent'] = sc_panel_drag_top_fullscreen_percent;
             }
         }
 
@@ -1869,6 +1885,26 @@
         }
     }
 
+    function sc_live_auto_tianxuan_flag_config_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_live_auto_tianxuan_flag', sc_live_auto_tianxuan_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_live_auto_tianxuan_flag', sc_live_auto_tianxuan_flag, 'all');
+        }
+    }
+
+    function sc_live_send_dm_combo_flag_config_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_live_send_dm_combo_flag', sc_live_send_dm_combo_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_live_send_dm_combo_flag', sc_live_send_dm_combo_flag, 'all');
+        }
+    }
+
     // SC搜索上一个
     function sc_live_search_confirm_prev() {
         let the_fullscreen_str = '';
@@ -2017,7 +2053,12 @@
                 sc_live_search_config_div_id = 'sc_live_search_config_div_fullscreen';
             }
             let the_sc_live_search_modal_div = $(document).find('#' + sc_live_search_config_div_id);
-            the_sc_live_search_modal_div.show();
+            if (the_sc_live_search_modal_div.is(':visible')) {
+                the_sc_live_search_modal_div.hide();
+            } else {
+                the_sc_live_search_modal_div.show();
+            }
+
         } else if (e.ctrlKey && e.key === 'ArrowLeft') {
             e.preventDefault();
 
@@ -2883,6 +2924,8 @@
             sc_live_panel_show_time_click_stop_flag_config_store();
             sc_search_shortkey_flag_config_store();
             sc_search_div_bg_opacity_range_config_store();
+            sc_live_auto_tianxuan_flag_config_store();
+            sc_live_send_dm_combo_flag_config_store();
 
             const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
             if (rect_circle.width === 0 && rect_circle.height === 0) {
@@ -2917,6 +2960,8 @@
             sc_live_panel_show_time_click_stop_flag_config_store();
             sc_search_shortkey_flag_config_store();
             sc_search_div_bg_opacity_range_config_store();
+            sc_live_auto_tianxuan_flag_config_store();
+            sc_live_send_dm_combo_flag_config_store();
 
             const rect_circle = $(document).find('.sc_long_circle')[0].getBoundingClientRect();
             if (rect_circle.width === 0 && rect_circle.height === 0) {
@@ -3215,6 +3260,82 @@
                     if (sc_data_guard_count !== parseInt(ugc_guard_n, 10)) {
                         ugc_rank_list_ctnr_box_li.last().text('大航海('+ sc_data_guard_count +')');
                     }
+                }
+            }
+        }
+    }
+
+    // 返回true-已关注，false-未关注。需要.then()链式调用获取结果
+    function sc_get_follow_up_flag() {
+        return fetch(sc_follow_api + sc_live_room_up_uid, {
+            "credentials": "include"
+        }).then(response => {
+            return response.json();
+        }).then(ret => {
+            if (ret.code === 0 && ret.data.attribute !== 0 && ret.data.attribute !== 128) {
+                return true;
+            } else {
+                return false;
+            }
+        }).catch(error => {
+            return false;
+        });
+    }
+
+    // 自动天选
+    function handle_auto_tianxuan(the_sc_follow_up_flag) {
+        setTimeout(() => {
+            let the_anchor_box_iframe_obj = $('#anchor-guest-box-id iframe').contents();
+            let the_click_btn = the_anchor_box_iframe_obj.find('#app .participation-box .particitation-btn img.btn-name');
+            let the_close_btn = the_anchor_box_iframe_obj.find('#app .participation-box .close-btn');
+
+            let sc_anchor_auto_joinTimeout;
+            let sc_anchor_auto_closeTimeout;
+
+            if (the_sc_follow_up_flag && the_click_btn.length) {
+
+                clearTimeout(sc_anchor_auto_joinTimeout);
+                clearTimeout(sc_anchor_auto_closeTimeout);
+
+                // 延时2s后
+                sc_anchor_auto_joinTimeout = setTimeout(() => {
+                    the_click_btn.trigger('click');
+
+                    open_and_close_sc_modal('成功自动点击天选 ✓', '#A7C9D3', null, 3);
+
+                }, 2000);
+
+                // 延时2s后
+                sc_anchor_auto_closeTimeout = setTimeout(() => {
+                    the_close_btn.trigger('click');
+                }, 2000);
+            }
+        }, 1000); // 等渲染完成
+    }
+
+    let sc_dm_combo_sleep_check_timeout;
+
+    function handle_auto_dm_combo(parsedArr_data) {
+
+        if (parsedArr_data.data.includes('他们都在说')) {
+            let the_combo_txt = $('#combo-card .combo-txt .txt').text();
+
+            if (the_combo_txt === '') {
+
+                sc_last_dm_combo_id = 0;
+
+            } else {
+
+                let the_dm_combo_now_time = (new Date()).getTime();
+                if (the_combo_txt !== sc_last_dm_combo_content || the_dm_combo_now_time - sc_last_dm_combo_send_time >= 60 * 1000) {
+                    sc_last_dm_combo_content = the_combo_txt;
+                    sc_last_dm_combo_send_time = the_dm_combo_now_time;
+
+                    sc_get_follow_up_flag().then(the_sc_follow_up_flag => {
+                        if (the_sc_follow_up_flag) {
+                            $(document).find('#combo-card .action-btn').trigger('click');
+                        }
+                    });
                 }
             }
         }
@@ -3970,6 +4091,8 @@
                 sc_live_room_title = (ret.data?.anchor_info?.base_info?.uname || '') + '_' + (ret.data?.room_info?.title || '');
 
                 sc_catch = ret.data?.super_chat_info?.message_list || [];
+
+                sc_live_room_up_uid = ret.data?.room_info?.uid || 0;
             }
 
             // 追加到localstorage 和 SC显示板
@@ -7414,7 +7537,15 @@
                         </div>
                         <div class="sc_live_other_checkbox_div">
                             <input type="checkbox" id="sc_live_other_search_shortkey_flag" class="sc_live_other_checkbox_inline" checked/>
-                            <label for="sc_live_other_search_shortkey_flag" class="sc_live_other_checkbox_inline">设置SC搜索快捷键[ 开启：ctrl + f ][ 上一个：ctrl + 方向左/上 ][ 下一个：ctrl + 方向右/下 ]</label>
+                            <label for="sc_live_other_search_shortkey_flag" class="sc_live_other_checkbox_inline">设置SC搜索快捷键[ 开启/关闭：ctrl + f ][ 上一个：ctrl + 方向左/上 ][ 下一个：ctrl + 方向右/下 ]</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_auto_tianxuan_flag" class="sc_live_other_checkbox_inline" />
+                            <label for="sc_live_other_auto_tianxuan_flag" class="sc_live_other_checkbox_inline">开启自动点击天选（当前直播间，并且已经关注主播）</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_auto_dm_combo_flag" class="sc_live_other_checkbox_inline" />
+                            <label for="sc_live_other_auto_dm_combo_flag" class="sc_live_other_checkbox_inline">开启跟风发送combo弹幕（当前直播间，并且已经关注主播）</label>
                         </div>
                     </form>
                     <div class="sc_live_other_btn_div">
@@ -7451,7 +7582,15 @@
                         </div>
                         <div class="sc_live_other_checkbox_div">
                             <input type="checkbox" id="sc_live_other_search_shortkey_flag_fullscreen" class="sc_live_other_checkbox_inline" checked/>
-                            <label for="sc_live_other_search_shortkey_flag_fullscreen" class="sc_live_other_checkbox_inline">设置SC搜索快捷键[ 开启：ctrl + f ][ 上一个：ctrl + 方向左/上 ][ 下一个：ctrl + 方向右/下 ]</label>
+                            <label for="sc_live_other_search_shortkey_flag_fullscreen" class="sc_live_other_checkbox_inline">设置SC搜索快捷键[ 开启/关闭：ctrl + f ][ 上一个：ctrl + 方向左/上 ][ 下一个：ctrl + 方向右/下 ]</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_auto_tianxuan_flag_fullscreen" class="sc_live_other_checkbox_inline" />
+                            <label for="sc_live_other_auto_tianxuan_flag_fullscreen" class="sc_live_other_checkbox_inline">开启自动点击天选（当前直播间，并且已经关注主播）</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_auto_dm_combo_flag_fullscreen" class="sc_live_other_checkbox_inline" />
+                            <label for="sc_live_other_auto_dm_combo_flag_fullscreen" class="sc_live_other_checkbox_inline">开启跟风发送combo弹幕（当前直播间，并且已经关注主播）</label>
                         </div>
                     </form>
                     <div class="sc_live_other_btn_div_fullscreen">
@@ -7502,6 +7641,14 @@
 
             sc_search_shortkey_flag_config_apply();
 
+            sc_live_auto_tianxuan_flag = $(document).find('#sc_live_other_auto_tianxuan_flag').is(':checked');
+
+            sc_live_auto_tianxuan_flag_config_store();
+
+            sc_live_send_dm_combo_flag = $(document).find('#sc_live_other_auto_dm_combo_flag').is(':checked');
+
+            sc_live_send_dm_combo_flag_config_store();
+
             sc_live_other_config_data_show_apply();
 
             open_and_close_sc_modal('✓', '#A7C9D3', e);
@@ -7537,6 +7684,14 @@
             sc_search_shortkey_flag_config_store();
 
             sc_search_shortkey_flag_config_apply();
+
+            sc_live_auto_tianxuan_flag = $(document).find('#sc_live_other_auto_tianxuan_flag_fullscreen').is(':checked');
+
+            sc_live_auto_tianxuan_flag_config_store();
+
+            sc_live_send_dm_combo_flag = $(document).find('#sc_live_other_auto_dm_combo_flag_fullscreen').is(':checked');
+
+            sc_live_send_dm_combo_flag_config_store();
 
             sc_live_other_config_data_show_apply();
 
@@ -8744,6 +8899,8 @@
             let sc_live_other_auto_hide_config_checkbox_id = 'sc_live_other_fullscreen_auto_hide_list';
             let sc_live_other_start_time_simple_flag_checkbox_id = 'sc_live_other_start_time_simple_flag';
             let sc_live_other_search_shortkey_flag_checkbox_id = 'sc_live_other_search_shortkey_flag';
+            let sc_live_other_auto_tianxuan_flag_checkbox_id = 'sc_live_other_auto_tianxuan_flag';
+            let sc_live_other_auto_dm_combo_flag_checkbox_id = 'sc_live_other_auto_dm_combo_flag';
             if (sc_isFullscreen) {
                 sc_live_other_config_div_id = 'sc_live_other_config_div_fullscreen';
                 the_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag_fullscreen;
@@ -8752,6 +8909,8 @@
                 sc_live_other_auto_hide_config_checkbox_id = 'sc_live_other_fullscreen_auto_hide_list_fullscreen';
                 sc_live_other_start_time_simple_flag_checkbox_id = 'sc_live_other_start_time_simple_flag_fullscreen';
                 sc_live_other_search_shortkey_flag_checkbox_id = 'sc_live_other_search_shortkey_flag_fullscreen';
+                sc_live_other_auto_tianxuan_flag_checkbox_id = 'sc_live_other_auto_tianxuan_flag_fullscreen';
+                sc_live_other_auto_dm_combo_flag_checkbox_id = 'sc_live_other_auto_dm_combo_flag_fullscreen';
             }
             $(document).find('#' + sc_live_other_config_div_id).show();
 
@@ -8775,6 +8934,18 @@
             $(document).find('#sc_live_other_search_shortkey_flag_fullscreen').prop('checked', false);
             if (sc_list_search_shortkey_flag) {
                 $(document).find('#' + sc_live_other_search_shortkey_flag_checkbox_id).prop('checked', true);
+            }
+
+            $(document).find('#sc_live_other_auto_tianxuan_flag').prop('checked', false);
+            $(document).find('#sc_live_other_auto_tianxuan_flag_fullscreen').prop('checked', false);
+            if (sc_live_auto_tianxuan_flag) {
+                $(document).find('#' + sc_live_other_auto_tianxuan_flag_checkbox_id).prop('checked', true);
+            }
+
+            $(document).find('#sc_live_other_auto_dm_combo_flag').prop('checked', false);
+            $(document).find('#sc_live_other_auto_dm_combo_flag_fullscreen').prop('checked', false);
+            if (sc_live_send_dm_combo_flag) {
+                $(document).find('#' + sc_live_other_auto_dm_combo_flag_checkbox_id).prop('checked', true);
             }
 
             $(this).parent().fadeOut();
@@ -9162,6 +9333,22 @@
         check_and_clear_all_sc_store();
         sc_fetch_and_show();
 
+        if (sc_live_auto_tianxuan_flag) {
+            setTimeout(() => {
+
+                sc_get_follow_up_flag().then(the_sc_follow_up_flag => {
+                    let the_anchor_before_obj = $(document).find('#gift-control-vm .anchor-lottery-entry');
+
+                    if (the_sc_follow_up_flag && the_anchor_before_obj.length) {
+                        the_anchor_before_obj.trigger('click'); // 若已关注，并且已经存在天选，则先触发点击，展开天选弹窗
+
+                        handle_auto_tianxuan(the_sc_follow_up_flag);
+                    }
+                });
+
+            }, 3000); // 等渲染完成
+        }
+
         // 分辨率变化相关
         if (!sc_screen_resolution_change_flag && (!sc_panel_drag_left_percent || !sc_panel_drag_top_percent || !sc_panel_drag_left_fullscreen_percent || !sc_panel_drag_top_fullscreen_percent)) {
             sc_panel_drag_store(sc_panel_drag_left, sc_panel_drag_top);
@@ -9176,14 +9363,14 @@
             // 设置一个延迟来获取最新的 screen.width 或者 screen.height
             sc_window_resizeTimeout = setTimeout(() => {
 
-                sc_screen_resolution_change_check();
+                sc_screen_resolution_change_flag = sc_screen_resolution_change_check();
 
                 if (sc_screen_resolution_change_flag) {
 
-                    if (sc_panel_drag_left_percent) { sc_panel_drag_left = unsafeWindow.screen.width * parseFloat(sc_panel_drag_left_percent); }
-                    if (sc_panel_drag_top_percent) { sc_panel_drag_top = unsafeWindow.screen.height * parseFloat(sc_panel_drag_top_percent); }
-                    if (sc_panel_drag_left_fullscreen_percent) { sc_panel_drag_left_fullscreen = unsafeWindow.screen.width * parseFloat(sc_panel_drag_left_fullscreen_percent); }
-                    if (sc_panel_drag_top_fullscreen_percent) { sc_panel_drag_top_fullscreen = unsafeWindow.screen.height * parseFloat(sc_panel_drag_top_fullscreen_percent); }
+                    if (sc_panel_drag_left_percent) { sc_panel_drag_left = unsafeWindow.top.document.documentElement.clientWidth * parseFloat(sc_panel_drag_left_percent); }
+                    if (sc_panel_drag_top_percent) { sc_panel_drag_top = unsafeWindow.top.document.documentElement.clientHeight * parseFloat(sc_panel_drag_top_percent); }
+                    if (sc_panel_drag_left_fullscreen_percent) { sc_panel_drag_left_fullscreen = unsafeWindow.top.document.documentElement.clientWidth * parseFloat(sc_panel_drag_left_fullscreen_percent); }
+                    if (sc_panel_drag_top_fullscreen_percent) { sc_panel_drag_top_fullscreen = unsafeWindow.top.document.documentElement.clientHeight * parseFloat(sc_panel_drag_top_fullscreen_percent); }
 
                     let the_resize_sc_panel_left = sc_panel_drag_left;
                     let the_resize_sc_panel_top = sc_panel_drag_top;
@@ -9215,8 +9402,8 @@
                         }
                     });
 
-                    sc_panel_drag_store(sc_panel_drag_left, sc_panel_drag_top);
                 }
+
             }, 300);
 
         });
@@ -9259,6 +9446,17 @@
                     } else if (parsedArr.cmd === 'DANMU_MSG') {
                         if (sc_live_special_msg_flag && sc_live_special_tip_uid_arr.length && parsedArr.info) {
                             handle_special_msg(parsedArr.info);
+                        }
+                    } else if (parsedArr.cmd === 'ANCHOR_LOT_START') {
+                        if (sc_live_auto_tianxuan_flag) {
+                            sc_get_follow_up_flag().then(the_sc_follow_up_flag => {
+                                handle_auto_tianxuan(the_sc_follow_up_flag);
+                            });
+                        }
+                    } else if (parsedArr.cmd === 'DM_INTERACTION') {
+                        if (sc_live_send_dm_combo_flag && parsedArr.data.id !== sc_last_dm_combo_id) {
+                            sc_last_dm_combo_id = parsedArr.data.id;
+                            handle_auto_dm_combo(parsedArr.data);
                         }
                     }
                 }
@@ -9314,7 +9512,6 @@
                     clearInterval(rank_list_ctnr_box_interval);
                 }
             });
-
 
         }, 3000);
 

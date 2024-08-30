@@ -120,7 +120,7 @@
     let sc_combo_dm_recent_send_arr = []; // 已经跟风发送的combo弹幕，发送后，30秒剔除
     let sc_auto_dm_send_last_rnd = 0; // 上一次跟风发送combo弹幕的时间s，用于判断至少间隔20秒才再次查询关注
     let sc_last_follow_check_flag = false; // 上一次查询关注结果
-    let sc_combo_dm_send_fail_arr = []; // 发送失败的combo弹幕，用于再次发送判断，发送成功或者30秒剔除
+    let sc_combo_dm_send_fail_arr = []; // 发送失败的combo弹幕，用于再次发送判断，发送成功或者失败后10秒剔除
 
     // 0-侧折模式下显示所有的按钮
     // 1-侧折模式下隐藏所有的按钮

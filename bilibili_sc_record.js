@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      12.0.0
+// @version      12.0.1
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -114,6 +114,13 @@
 
     let sc_follow_api = 'https://api.bilibili.com/x/relation?fid=';
     let sc_live_room_up_uid = 0; // 主播的uid，查询关注关系用
+
+    let sc_dm_send_api = 'https://api.live.bilibili.com/msg/send';
+    let sc_u_frsc = document.cookie.split(';').map(c=>c.trim()).filter(c => c.startsWith('bili_jct='))[0].split('bili_jct=')[1]; // 发送弹幕用
+    let sc_combo_dm_recent_send_arr = []; // 已经跟风发送的combo弹幕，发送后，30秒剔除
+    let sc_auto_dm_send_last_rnd = 0; // 上一次跟风发送combo弹幕的时间s，用于判断至少间隔20秒才再次查询关注
+    let sc_last_follow_check_flag = false; // 上一次查询关注结果
+    let sc_combo_dm_send_fail_arr = []; // 发送失败的combo弹幕，用于再次发送判断，发送成功或者30秒剔除
 
     // 0-侧折模式下显示所有的按钮
     // 1-侧折模式下隐藏所有的按钮
@@ -248,9 +255,6 @@
     let sc_live_auto_tianxuan_flag = false; // 开启自动点击天选（当前直播间，并且已经关注主播）, 默认关闭
 
     // 跟风发送combo弹幕的变量
-    let sc_last_dm_combo_id = 0; // 上一次combo的id
-    let sc_last_dm_combo_content = ''; // 上一次combo的弹幕
-    let sc_last_dm_combo_send_time = 0; // 上一次发送combo弹幕的时间戳
     let sc_live_send_dm_combo_flag = false; // 开启跟风发送combo弹幕（当前直播间，并且已经关注主播），默认关闭
 
     function sc_screen_resolution_change_check() {
@@ -3268,7 +3272,7 @@
     // 返回true-已关注，false-未关注。需要.then()链式调用获取结果
     function sc_get_follow_up_flag() {
         return fetch(sc_follow_api + sc_live_room_up_uid, {
-            "credentials": "include"
+            credentials: 'include'
         }).then(response => {
             return response.json();
         }).then(ret => {
@@ -3313,29 +3317,84 @@
         }, 1000); // 等渲染完成
     }
 
-    let sc_dm_combo_sleep_check_timeout;
+    // 发送弹幕
+    function sc_send_dm_fetch(msg, rnd) {
+        return fetch(sc_dm_send_api, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body: `color=16777215&fontsize=25&mode=1&msg=${msg}&rnd=${rnd}&roomid=${room_id}&csrf=${sc_u_frsc}`
+        }).then(response => {
+            return response.json();
+        }).then(ret => {
+            if (ret.code === 0) {
+                return true;
+            } else {
+                return false;
+            }
+        }).catch(error => {
+            return false;
+        });
+    }
 
-    function handle_auto_dm_combo(parsedArr_data) {
+    function sc_handle_dm_fetch(the_combo_dm_msg, the_time_rnd) {
 
-        if (parsedArr_data.data.includes('他们都在说')) {
-            let the_combo_txt = $('#combo-card .combo-txt .txt').text();
-
-            if (the_combo_txt === '') {
-
-                sc_last_dm_combo_id = 0;
+        sc_send_dm_fetch(the_combo_dm_msg, the_time_rnd).then(the_dm_send_flag => {
+            if (the_dm_send_flag) {
+                // 定时、剔除（相同的combo弹幕相隔30秒）
+                setTimeout(() => {
+                    sc_combo_dm_recent_send_arr = sc_combo_dm_recent_send_arr.filter(dm_item => dm_item !== the_combo_dm_msg);
+                    sc_combo_dm_send_fail_arr = sc_combo_dm_send_fail_arr.filter(dm_item => dm_item !== the_combo_dm_msg);
+                }, 30 * 1000);
 
             } else {
 
-                let the_dm_combo_now_time = (new Date()).getTime();
-                if (the_combo_txt !== sc_last_dm_combo_content || the_dm_combo_now_time - sc_last_dm_combo_send_time >= 60 * 1000) {
-                    sc_last_dm_combo_content = the_combo_txt;
-                    sc_last_dm_combo_send_time = the_dm_combo_now_time;
+                if (sc_combo_dm_send_fail_arr.includes(the_combo_dm_msg)) {
+                    // 连续两次发送失败，10s后再给机会
+                    setTimeout(() => {
+                        sc_combo_dm_recent_send_arr = sc_combo_dm_recent_send_arr.filter(dm_item => dm_item !== the_combo_dm_msg);
+                        sc_combo_dm_send_fail_arr = sc_combo_dm_send_fail_arr.filter(dm_item => dm_item !== the_combo_dm_msg);
+                    }, 10 * 1000);
 
-                    sc_get_follow_up_flag().then(the_sc_follow_up_flag => {
-                        if (the_sc_follow_up_flag) {
-                            $(document).find('#combo-card .action-btn').trigger('click');
-                        }
-                    });
+                } else {
+                    sc_combo_dm_recent_send_arr = sc_combo_dm_recent_send_arr.filter(dm_item => dm_item !== the_combo_dm_msg);
+                    sc_combo_dm_send_fail_arr.push(the_combo_dm_msg);
+                }
+            }
+        });
+    }
+
+    // 自动跟风发送combo弹幕
+    function handle_auto_dm_combo(parsedArr_info) {
+
+        const the_combo_dm_msg = parsedArr_info[1];
+
+        // 因有时候combo弹幕会额外的带 x/×/X数字结尾，故过滤掉
+        if (!/[x×X]\d+$/.test(the_combo_dm_msg)) {
+
+            sc_combo_dm_recent_send_arr.push(the_combo_dm_msg);
+
+            const the_time_rnd = parseInt((new Date).getTime() / 1000);
+
+            // 查询关注至少相隔20s（10s好像太少，30s又太多，那就20s吧）
+            if (the_time_rnd - sc_auto_dm_send_last_rnd > 20) {
+
+                sc_get_follow_up_flag().then(the_sc_follow_up_flag => {
+
+                    sc_auto_dm_send_last_rnd = the_time_rnd;
+                    sc_last_follow_check_flag = the_sc_follow_up_flag;
+
+                    if (the_sc_follow_up_flag) {
+                        sc_handle_dm_fetch(the_combo_dm_msg, the_time_rnd);
+                    }
+                });
+
+            } else {
+
+                if (sc_last_follow_check_flag) {
+                    sc_handle_dm_fetch(the_combo_dm_msg, the_time_rnd);
                 }
             }
         }
@@ -9426,9 +9485,11 @@
                         if (store_flag) {
                             update_sc_item(parsedArr.data);
                         }
+
                         if (sc_live_special_sc_flag && sc_live_special_tip_uid_arr.length) {
                             handle_special_sc(parsedArr.data, false, true);
                         }
+
                         if (sc_live_sc_to_danmu_show_flag) {
                             handle_special_sc(parsedArr.data, true, true);
                         }
@@ -9444,19 +9505,20 @@
                             }
                         }
                     } else if (parsedArr.cmd === 'DANMU_MSG') {
-                        if (sc_live_special_msg_flag && sc_live_special_tip_uid_arr.length && parsedArr.info) {
-                            handle_special_msg(parsedArr.info);
+                        if (parsedArr.info) {
+                            if (sc_live_special_msg_flag && sc_live_special_tip_uid_arr.length) {
+                                handle_special_msg(parsedArr.info);
+                            }
+
+                            if (sc_live_send_dm_combo_flag && parsedArr.info[0][15]['extra'].includes('"hit_combo\":1') && !sc_combo_dm_recent_send_arr.includes(parsedArr.info[1])) {
+                                handle_auto_dm_combo(parsedArr.info);
+                            }
                         }
                     } else if (parsedArr.cmd === 'ANCHOR_LOT_START') {
                         if (sc_live_auto_tianxuan_flag) {
                             sc_get_follow_up_flag().then(the_sc_follow_up_flag => {
                                 handle_auto_tianxuan(the_sc_follow_up_flag);
                             });
-                        }
-                    } else if (parsedArr.cmd === 'DM_INTERACTION') {
-                        if (sc_live_send_dm_combo_flag && parsedArr.data.id !== sc_last_dm_combo_id) {
-                            sc_last_dm_combo_id = parsedArr.data.id;
-                            handle_auto_dm_combo(parsedArr.data);
                         }
                     }
                 }

@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      12.0.2
+// @version      12.0.3
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -4484,6 +4484,12 @@
         sc_listContainer.style.paddingBottom = '0px';
         sc_listContainer.style.paddingRight = '13px';
         sc_listContainer.style.marginRight = '-7px'; // 可能scrollbarGutter不是所有浏览器都支持，加多这个和设置'scroll'兼容下
+        if (navigator.userAgent.indexOf("Firefox") > -1) {
+            // Firefox浏览器兼容美化
+            sc_listContainer.style.marginRight = '-2px';
+            sc_listContainer.style.scrollbarWidth = 'thin';
+            sc_listContainer.style.scrollbarColor = 'rgba(0, 0, 0, 0.3) transparent';
+        }
 
         // Append the container to the rectangle
         sc_rectangleContainer.appendChild(sc_listContainer);

@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      12.0.1
+// @version      12.0.2
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -116,7 +116,7 @@
     let sc_live_room_up_uid = 0; // 主播的uid，查询关注关系用
 
     let sc_dm_send_api = 'https://api.live.bilibili.com/msg/send';
-    let sc_u_frsc = document.cookie.split(';').map(c=>c.trim()).filter(c => c.startsWith('bili_jct='))[0].split('bili_jct=')[1]; // 发送弹幕用
+    let sc_u_frsc = (document.cookie.split(';').map(c=>c.trim()).find(c => c.startsWith('bili_jct=')) || '').split('bili_jct=')[1] || ''; // 发送弹幕用
     let sc_combo_dm_recent_send_arr = []; // 已经跟风发送的combo弹幕，发送后，30秒剔除
     let sc_auto_dm_send_last_rnd = 0; // 上一次跟风发送combo弹幕的时间s，用于判断至少间隔20秒才再次查询关注
     let sc_last_follow_check_flag = false; // 上一次查询关注结果

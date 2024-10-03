@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      12.1.0
+// @version      12.1.1
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -4116,6 +4116,7 @@
 
                     // 不同发送框UI适配
                     let bili_live_send_ui_one_flag = $('#chat-control-panel-vm .bottom-actions .bl-button span').text() === '发送';
+                    console.log(bili_live_send_ui_one_flag)
                     let sc_data_show_bottom_div_width = 'width: 50%;';
                     let sc_data_show_bottom_div_style = '';
                     let sc_data_show_bottom_div_item_width = 'width: 100%; ';
@@ -4125,12 +4126,13 @@
                         sc_data_show_bottom_div_item_width = 'width: 50%; ';
                     }
 
-                    let sc_data_show_bottom_div_color = '#ffffff;' + sc_data_show_bottom_div_style;
+                    let sc_data_show_bottom_div_color = '#ffffff; ' + sc_data_show_bottom_div_style;
+                    console.log(sc_data_show_bottom_div_color)
                     const chat_control_panel_vm_div = $(document).find('#chat-control-panel-vm');
                     if (chat_control_panel_vm_div.length) {
                         const chat_control_panel_vm_div_bg = chat_control_panel_vm_div.css('background-image');
                         if (!chat_control_panel_vm_div_bg || chat_control_panel_vm_div_bg === 'none') {
-                            sc_data_show_bottom_div_color = '#666666;';
+                            sc_data_show_bottom_div_color = '#666666; ' + sc_data_show_bottom_div_style;
                         }
                     }
 

@@ -4116,7 +4116,6 @@
 
                     // 不同发送框UI适配
                     let bili_live_send_ui_one_flag = $('#chat-control-panel-vm .bottom-actions .bl-button span').text() === '发送';
-                    console.log(bili_live_send_ui_one_flag)
                     let sc_data_show_bottom_div_width = 'width: 50%;';
                     let sc_data_show_bottom_div_style = '';
                     let sc_data_show_bottom_div_item_width = 'width: 100%; ';
@@ -4127,7 +4126,6 @@
                     }
 
                     let sc_data_show_bottom_div_color = '#ffffff; ' + sc_data_show_bottom_div_style;
-                    console.log(sc_data_show_bottom_div_color)
                     const chat_control_panel_vm_div = $(document).find('#chat-control-panel-vm');
                     if (chat_control_panel_vm_div.length) {
                         const chat_control_panel_vm_div_bg = chat_control_panel_vm_div.css('background-image');

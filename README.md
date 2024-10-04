@@ -173,7 +173,7 @@ let first_store_sc = sc_store_arr.at(-1); 修改为 let first_store_sc = sc_stor
 
     >SC记录板 [数据模块] 和 [按钮模块] 的右键菜单：诸多隐藏的功能  
     >
-    >SC的右键菜单：将SC生成超清图片  
+    >SC的右键菜单：复制SC内容、将SC生成超清图片、SC快速定位、SC自定义搜索  
 
 <br>  
 

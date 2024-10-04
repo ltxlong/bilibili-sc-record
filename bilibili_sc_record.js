@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      12.1.1
+// @version      12.2.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -86,6 +86,8 @@
     if (!room_id) { sc_catch_log('获取room_id失败，插件已停止正确的SC存储'); }
 
     let sc_url = sc_url_api + room_id; // 请求sc的url（请求是为了获取进入直播间时已经存在的SC）
+
+    let real_room_id = room_id;
 
     let sc_panel_list_height = 400; // 显示面板的最大高度（单位是px，后面会拼接）
     let sc_rectangle_width = 302; // 默认302，右侧合适325/388/428（SC刚刚好在弹幕框内/侧折模式记录板紧贴在弹幕框右侧外/侧折模式记录板紧贴在屏幕右侧）（单位是px，后面会拼接）
@@ -3325,7 +3327,7 @@
             headers: {
                 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
             },
-            body: `color=16777215&fontsize=25&mode=1&msg=${msg}&rnd=${rnd}&roomid=${room_id}&csrf=${sc_u_frsc}`
+            body: `color=16777215&fontsize=25&mode=1&msg=${msg}&rnd=${rnd}&roomid=${real_room_id}&csrf=${sc_u_frsc}`
         }).then(response => {
             return response.json();
         }).then(ret => {
@@ -4122,7 +4124,7 @@
                     if (!bili_live_send_ui_one_flag) {
                         sc_data_show_bottom_div_width = 'width: 100%;';
                         sc_data_show_bottom_div_style = 'margin-top: 3px; display: flex; ';
-                        sc_data_show_bottom_div_item_width = 'width: 50%; ';
+                        sc_data_show_bottom_div_item_width = 'width: 42%; ';
                     }
 
                     let sc_data_show_bottom_div_color = '#ffffff; ' + sc_data_show_bottom_div_style;
@@ -4135,9 +4137,9 @@
                     }
 
                     if (the_urc_sc_data_show_high_energy_num_flag) {
-                        $(document).find('#control-panel-ctnr-box').append('<div style="'+ sc_data_show_bottom_div_width +' position: relative;color: '+ sc_data_show_bottom_div_color +'" id="sc_data_show_bottom_div" title="'+ (high_energy_contribute_num / high_energy_num * 100).toFixed(2) +'%"><div id="sc_data_show_bottom_rank_num" style="'+ sc_data_show_bottom_div_item_width +' margin-bottom: 5px;">高能：'+ high_energy_num +'</div><div id="sc_data_show_bottom_guard_num" style="'+ sc_data_show_bottom_div_item_width +'">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
+                        $(document).find('#control-panel-ctnr-box').append('<div style="'+ sc_data_show_bottom_div_width +' position: relative;color: '+ sc_data_show_bottom_div_color +'" id="sc_data_show_bottom_div" title="'+ (high_energy_contribute_num / high_energy_num * 100).toFixed(2) +'%"><div id="sc_data_show_bottom_rank_num" style="'+ sc_data_show_bottom_div_item_width +' margin-bottom: 5px;">高能：'+ high_energy_num +'</div><div id="sc_data_show_bottom_guard_num" >舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
                     } else {
-                        $(document).find('#control-panel-ctnr-box').append('<div style="'+ sc_data_show_bottom_div_width +' position: relative;color: '+ sc_data_show_bottom_div_color +'" id="sc_data_show_bottom_div" title="'+ (high_energy_contribute_num / high_energy_num * 100).toFixed(2) +'%"><div id="sc_data_show_bottom_rank_num" style="'+ sc_data_show_bottom_div_item_width +' margin-bottom: 5px;">同接：'+ high_energy_contribute_num +'</div><div id="sc_data_show_bottom_guard_num" style="'+ sc_data_show_bottom_div_item_width +'">舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
+                        $(document).find('#control-panel-ctnr-box').append('<div style="'+ sc_data_show_bottom_div_width +' position: relative;color: '+ sc_data_show_bottom_div_color +'" id="sc_data_show_bottom_div" title="'+ (high_energy_contribute_num / high_energy_num * 100).toFixed(2) +'%"><div id="sc_data_show_bottom_rank_num" style="'+ sc_data_show_bottom_div_item_width +' margin-bottom: 5px;">同接：'+ high_energy_contribute_num +'</div><div id="sc_data_show_bottom_guard_num" >舰长：'+ (guard_text.match(/\d+/) ?? 0) +'</div></div>');
                     }
                 }
             }
@@ -4163,6 +4165,8 @@
                 sc_catch = ret.data?.super_chat_info?.message_list || [];
 
                 sc_live_room_up_uid = ret.data?.room_info?.uid || 0;
+
+                real_room_id = ret.data?.room_info?.room_id || room_id;
             }
 
             // 追加到localstorage 和 SC显示板
@@ -9029,51 +9033,57 @@
 
         // 创建一个自定义右键菜单
         let sc_copy_button1 = document.createElement('button');
-        sc_copy_button1.className = 'sc_copy_btn';
-        sc_copy_button1.id = 'sc_copy_has_time_btn';
-        sc_copy_button1.innerHTML = '点击复制为图片(有时间)';
+        sc_copy_button1.className = 'sc_search_btn';
+        sc_copy_button1.id = 'sc_copy_content_btn';
+        sc_copy_button1.innerHTML = '点击复制内容(快速复制)';
         sc_copy_button1.style.marginBottom = '2px';
 
         let sc_copy_button2 = document.createElement('button');
         sc_copy_button2.className = 'sc_copy_btn';
-        sc_copy_button2.id = 'sc_copy_no_time_btn';
-        sc_copy_button2.innerHTML = '点击复制为图片(没时间)';
+        sc_copy_button2.id = 'sc_copy_has_time_btn';
+        sc_copy_button2.innerHTML = '点击复制为图片(有时间)';
         sc_copy_button2.style.marginBottom = '2px';
 
         let sc_copy_button3 = document.createElement('button');
         sc_copy_button3.className = 'sc_copy_btn';
-        sc_copy_button3.id = 'sc_copy_uname_color_btn';
-        sc_copy_button3.innerHTML = '点击复制为图片(名颜色)';
+        sc_copy_button3.id = 'sc_copy_no_time_btn';
+        sc_copy_button3.innerHTML = '点击复制为图片(没时间)';
         sc_copy_button3.style.marginBottom = '2px';
 
         let sc_copy_button4 = document.createElement('button');
-        sc_copy_button4.className = 'sc_search_btn';
-        sc_copy_button4.id = 'sc_pos_to_newest_btn';
-        sc_copy_button4.innerHTML = '到达最新留言(快速定位)';
+        sc_copy_button4.className = 'sc_copy_btn';
+        sc_copy_button4.id = 'sc_copy_uname_color_btn';
+        sc_copy_button4.innerHTML = '点击复制为图片(名颜色)';
         sc_copy_button4.style.marginBottom = '2px';
 
         let sc_copy_button5 = document.createElement('button');
         sc_copy_button5.className = 'sc_search_btn';
-        sc_copy_button5.id = 'sc_pos_first_unfold_btn';
-        sc_copy_button5.innerHTML = '最早未折叠的(快速定位)';
+        sc_copy_button5.id = 'sc_pos_to_newest_btn';
+        sc_copy_button5.innerHTML = '到达最新留言(快速定位)';
         sc_copy_button5.style.marginBottom = '2px';
 
         let sc_copy_button6 = document.createElement('button');
         sc_copy_button6.className = 'sc_search_btn';
-        sc_copy_button6.id = 'sc_pos_last_fold_btn';
-        sc_copy_button6.innerHTML = '最后已折叠的(快速定位)';
+        sc_copy_button6.id = 'sc_pos_first_unfold_btn';
+        sc_copy_button6.innerHTML = '最早未折叠的(快速定位)';
         sc_copy_button6.style.marginBottom = '2px';
 
         let sc_copy_button7 = document.createElement('button');
         sc_copy_button7.className = 'sc_search_btn';
-        sc_copy_button7.id = 'sc_pos_half_hour_ago_btn';
-        sc_copy_button7.innerHTML = '半个小时前的(快速定位)';
+        sc_copy_button7.id = 'sc_pos_last_fold_btn';
+        sc_copy_button7.innerHTML = '最后已折叠的(快速定位)';
         sc_copy_button7.style.marginBottom = '2px';
 
         let sc_copy_button8 = document.createElement('button');
         sc_copy_button8.className = 'sc_search_btn';
-        sc_copy_button8.id = 'sc_pos_more_search_btn';
-        sc_copy_button8.innerHTML = '更多定义搜索(快速定位)';
+        sc_copy_button8.id = 'sc_pos_half_hour_ago_btn';
+        sc_copy_button8.innerHTML = '半个小时前的(快速定位)';
+        sc_copy_button8.style.marginBottom = '2px';
+
+        let sc_copy_button9 = document.createElement('button');
+        sc_copy_button9.className = 'sc_search_btn';
+        sc_copy_button9.id = 'sc_pos_more_search_btn';
+        sc_copy_button9.innerHTML = '更多定义搜索(快速定位)';
 
         let sc_copy_br1 = document.createElement('br');
         let sc_copy_br2 = document.createElement('br');
@@ -9082,6 +9092,7 @@
         let sc_copy_br5 = document.createElement('br');
         let sc_copy_br6 = document.createElement('br');
         let sc_copy_br7 = document.createElement('br');
+        let sc_copy_br8 = document.createElement('br');
 
         let sc_copy_context_menu = document.createElement('div');
         sc_copy_context_menu.id = 'sc_context_menu_copy_body';
@@ -9108,6 +9119,8 @@
         sc_copy_context_menu.appendChild(sc_copy_button7);
         sc_copy_context_menu.appendChild(sc_copy_br7);
         sc_copy_context_menu.appendChild(sc_copy_button8);
+        sc_copy_context_menu.appendChild(sc_copy_br8);
+        sc_copy_context_menu.appendChild(sc_copy_button9);
 
         // 将复制的右键菜单添加到body中
         document.body.appendChild(sc_copy_context_menu);
@@ -9123,6 +9136,22 @@
             }, 200);
 
         })
+
+        $(document).on('click', '#sc_copy_content_btn', function(e) {
+            e = e || unsafeWindow.event;
+            e.preventDefault();
+
+            let current_sc_div = $(sc_copy_context_menu).data('current_sc_div');
+            let the_current_sc_content = $(current_sc_div).find('.sc_msg_body span').text();
+
+            $(this).parent().fadeOut();
+
+            navigator.clipboard.writeText(the_current_sc_content).then(() => {
+                open_and_close_sc_modal('✓ 复制成功', '#A7C9D3', e, 1);
+            }).catch(err => {
+                open_and_close_sc_modal('✗ 复制失败', 'red', e, 1);
+            });
+        });
 
         $(document).on('click', '#sc_pos_to_newest_btn', function(e) {
             e = e || unsafeWindow.event;

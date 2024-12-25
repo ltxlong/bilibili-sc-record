@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      12.2.0
+// @version      12.3.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -104,6 +104,9 @@
     let sc_now_time = (new Date()).getTime();
     let sc_keep_time = unsafeWindow.localStorage.getItem(sc_keep_time_key);
     let sc_keep_time_flag = 0;
+
+    let sc_live_all_font_size_add = 0; // 记录板字体增量
+    let sc_live_font_size_only_message_flag = true; // 是否只调整SC内容字体大小
 
     let high_energy_num = 0; // 高能数
     let high_energy_contribute_num = 0; // 同接数
@@ -401,6 +404,8 @@
         sc_item_order_up_flag = sc_all_memory_config['sc_item_order_up_flag'] ?? false;
         sc_data_show_high_energy_num_flag = sc_all_memory_config['sc_data_show_high_energy_num_flag'] ?? false;
         sc_side_fold_fullscreen_auto_hide_list_flag = sc_all_memory_config['sc_side_fold_fullscreen_auto_hide_list_flag'] ?? false;
+        sc_live_all_font_size_add = sc_all_memory_config['sc_live_all_font_size_add'] ?? 0;
+        sc_live_font_size_only_message_flag = sc_all_memory_config['sc_live_font_size_only_message_flag'] ?? true;
         sc_live_fullscreen_config_separate_memory_flag = sc_all_memory_config['sc_live_fullscreen_config_separate_memory_flag'] ?? false;
         sc_panel_show_time_mode = sc_all_memory_config['sc_panel_show_time_mode'] ?? 0;
         sc_panel_show_time_each_same = sc_all_memory_config['sc_panel_show_time_each_same'] ?? 0.5;
@@ -499,6 +504,8 @@
         sc_item_order_up_flag = sc_self_memory_config['sc_item_order_up_flag'] ?? false;
         sc_data_show_high_energy_num_flag = sc_self_memory_config['sc_data_show_high_energy_num_flag'] ?? false;
         sc_side_fold_fullscreen_auto_hide_list_flag = sc_self_memory_config['sc_side_fold_fullscreen_auto_hide_list_flag'] ?? false;
+        sc_live_all_font_size_add = sc_self_memory_config['sc_live_all_font_size_add'] ?? 0;
+        sc_live_font_size_only_message_flag = sc_self_memory_config['sc_live_font_size_only_message_flag'] ?? true;
         sc_live_fullscreen_config_separate_memory_flag = sc_self_memory_config['sc_live_fullscreen_config_separate_memory_flag'] ?? false;
         sc_panel_show_time_mode = sc_self_memory_config['sc_panel_show_time_mode'] ?? 0;
         sc_panel_show_time_each_same = sc_self_memory_config['sc_panel_show_time_each_same'] ?? 0.5;
@@ -2140,11 +2147,15 @@
             update_sc_memory_config('sc_data_show_high_energy_num_flag', sc_data_show_high_energy_num_flag, 'self');
             update_sc_memory_config('sc_data_show_high_energy_num_flag_fullscreen', sc_data_show_high_energy_num_flag_fullscreen, 'self');
             update_sc_memory_config('sc_side_fold_fullscreen_auto_hide_list_flag', sc_side_fold_fullscreen_auto_hide_list_flag, 'self');
+            update_sc_memory_config('sc_live_all_font_size_add', sc_live_all_font_size_add, 'self');
+            update_sc_memory_config('sc_live_font_size_only_message_flag', sc_live_font_size_only_message_flag, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_data_show_high_energy_num_flag', sc_data_show_high_energy_num_flag, 'all');
             update_sc_memory_config('sc_data_show_high_energy_num_flag_fullscreen', sc_data_show_high_energy_num_flag_fullscreen, 'all');
             update_sc_memory_config('sc_side_fold_fullscreen_auto_hide_list_flag', sc_side_fold_fullscreen_auto_hide_list_flag, 'all');
+            update_sc_memory_config('sc_live_all_font_size_add', sc_live_all_font_size_add, 'all');
+            update_sc_memory_config('sc_live_font_size_only_message_flag', sc_live_font_size_only_message_flag, 'all');
         }
     }
 
@@ -3921,20 +3932,29 @@
             sc_item_show_animation = 'animation: sc_fadenum_reverse 1s linear forwards;';
         }
 
+        let sc_item_uname_font_size = 15;
+        let sc_item_msg_body_font_size = 14;
+        if (sc_live_all_font_size_add > 0) {
+            if (!sc_live_font_size_only_message_flag) {
+                sc_item_uname_font_size += sc_live_all_font_size_add;
+            }
+            sc_item_msg_body_font_size += sc_live_all_font_size_add;
+        }
+
         let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" data-start="'+ (sc_start_timestamp * 1000 + sc_last_item_sort)+'" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;'+ sc_item_show_animation + sc_msg_item_style_border_radius + box_shadow_css +'">'+
             '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: contain;background-repeat: no-repeat;background-position: right center;'+ sc_msg_head_style_border_radius +'">'+
             '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
             '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px; padding-top: 2px;'+ sc_msg_head_left_style_display +'">'+
             metal_and_start_time_html+
-            '<div class="sc_uname_div" style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((the_usi_sc_rectangle_width / 2) + 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: 15px;text-decoration: none;" data-color="'+ sc_font_color_data +'">' + sc_user_info_uname + '</span></div>'+
+            '<div class="sc_uname_div" style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((the_usi_sc_rectangle_width / 2) + 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: ' + sc_item_uname_font_size + 'px;text-decoration: none;" data-color="'+ sc_font_color_data +'">' + sc_user_info_uname + '</span></div>'+
             '</div>'+
             '<div class="sc_msg_head_right" style="float: right; box-sizing: border-box; height: 40px; padding: 2px 2px 0px 0px;'+ sc_msg_head_right_style_display +'">'+
             '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right; color: #000;">￥'+ sc_price +'</span></div>'+
             '<div style="height: 20px; color: #666666" data-html2canvas-ignore><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span><span style="display:none">'+ sc_price +'</span></div>'+
             '</div>'+
             '</div>'+
-            '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;'+ sc_msg_body_style_display +'"><span style="color: white; font-size: 14px;">'+ sc_message +'</span></div>'+
+            '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;'+ sc_msg_body_style_display +'"><span class="sc_msg_body_span" style="color: white; font-size: ' + sc_item_msg_body_font_size + 'px;">'+ sc_message +'</span></div>'+
             '</div>';
 
         if (sc_item_order_up_flag) {
@@ -5869,6 +5889,12 @@
                                 <label for="sc_live_panel_show_time_sc_and_minute_option">依照SC的时间过期，同时最多距离SC发送1~120分钟</label>
                                 <input id="sc_live_panel_show_time_sc_and_most_time_input" type="number" min="1" max="120" value="2" style="color: #999;"/>
                             </div>
+
+                            <div class="sc_live_panel_show_time_form_item">
+                                <input type="radio" id="sc_live_panel_show_time_sc_and_second_option" name="sc_live_panel_show_time_option" value="5" />
+                                <label for="sc_live_panel_show_time_sc_and_second_option">过期距离SC发送5~300秒</label>
+                                <input id="sc_live_panel_show_time_sc_and_most_second_input" type="number" min="5" max="300" value="10" style="color: #999;"/>
+                            </div>
                             <br>
                         </div>
                         <div class="sc_live_panel_show_time_checkbox_div">
@@ -5923,6 +5949,12 @@
                                 <label for="sc_live_panel_show_time_sc_and_minute_option_fullscreen">依照SC的时间过期，同时最多距离SC发送1~120分钟</label>
                                 <input id="sc_live_panel_show_time_sc_and_most_time_input_fullscreen" type="number" min="1" max="120" value="2" style="color: #999;"/>
                             </div>
+
+                            <div class="sc_live_panel_show_time_form_item">
+                                <input type="radio" id="sc_live_panel_show_time_sc_and_second_option_fullscreen" name="sc_live_panel_show_time_option_fullscreen" value="5" />
+                                <label for="sc_live_panel_show_time_sc_and_second_option_fullscreen">过期距离SC发送5~300秒</label>
+                                <input id="sc_live_panel_show_time_sc_and_most_second_input_fullscreen" type="number" min="5" max="300" value="10" style="color: #999;"/>
+                            </div>
                             <br>
                         </div>
                         <div class="sc_live_panel_show_time_checkbox_div">
@@ -5969,6 +6001,13 @@
                 } else {
                     sc_panel_show_time_each_same = 1;
                 }
+            } else if (sc_panel_show_time_mode === 5) {
+                let the_sc_panel_show_time_sc_and_most_second_val = $(document).find('#sc_live_panel_show_time_sc_and_most_second_input').val();
+                if (the_sc_panel_show_time_sc_and_most_second_val) {
+                    sc_panel_show_time_each_same = parseFloat((parseInt(the_sc_panel_show_time_sc_and_most_second_val, 10)/60).toFixed(2));
+                } else {
+                    sc_panel_show_time_each_same = 0.1;
+                }
             }
 
             sc_live_panel_show_time_click_stop_flag = $(document).find('#sc_live_panel_show_time_click_stop').is(':checked');
@@ -6006,6 +6045,13 @@
                     sc_panel_show_time_each_same = parseInt(the_sc_panel_show_time_sc_and_most_time_val, 10);
                 } else {
                     sc_panel_show_time_each_same = 1;
+                }
+            } else if (sc_panel_show_time_mode === 5) {
+                let the_sc_panel_show_time_sc_and_most_second_val = $(document).find('#sc_live_panel_show_time_sc_and_most_second_input_fullscreen').val();
+                if (the_sc_panel_show_time_sc_and_most_second_val) {
+                    sc_panel_show_time_each_same = parseFloat((parseInt(the_sc_panel_show_time_sc_and_most_second_val, 10)/60).toFixed(2));
+                } else {
+                    sc_panel_show_time_each_same = 0.1;
                 }
             }
 
@@ -7627,6 +7673,12 @@
                             <input type="checkbox" id="sc_live_other_auto_dm_combo_flag" class="sc_live_other_checkbox_inline" />
                             <label for="sc_live_other_auto_dm_combo_flag" class="sc_live_other_checkbox_inline">开启跟风发送combo弹幕（当前直播间，并且已经关注主播）</label>
                         </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <label for="sc_live_other_all_font_size_add" class="sc_live_other_checkbox_inline">调整记录板的字体大小 (px)(增量 0~30)：</label>
+                            <input type="number" min="0" max="30" id="sc_live_other_all_font_size_add" class="sc_live_other_checkbox_inline" value="0" style="width: 42px;" />
+                            <input type="checkbox" id="sc_live_other_font_size_only_message_flag" class="sc_live_other_checkbox_inline" checked/>
+                            <label for="sc_live_other_font_size_only_message_flag" class="sc_live_other_checkbox_inline">只调整SC内容显示</label>
+                        </div>
                     </form>
                     <div class="sc_live_other_btn_div">
                         <button id="sc_live_other_cancel_btn" class="sc_live_other_modal_btn sc_live_other_modal_close_btn">取消</button>
@@ -7672,6 +7724,12 @@
                             <input type="checkbox" id="sc_live_other_auto_dm_combo_flag_fullscreen" class="sc_live_other_checkbox_inline" />
                             <label for="sc_live_other_auto_dm_combo_flag_fullscreen" class="sc_live_other_checkbox_inline">开启跟风发送combo弹幕（当前直播间，并且已经关注主播）</label>
                         </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <label for="sc_live_other_all_font_size_add_fullscreen" class="sc_live_other_checkbox_inline">调整记录板的字体大小 (px)(增量 0~30)：</label>
+                            <input type="number" min="0" max="30" id="sc_live_other_all_font_size_add_fullscreen" class="sc_live_other_checkbox_inline" value="0" style="width: 42px;" />
+                            <input type="checkbox" id="sc_live_other_font_size_only_message_flag_fullscreen" class="sc_live_other_checkbox_inline" checked/>
+                            <label for="sc_live_other_font_size_only_message_flag_fullscreen" class="sc_live_other_checkbox_inline">只调整SC内容显示</label>
+                        </div>
                     </form>
                     <div class="sc_live_other_btn_div_fullscreen">
                         <button id="sc_live_other_cancel_btn" class="sc_live_other_modal_btn sc_live_other_modal_close_btn">取消</button>
@@ -7700,6 +7758,14 @@
             }
 
             sc_side_fold_fullscreen_auto_hide_list_flag = $(document).find('#sc_live_other_fullscreen_auto_hide_list').is(':checked');
+
+            let sc_live_all_font_size_add_val = $(document).find('#sc_live_other_all_font_size_add').val();
+            sc_live_all_font_size_add = parseInt(sc_live_all_font_size_add_val, 10);
+            if (!sc_live_all_font_size_add || sc_live_all_font_size_add < 0) {
+                sc_live_all_font_size_add = 0;
+            }
+
+            sc_live_font_size_only_message_flag = $(document).find('#sc_live_other_font_size_only_message_flag').is(':checked');
 
             sc_live_other_config_store();
 
@@ -7731,6 +7797,19 @@
 
             sc_live_other_config_data_show_apply();
 
+            if (sc_live_all_font_size_add > 0) {
+                $(document).find('.sc_msg_body_span').css('font-size', 14 + sc_live_all_font_size_add + 'px');
+
+                if (!sc_live_font_size_only_message_flag) {
+                    $(document).find('.sc_font_color').css('font-size', 15 + sc_live_all_font_size_add + 'px');
+                } else {
+                    $(document).find('.sc_font_color').css('font-size', '15px');
+                }
+            } else {
+                $(document).find('.sc_msg_body_span').css('font-size', '14px');
+                $(document).find('.sc_font_color').css('font-size', '15px');
+            }
+
             open_and_close_sc_modal('✓', '#A7C9D3', e);
         });
 
@@ -7744,6 +7823,14 @@
             }
 
             sc_side_fold_fullscreen_auto_hide_list_flag = $(document).find('#sc_live_other_fullscreen_auto_hide_list_fullscreen').is(':checked');
+
+            let sc_live_all_font_size_add_val = $(document).find('#sc_live_other_all_font_size_add_fullscreen').val();
+            sc_live_all_font_size_add = parseInt(sc_live_all_font_size_add_val, 10);
+            if (!sc_live_all_font_size_add || sc_live_all_font_size_add < 0) {
+                sc_live_all_font_size_add = 0;
+            }
+
+            sc_live_font_size_only_message_flag = $(document).find('#sc_live_other_font_size_only_message_flag_fullscreen').is(':checked');
 
             sc_live_other_config_store();
 
@@ -8577,6 +8664,7 @@
             let sc_live_panel_show_time_option_name = 'sc_live_panel_show_time_option';
             let sc_live_panel_show_time_sc_input_id = 'sc_live_panel_show_time_sc_input';
             let sc_live_panel_show_time_sc_and_most_time_input_id = 'sc_live_panel_show_time_sc_and_most_time_input';
+            let sc_live_panel_show_time_sc_and_most_second_input_id = 'sc_live_panel_show_time_sc_and_most_second_input';
             let sc_live_panel_show_time_click_stop_checkbox_id = 'sc_live_panel_show_time_click_stop';
             if (sc_isFullscreen) {
                 sc_panel_show_time_config_div_id = 'sc_live_panel_show_time_config_div_fullscreen';
@@ -8584,6 +8672,7 @@
                 sc_live_panel_show_time_option_name = 'sc_live_panel_show_time_option_fullscreen';
                 sc_live_panel_show_time_sc_input_id = 'sc_live_panel_show_time_sc_input_fullscreen';
                 sc_live_panel_show_time_sc_and_most_time_input_id = 'sc_live_panel_show_time_sc_and_most_time_input_fullscreen';
+                sc_live_panel_show_time_sc_and_most_second_input_id = 'sc_live_panel_show_time_sc_and_most_second_input_fullscreen';
                 sc_live_panel_show_time_click_stop_checkbox_id = 'sc_live_panel_show_time_click_stop_fullscreen';
             }
             $(document).find('#' + sc_panel_show_time_config_div_id).show();
@@ -8592,8 +8681,13 @@
             if (the_sc_panel_show_time_each_same === 0.5) {
                 the_sc_panel_show_time_each_same = 2;
             }
-            $(document).find('#' + sc_live_panel_show_time_sc_input_id).val(the_sc_panel_show_time_each_same);
-            $(document).find('#' + sc_live_panel_show_time_sc_and_most_time_input_id).val(the_sc_panel_show_time_each_same);
+
+            if (sc_panel_show_time_mode === 5) {
+                $(document).find('#' + sc_live_panel_show_time_sc_and_most_second_input_id).val(parseInt(the_sc_panel_show_time_each_same * 60));
+            } else {
+                $(document).find('#' + sc_live_panel_show_time_sc_input_id).val(the_sc_panel_show_time_each_same);
+                $(document).find('#' + sc_live_panel_show_time_sc_and_most_time_input_id).val(the_sc_panel_show_time_each_same);
+            }
 
             $(document).find('#sc_live_panel_show_time_click_stop').prop('checked', false);
             $(document).find('#sc_live_panel_show_time_click_stop').prop('checked', false);
@@ -8981,6 +9075,8 @@
             let sc_live_other_search_shortkey_flag_checkbox_id = 'sc_live_other_search_shortkey_flag';
             let sc_live_other_auto_tianxuan_flag_checkbox_id = 'sc_live_other_auto_tianxuan_flag';
             let sc_live_other_auto_dm_combo_flag_checkbox_id = 'sc_live_other_auto_dm_combo_flag';
+            let sc_live_other_all_font_size_add_id = 'sc_live_other_all_font_size_add';
+            let sc_live_other_font_size_only_message_flag_id = 'sc_live_other_font_size_only_message_flag';
             if (sc_isFullscreen) {
                 sc_live_other_config_div_id = 'sc_live_other_config_div_fullscreen';
                 the_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag_fullscreen;
@@ -8991,6 +9087,8 @@
                 sc_live_other_search_shortkey_flag_checkbox_id = 'sc_live_other_search_shortkey_flag_fullscreen';
                 sc_live_other_auto_tianxuan_flag_checkbox_id = 'sc_live_other_auto_tianxuan_flag_fullscreen';
                 sc_live_other_auto_dm_combo_flag_checkbox_id = 'sc_live_other_auto_dm_combo_flag_fullscreen';
+                sc_live_other_all_font_size_add_id = 'sc_live_other_all_font_size_add_fullscreen';
+                sc_live_other_font_size_only_message_flag_id = 'sc_live_other_font_size_only_message_flag_fullscreen';
             }
             $(document).find('#' + sc_live_other_config_div_id).show();
 
@@ -9026,6 +9124,12 @@
             $(document).find('#sc_live_other_auto_dm_combo_flag_fullscreen').prop('checked', false);
             if (sc_live_send_dm_combo_flag) {
                 $(document).find('#' + sc_live_other_auto_dm_combo_flag_checkbox_id).prop('checked', true);
+            }
+
+            $(document).find('#' + sc_live_other_all_font_size_add_id).val(sc_live_all_font_size_add);
+            $(document).find('#' + sc_live_other_font_size_only_message_flag_id).prop('checked', false);
+            if (sc_live_font_size_only_message_flag) {
+                $(document).find('#' + sc_live_other_font_size_only_message_flag_id).prop('checked', true);
             }
 
             $(this).parent().fadeOut();

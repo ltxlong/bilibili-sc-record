@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      12.3.2
+// @version      12.3.3
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -3534,16 +3534,25 @@
                 let sc_special_tip_div_class = 'sc_special_tip_div';
                 let sc_special_tip_img_px = '50';
                 let sc_special_msg_margin_left = '10';
+                let sc_special_sc_msg_font_size = 16;
                 if (sc_live_special_danmu_mode === 1) {
                     sc_special_tip_div_class = 'sc_special_tip_div_no_padding';
                     sc_special_tip_img_px = '40';
                     sc_special_msg_margin_left = '5';
+                    sc_special_sc_msg_font_size -= 2;
                 } else if (sc_live_special_danmu_mode === 2) {
                     sc_special_tip_div_class = 'sc_special_tip_div_no_opaque';
                 } else if (sc_live_special_danmu_mode === 3) {
                     sc_special_tip_div_class = 'sc_special_tip_div_no_opaque_no_padding';
                     sc_special_tip_img_px = '40';
                     sc_special_msg_margin_left = '5';
+                    sc_special_sc_msg_font_size -= 2;
+                }
+
+                let the_original_sc_special_font_size = sc_special_sc_msg_font_size;
+
+                if (sc_live_all_font_size_add > 0) {
+                    sc_special_sc_msg_font_size += sc_live_all_font_size_add;
                 }
 
                 let sc_special_tip_div_custom_style = 'style="top: 2px"';
@@ -3566,7 +3575,7 @@
 
                 let sc_special_tip_div = '<div id="'+ sc_special_tip_div_the_id +'"'+ sc_special_tip_div_custom_style + 'class="'+ sc_special_tip_div_class +'">' +
                     '<div style="height: '+ sc_special_tip_img_px +'px;width: '+ sc_special_tip_img_px +'px;"><img style="border-radius: '+ sc_special_tip_img_px +'px;" src="' + sc_special_tip_face + '" height="'+ sc_special_tip_img_px +'" width="'+ sc_special_tip_img_px +'"></div>' +
-                    '<div style="margin-left: '+ sc_special_msg_margin_left +'px;margin-right: 50px;"><span>' + parseArr_data.uname + sc_special_tip_remark_html + ' 进入直播间</span></div>' +
+                    '<div style="margin-left: '+ sc_special_msg_margin_left +'px;margin-right: 50px;"><span class="sc_special_msg_body_span" data-font_size="' + the_original_sc_special_font_size + '" style="font-size: ' + sc_special_sc_msg_font_size + 'px;">' + parseArr_data.uname + sc_special_tip_remark_html + ' 进入直播间</span></div>' +
                     '</div>';
 
                 if (sc_special_tip_remark) {
@@ -3621,16 +3630,25 @@
                 let sc_special_msg_div_class = 'sc_special_tip_div';
                 let sc_special_msg_img_px = '50';
                 let sc_special_msg_margin_left = '10';
+                let sc_special_sc_msg_font_size = 16;
                 if (sc_live_special_danmu_mode === 1) {
                     sc_special_msg_div_class = 'sc_special_tip_div_no_padding';
                     sc_special_msg_img_px = '40';
                     sc_special_msg_margin_left = '5';
+                    sc_special_sc_msg_font_size -= 2;
                 } else if (sc_live_special_danmu_mode === 2) {
                     sc_special_msg_div_class = 'sc_special_tip_div_no_opaque';
                 } else if (sc_live_special_danmu_mode === 3) {
                     sc_special_msg_div_class = 'sc_special_tip_div_no_opaque_no_padding';
                     sc_special_msg_img_px = '40';
                     sc_special_msg_margin_left = '5';
+                    sc_special_sc_msg_font_size -= 2;
+                }
+
+                let the_original_sc_special_font_size = sc_special_sc_msg_font_size;
+
+                if (sc_live_all_font_size_add > 0) {
+                    sc_special_sc_msg_font_size += sc_live_all_font_size_add;
                 }
 
                 let sc_special_msg_div_custom_style = 'style="top: 2px"';
@@ -3656,7 +3674,7 @@
 
                 let sc_special_msg_div = '<div id="'+ sc_special_msg_div_the_id +'"'+ sc_special_msg_div_custom_style + 'class="'+ sc_special_msg_div_class +'">' +
                     '<div style="height: '+ sc_special_msg_img_px +'px;width: '+ sc_special_msg_img_px +'px;"><img style="border-radius: '+ sc_special_msg_img_px +'px;" src="' + sc_special_msg_face + '" height="'+ sc_special_msg_img_px +'" width="'+ sc_special_msg_img_px +'"></div>' +
-                    '<div style="margin-left: '+ sc_special_msg_margin_left +'px;margin-right: 50px;"><span>' + sc_special_msg_uname + sc_special_msg_remark_html + '：' + sc_special_msg + '</span></div>' +
+                    '<div style="margin-left: '+ sc_special_msg_margin_left +'px;margin-right: 50px;"><span class="sc_special_msg_body_span" data-font_size="' + the_original_sc_special_font_size + '" style="font-size: ' + sc_special_sc_msg_font_size + 'px;">' + sc_special_msg_uname + sc_special_msg_remark_html + '：' + sc_special_msg + '</span></div>' +
                     '</div>';
 
                 if (sc_special_msg_remark) {
@@ -3733,10 +3751,12 @@
                     let sc_special_sc_img_px = '50';
                     let sc_special_sc_msg_margin_left = '10';
                     let sc_special_sc_div_custom_style = ' style="background:linear-gradient(to right, '+ sc_data["background_bottom_color"] +',transparent);';
+                    let sc_special_sc_msg_font_size = 16;
                     if (the_sc_live_danmu_mode === 1) {
                         sc_speical_sc_div_class = 'sc_special_tip_div_no_padding';
                         sc_special_sc_img_px = '40';
                         sc_special_sc_msg_margin_left = '5';
+                        sc_special_sc_msg_font_size -= 2;
                     } else if (the_sc_live_danmu_mode === 2) {
                         sc_speical_sc_div_class = 'sc_special_tip_div_no_opaque';
                         sc_special_sc_div_custom_style = ' style="background:linear-gradient(to right, '+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +',transparent);';
@@ -3745,6 +3765,13 @@
                         sc_special_sc_img_px = '40';
                         sc_special_sc_msg_margin_left = '5';
                         sc_special_sc_div_custom_style = ' style="background:linear-gradient(to right, '+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +',transparent);';
+                        sc_special_sc_msg_font_size -= 2;
+                    }
+
+                    let the_original_sc_special_font_size = sc_special_sc_msg_font_size;
+
+                    if (sc_live_all_font_size_add > 0) {
+                        sc_special_sc_msg_font_size += sc_live_all_font_size_add;
                     }
 
                     if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 0) {
@@ -3773,7 +3800,7 @@
 
                     let sc_special_sc_div = '<div id="'+ sc_special_sc_div_the_id +'"'+ sc_special_sc_div_custom_style + 'class="'+ sc_speical_sc_div_class +'">' +
                         '<div style="height: '+ sc_special_sc_img_px +'px;width: '+ sc_special_sc_img_px +'px;"><img style="border-radius: '+ sc_special_sc_img_px +'px;" src="' + sc_special_sc_face + '" height="'+ sc_special_sc_img_px +'" width="'+ sc_special_sc_img_px +'"></div>' +
-                        '<div style="margin-left: '+ sc_special_sc_msg_margin_left +'px;margin-right: 50px;"><span>[SC]'+ sc_special_sc_no_routine_pric_tip + ' ' + sc_data["user_info"]["uname"] + sc_special_sc_remark_html + '：' + sc_data["message"] + '</span></div>' +
+                        '<div style="margin-left: '+ sc_special_sc_msg_margin_left +'px;margin-right: 50px;"><span class="sc_special_msg_body_span" data-font_size="' + the_original_sc_special_font_size + '" style="font-size: ' + sc_special_sc_msg_font_size + 'px;">[SC]'+ sc_special_sc_no_routine_pric_tip + ' ' + sc_data["user_info"]["uname"] + sc_special_sc_remark_html + '：' + sc_data["message"] + '</span></div>' +
                         '</div>';
 
                     if (sc_special_sc_remark) {
@@ -7680,10 +7707,10 @@
                             <label for="sc_live_other_auto_dm_combo_flag" class="sc_live_other_checkbox_inline">开启跟风发送combo弹幕（当前直播间，并且已经关注主播）</label>
                         </div>
                         <div class="sc_live_other_checkbox_div">
-                            <label for="sc_live_other_all_font_size_add" class="sc_live_other_checkbox_inline">调整记录板的字体大小 (px)(增量 0~30)：</label>
-                            <input type="number" min="0" max="30" id="sc_live_other_all_font_size_add" class="sc_live_other_checkbox_inline" value="0" style="width: 42px;" />
+                            <label for="sc_live_other_all_font_size_add" class="sc_live_other_checkbox_inline">调整记录板的字体大小 (px)(增量 0~10)：</label>
+                            <input type="number" min="0" max="10" id="sc_live_other_all_font_size_add" class="sc_live_other_checkbox_inline" value="0" style="width: 42px;" />
                             <input type="checkbox" id="sc_live_other_font_size_only_message_flag" class="sc_live_other_checkbox_inline" checked/>
-                            <label for="sc_live_other_font_size_only_message_flag" class="sc_live_other_checkbox_inline">只调整SC内容显示</label>
+                            <label for="sc_live_other_font_size_only_message_flag" class="sc_live_other_checkbox_inline">不调整用户名显示</label>
                         </div>
                     </form>
                     <div class="sc_live_other_btn_div">
@@ -7731,10 +7758,10 @@
                             <label for="sc_live_other_auto_dm_combo_flag_fullscreen" class="sc_live_other_checkbox_inline">开启跟风发送combo弹幕（当前直播间，并且已经关注主播）</label>
                         </div>
                         <div class="sc_live_other_checkbox_div">
-                            <label for="sc_live_other_all_font_size_add_fullscreen" class="sc_live_other_checkbox_inline">调整记录板的字体大小 (px)(增量 0~30)：</label>
-                            <input type="number" min="0" max="30" id="sc_live_other_all_font_size_add_fullscreen" class="sc_live_other_checkbox_inline" value="0" style="width: 42px;" />
+                            <label for="sc_live_other_all_font_size_add_fullscreen" class="sc_live_other_checkbox_inline">调整记录板的字体大小 (px)(增量 0~10)：</label>
+                            <input type="number" min="0" max="10" id="sc_live_other_all_font_size_add_fullscreen" class="sc_live_other_checkbox_inline" value="0" style="width: 42px;" />
                             <input type="checkbox" id="sc_live_other_font_size_only_message_flag_fullscreen" class="sc_live_other_checkbox_inline" checked/>
-                            <label for="sc_live_other_font_size_only_message_flag_fullscreen" class="sc_live_other_checkbox_inline">只调整SC内容显示</label>
+                            <label for="sc_live_other_font_size_only_message_flag_fullscreen" class="sc_live_other_checkbox_inline">不调整用户名显示</label>
                         </div>
                     </form>
                     <div class="sc_live_other_btn_div_fullscreen">
@@ -7769,6 +7796,10 @@
             sc_live_all_font_size_add = parseInt(sc_live_all_font_size_add_val, 10);
             if (!sc_live_all_font_size_add || sc_live_all_font_size_add < 0) {
                 sc_live_all_font_size_add = 0;
+            }
+
+            if (sc_live_all_font_size_add > 10) {
+                sc_live_all_font_size_add = 10;
             }
 
             sc_live_font_size_only_message_flag = $(document).find('#sc_live_other_font_size_only_message_flag').is(':checked');
@@ -7806,6 +7837,10 @@
             if (sc_live_all_font_size_add > 0) {
                 $(document).find('.sc_msg_body_span').css('font-size', 14 + sc_live_all_font_size_add + 'px');
 
+                $(document).find('.sc_special_msg_body_span').css('font-size', function(index, currentSize) {
+                    return parseInt($(this).attr('data-font_size')) + sc_live_all_font_size_add + 'px';
+                });
+
                 if (!sc_live_font_size_only_message_flag) {
                     $(document).find('.sc_font_color').css('font-size', 15 + sc_live_all_font_size_add + 'px');
                 } else {
@@ -7814,6 +7849,9 @@
             } else {
                 $(document).find('.sc_msg_body_span').css('font-size', '14px');
                 $(document).find('.sc_font_color').css('font-size', '15px');
+                $(document).find('.sc_special_msg_body_span').css('font-size', function(index, currentSize) {
+                    return $(this).attr('data-font_size') + 'px';
+                });
             }
 
             open_and_close_sc_modal('✓', '#A7C9D3', e);
@@ -7834,6 +7872,10 @@
             sc_live_all_font_size_add = parseInt(sc_live_all_font_size_add_val, 10);
             if (!sc_live_all_font_size_add || sc_live_all_font_size_add < 0) {
                 sc_live_all_font_size_add = 0;
+            }
+
+            if (sc_live_all_font_size_add > 10) {
+                sc_live_all_font_size_add = 10;
             }
 
             sc_live_font_size_only_message_flag = $(document).find('#sc_live_other_font_size_only_message_flag_fullscreen').is(':checked');
@@ -7867,6 +7909,26 @@
             sc_live_send_dm_combo_flag_config_store();
 
             sc_live_other_config_data_show_apply();
+
+            if (sc_live_all_font_size_add > 0) {
+                $(document).find('.sc_msg_body_span').css('font-size', 14 + sc_live_all_font_size_add + 'px');
+
+                $(document).find('.sc_special_msg_body_span').css('font-size', function(index, currentSize) {
+                    return parseInt($(this).attr('data-font_size')) + sc_live_all_font_size_add + 'px';
+                });
+
+                if (!sc_live_font_size_only_message_flag) {
+                    $(document).find('.sc_font_color').css('font-size', 15 + sc_live_all_font_size_add + 'px');
+                } else {
+                    $(document).find('.sc_font_color').css('font-size', '15px');
+                }
+            } else {
+                $(document).find('.sc_msg_body_span').css('font-size', '14px');
+                $(document).find('.sc_font_color').css('font-size', '15px');
+                $(document).find('.sc_special_msg_body_span').css('font-size', function(index, currentSize) {
+                    return $(this).attr('data-font_size') + 'px';
+                });
+            }
 
             open_and_close_sc_modal('✓', '#A7C9D3', e);
         });

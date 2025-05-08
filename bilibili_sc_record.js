@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      12.3.5
+// @version      12.3.6
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -78,12 +78,19 @@
     // 后续每一个新进入/刷新的房间都会自动获得这个全局权限并且自动加载上面的配置，
     // 当其中一个房间从[全记]模式切换到[没记]的时候，这个全局权限就会失效，最多30秒后，其余[全记]页面的按钮会变为[没记]（因为每30秒检查一次），其余房间刷新页面会恢复被[全记]影响之前的配置模式
 
-    let room_id = unsafeWindow.location.pathname.split('/').pop();
+    let room_id_str_arr = unsafeWindow.location.pathname.split('/');
+    let room_id = room_id_str_arr.pop();
     let sc_url_api = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=';
 
-    sc_catch_log('url_room_id:', room_id);
+    sc_catch_log('url_room_id:', room_id, unsafeWindow.location.pathname.split('/'));
 
-    if (!room_id) { sc_catch_log('获取room_id失败，插件已停止正确的SC存储'); }
+    if (!room_id) {
+        if (room_id_str_arr[1]) {
+            room_id = room_id_str_arr[1];
+        } else {
+            sc_catch_log('获取room_id失败，插件已停止正确的SC存储');
+        }
+    }
 
     let sc_url = sc_url_api + room_id; // 请求sc的url（请求是为了获取进入直播间时已经存在的SC）
 
@@ -4201,7 +4208,7 @@
 
     function sc_fetch_and_show() {
         // 抓取SC
-        fetch(sc_url).then(response => {
+        fetch(sc_url, { credentials: 'include' }).then(response => {
             return response.json();
         }).then(ret => {
             let sc_catch = [];

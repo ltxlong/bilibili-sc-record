@@ -82,7 +82,7 @@
     let room_id = room_id_str_arr.pop();
     let sc_url_api = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=';
 
-    sc_catch_log('url_room_id:', room_id, unsafeWindow.location.pathname.split('/'));
+    sc_catch_log('url_room_id:', room_id);
 
     if (!room_id) {
         if (room_id_str_arr[1]) {

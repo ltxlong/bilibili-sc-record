@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      12.3.6
+// @version      13.0.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -269,6 +269,13 @@
     // 跟风发送combo弹幕的变量
     let sc_live_send_dm_combo_flag = false; // 开启跟风发送combo弹幕（当前直播间，并且已经关注主播），默认关闭
 
+    let sc_live_side_fold_head_border_bg_opacity_flag = false; // 是否设置侧折模式下，SC显示的头像边框为透明
+    let sc_live_item_bg_opacity_val = 1; // SC卡片背景的透明度
+    let sc_live_item_suspend_bg_opacity_one_flag = false; // 是否设置鼠标悬浮在SC卡片上方的时候，卡片背景的透明度变为1
+
+    let sc_live_hide_value_font_flag = false; // 是否隐藏SC的价格
+    let sc_live_hide_diff_time_flag = false; // 是否隐藏SC的时间距离
+
     function sc_screen_resolution_change_check() {
         let the_sc_screen_resolution_change_flag = sc_screen_resolution_change_flag;
         let live_sc_screen_resolution_str = unsafeWindow.localStorage.getItem('live_sc_screen_resolution_str');
@@ -413,6 +420,11 @@
         sc_side_fold_fullscreen_auto_hide_list_flag = sc_all_memory_config['sc_side_fold_fullscreen_auto_hide_list_flag'] ?? false;
         sc_live_all_font_size_add = sc_all_memory_config['sc_live_all_font_size_add'] ?? 0;
         sc_live_font_size_only_message_flag = sc_all_memory_config['sc_live_font_size_only_message_flag'] ?? true;
+        sc_live_side_fold_head_border_bg_opacity_flag = sc_all_memory_config['sc_live_side_fold_head_border_bg_opacity_flag'] ?? false;
+        sc_live_item_bg_opacity_val = sc_all_memory_config['sc_live_item_bg_opacity_val'] ?? 1;
+        sc_live_item_suspend_bg_opacity_one_flag = sc_all_memory_config['sc_live_item_suspend_bg_opacity_one_flag'] ?? false;
+        sc_live_hide_value_font_flag = sc_all_memory_config['sc_live_hide_value_font_flag'] ?? false;
+        sc_live_hide_diff_time_flag = sc_all_memory_config['sc_live_hide_diff_time_flag'] ?? false;
         sc_live_fullscreen_config_separate_memory_flag = sc_all_memory_config['sc_live_fullscreen_config_separate_memory_flag'] ?? false;
         sc_panel_show_time_mode = sc_all_memory_config['sc_panel_show_time_mode'] ?? 0;
         sc_panel_show_time_each_same = sc_all_memory_config['sc_panel_show_time_each_same'] ?? 0.5;
@@ -513,6 +525,11 @@
         sc_side_fold_fullscreen_auto_hide_list_flag = sc_self_memory_config['sc_side_fold_fullscreen_auto_hide_list_flag'] ?? false;
         sc_live_all_font_size_add = sc_self_memory_config['sc_live_all_font_size_add'] ?? 0;
         sc_live_font_size_only_message_flag = sc_self_memory_config['sc_live_font_size_only_message_flag'] ?? true;
+        sc_live_side_fold_head_border_bg_opacity_flag = sc_self_memory_config['sc_live_side_fold_head_border_bg_opacity_flag'] ?? false;
+        sc_live_item_bg_opacity_val = sc_self_memory_config['sc_live_item_bg_opacity_val'] ?? 1;
+        sc_live_item_suspend_bg_opacity_one_flag = sc_self_memory_config['sc_live_item_suspend_bg_opacity_one_flag'] ?? false;
+        sc_live_hide_value_font_flag = sc_self_memory_config['sc_live_hide_value_font_flag'] ?? false;
+        sc_live_hide_diff_time_flag = sc_self_memory_config['sc_live_hide_diff_time_flag'] ?? false;
         sc_live_fullscreen_config_separate_memory_flag = sc_self_memory_config['sc_live_fullscreen_config_separate_memory_flag'] ?? false;
         sc_panel_show_time_mode = sc_self_memory_config['sc_panel_show_time_mode'] ?? 0;
         sc_panel_show_time_each_same = sc_self_memory_config['sc_panel_show_time_each_same'] ?? 0.5;
@@ -900,6 +917,38 @@
             } else {
                 return the_list_items[index_right];
             }
+        }
+    }
+
+    function change_color_opacity(color, alpha) {
+        // 如果是 HEX 格式（#开头）
+        if (color.startsWith('#')) {
+            color = color.replace(/^#/, '');
+            if (color.length === 3) {
+                color = color[0] + color[0] + color[1] + color[1] + color[2] + color[2];
+            }
+            const num = parseInt(color, 16);
+            const r = (num >> 16) & 255;
+            const g = (num >> 8) & 255;
+            const b = num & 255;
+            // 如果未传入 alpha，默认 1，否则使用传入的 alpha
+            return `rgba(${r}, ${g}, ${b}, ${alpha !== undefined ? alpha : 1})`;
+        }
+        // 如果是 RGB / RGBA 格式
+        else if (color.startsWith('rgb')) {
+            // 提取 RGB/RGBA 数值部分
+            const parts = color.match(/(\d*\.?\d+)/g); // 支持整数和浮点数
+            if (!parts || parts.length < 3) {
+                throw new Error("Invalid RGB/RGBA color format");
+            }
+            const [r, g, b, originalAlpha] = parts.map(Number);
+            // 如果传入了 alpha，则覆盖；否则沿用原 RGBA 的 alpha（若没有则默认 1）
+            const finalAlpha = alpha !== undefined ? alpha : (originalAlpha !== undefined ? originalAlpha : 1);
+            return `rgba(${r}, ${g}, ${b}, ${finalAlpha})`;
+        }
+        // 其他格式返回原来的
+        else {
+            return color;
         }
     }
 
@@ -2156,6 +2205,11 @@
             update_sc_memory_config('sc_side_fold_fullscreen_auto_hide_list_flag', sc_side_fold_fullscreen_auto_hide_list_flag, 'self');
             update_sc_memory_config('sc_live_all_font_size_add', sc_live_all_font_size_add, 'self');
             update_sc_memory_config('sc_live_font_size_only_message_flag', sc_live_font_size_only_message_flag, 'self');
+            update_sc_memory_config('sc_live_side_fold_head_border_bg_opacity_flag', sc_live_side_fold_head_border_bg_opacity_flag, 'self');
+            update_sc_memory_config('sc_live_item_bg_opacity_val', sc_live_item_bg_opacity_val, 'self');
+            update_sc_memory_config('sc_live_item_suspend_bg_opacity_one_flag', sc_live_item_suspend_bg_opacity_one_flag, 'self');
+            update_sc_memory_config('sc_live_hide_value_font_flag', sc_live_hide_value_font_flag, 'self');
+            update_sc_memory_config('sc_live_hide_diff_time_flag', sc_live_hide_diff_time_flag, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_data_show_high_energy_num_flag', sc_data_show_high_energy_num_flag, 'all');
@@ -2163,6 +2217,11 @@
             update_sc_memory_config('sc_side_fold_fullscreen_auto_hide_list_flag', sc_side_fold_fullscreen_auto_hide_list_flag, 'all');
             update_sc_memory_config('sc_live_all_font_size_add', sc_live_all_font_size_add, 'all');
             update_sc_memory_config('sc_live_font_size_only_message_flag', sc_live_font_size_only_message_flag, 'all');
+            update_sc_memory_config('sc_live_side_fold_head_border_bg_opacity_flag', sc_live_side_fold_head_border_bg_opacity_flag, 'all');
+            update_sc_memory_config('sc_live_item_bg_opacity_val', sc_live_item_bg_opacity_val, 'all');
+            update_sc_memory_config('sc_live_item_suspend_bg_opacity_one_flag', sc_live_item_suspend_bg_opacity_one_flag, 'all');
+            update_sc_memory_config('sc_live_hide_value_font_flag', sc_live_hide_value_font_flag, 'all');
+            update_sc_memory_config('sc_live_hide_diff_time_flag', sc_live_hide_diff_time_flag, 'all');
         }
     }
 
@@ -2563,6 +2622,22 @@
 
             sc_custom_config_apply(sc_side_fold_custom_first_class);
         }
+
+        if (sc_live_side_fold_head_border_bg_opacity_flag) {
+            // head
+            $(document).find('.sc_msg_head').each(function() {
+                const bg_color = $(this).css('background-color');
+                const sc_background_color = change_color_opacity(bg_color, 0);
+                $(this).css('background-color', sc_background_color);
+            })
+
+            // item
+            $(document).find('.sc_long_item').each(function() {
+                const bg_color = $(this).css('background-color');
+                const sc_background_color = change_color_opacity(bg_color, 0);
+                $(this).css('background-color', sc_background_color);
+            })
+        }
     }
 
     // 侧折后恢复展开显示板
@@ -2654,6 +2729,30 @@
         if (sc_item_order_up_flag) {
             sc_scroll_list_to_bottom();
         }
+
+        let the_sc_live_item_bg_opacity_val = sc_live_item_bg_opacity_val;
+        let the_sc_switch = sc_switch;
+        if (sc_isFullscreen) {
+            the_sc_switch = sc_switch_fullscreen;
+        }
+        if ((the_sc_switch === 0 || the_sc_switch === 6) && sc_live_item_bg_opacity_val < 0.3) {
+            // 主题是白色的时候，为了能够看清内容，调整透明度为0.3
+            the_sc_live_item_bg_opacity_val = 0.3;
+        }
+
+        // head
+        $(document).find('.sc_msg_head').each(function() {
+            const bg_color = $(this).css('background-color');
+            const sc_background_color = change_color_opacity(bg_color, the_sc_live_item_bg_opacity_val);
+            $(this).css('background-color', sc_background_color);
+        })
+
+        // item
+        $(document).find('.sc_long_item').each(function() {
+            const bg_color = $(this).css('background-color');
+            const sc_background_color = change_color_opacity(bg_color, the_sc_live_item_bg_opacity_val);
+            $(this).css('background-color', sc_background_color);
+        })
     }
 
     // 折叠显示板
@@ -2705,6 +2804,31 @@
             the_theme_sc_switch = sc_switch_fullscreen;
             the_theme_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
         }
+
+        let the_sc_live_item_bg_opacity_val = sc_live_item_bg_opacity_val;
+        if ((the_theme_sc_switch === 0 || the_theme_sc_switch === 6) && sc_live_item_bg_opacity_val < 0.3) {
+            // 主题为白色的时候，为了看清内容，调整透明度为0.3
+            the_sc_live_item_bg_opacity_val = 0.3;
+        }
+
+        if (sc_live_side_fold_head_border_bg_opacity_flag && the_theme_sc_panel_side_fold_flag) {
+            // 侧折模式，并且设置了边框透明
+            the_sc_live_item_bg_opacity_val = 0;
+        }
+
+        // head
+        $(document).find('.sc_msg_head').each(function() {
+            const bg_color = $(this).css('background-color');
+            const sc_background_color = change_color_opacity(bg_color, the_sc_live_item_bg_opacity_val);
+            $(this).css('background-color', sc_background_color);
+        })
+
+        // item
+        $(document).find('.sc_long_item').each(function() {
+            const bg_color = $(this).css('background-color');
+            const sc_background_color = change_color_opacity(bg_color, the_sc_live_item_bg_opacity_val);
+            $(this).css('background-color', sc_background_color);
+        })
 
         if (the_theme_sc_switch === 0) {
             // 白色
@@ -3981,17 +4105,62 @@
             sc_item_msg_body_font_size += sc_live_all_font_size_add;
         }
 
+        // 如果在侧折模式，并且设置了头像边框透明
+        if (sc_isFullscreen) {
+            if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag_fullscreen) {
+                sc_background_bottom_color = change_color_opacity(sc_background_bottom_color, 0);
+                sc_background_color = change_color_opacity(sc_background_color, 0);
+            } else {
+                // 如果调整了SC背景的透明度
+                if (sc_live_item_bg_opacity_val < 1) {
+                    let the_sc_live_item_bg_opacity_val = sc_live_item_bg_opacity_val;
+                    if ((sc_switch_fullscreen === 0 || sc_switch_fullscreen === 6) && sc_live_item_bg_opacity_val < 0.3) {
+                        // 白色的时候，为了能看到内容，透明度调整为0.3
+                        the_sc_live_item_bg_opacity_val = 0.3;
+                    }
+                    sc_background_bottom_color = change_color_opacity(sc_background_bottom_color, the_sc_live_item_bg_opacity_val);
+                    sc_background_color = change_color_opacity(sc_background_color, the_sc_live_item_bg_opacity_val);
+                }
+            }
+        } else {
+            if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag) {
+                sc_background_bottom_color = change_color_opacity(sc_background_bottom_color, 0);
+                sc_background_color = change_color_opacity(sc_background_color, 0);
+            } else {
+                // 如果调整了SC背景的透明度
+                if (sc_live_item_bg_opacity_val < 1) {
+                    let the_sc_live_item_bg_opacity_val = sc_live_item_bg_opacity_val;
+                    if ((sc_switch === 0 || sc_switch === 6) && sc_live_item_bg_opacity_val < 0.3) {
+                        // 白色的时候，为了能看到内容，透明度调整为0.3
+                        the_sc_live_item_bg_opacity_val = 0.3;
+                    }
+                    sc_background_bottom_color = change_color_opacity(sc_background_bottom_color, the_sc_live_item_bg_opacity_val);
+                    sc_background_color = change_color_opacity(sc_background_color, the_sc_live_item_bg_opacity_val);
+                }
+            }
+        }
+
+        let sc_item_value_font_style_display = '';
+        let sc_item_diff_time_style_display = '';
+        if (sc_live_hide_value_font_flag) {
+            sc_item_value_font_style_display = 'display: none;';
+        }
+
+        if (sc_live_hide_diff_time_flag) {
+            sc_item_diff_time_style_display = 'display: none;';
+        }
+
         let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" data-start="'+ (sc_start_timestamp * 1000 + sc_last_item_sort)+'" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;'+ sc_item_show_animation + sc_msg_item_style_border_radius + box_shadow_css +'">'+
             '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: contain;background-repeat: no-repeat;background-position: right center;'+ sc_msg_head_style_border_radius +'">'+
-            '<div style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
+            '<div class="sc_avatar_div" style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
             '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px; padding-top: 2px;'+ sc_msg_head_left_style_display +'">'+
             metal_and_start_time_html+
             '<div class="sc_uname_div" style="height: 20px; padding-left: 5px; white-space: nowrap; width: ' + ((the_usi_sc_rectangle_width / 2) + 5) + 'px; overflow: hidden; text-overflow: ellipsis;"><span class="sc_font_color" style="color: ' + sc_font_color + ';font-size: ' + sc_item_uname_font_size + 'px;text-decoration: none;" data-color="'+ sc_font_color_data +'">' + sc_user_info_uname + '</span></div>'+
             '</div>'+
             '<div class="sc_msg_head_right" style="float: right; box-sizing: border-box; height: 40px; padding: 2px 2px 0px 0px;'+ sc_msg_head_right_style_display +'">'+
-            '<div class="sc_value_font" style="height: 20px;"><span style="font-size: 15px; float: right; color: #000;">￥'+ sc_price +'</span></div>'+
-            '<div style="height: 20px; color: #666666" data-html2canvas-ignore><span class="sc_diff_time" style="font-size: 15px; float: right;">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span><span style="display:none">'+ sc_price +'</span></div>'+
+            '<div class="sc_value_font" style="height: 20px;'+ sc_item_value_font_style_display +'"><span style="font-size: 15px; float: right; color: #000;">￥'+ sc_price +'</span></div>'+
+            '<div style="height: 20px; color: #666666" data-html2canvas-ignore><span class="sc_diff_time" style="font-size: 15px; float: right;'+ sc_item_diff_time_style_display +'">'+ sc_diff_time +'</span><span class="sc_start_timestamp" style="display:none;">'+ sc_start_timestamp +'</span><span style="display:none">'+ sc_price +'</span></div>'+
             '</div>'+
             '</div>'+
             '<div class="sc_msg_body" style="padding-left: 14px; padding-right: 10px; padding-top: 10px; padding-bottom: 10px; overflow-wrap: break-word; line-height: 2;'+ sc_msg_body_style_display +'"><span class="sc_msg_body_span" style="color: white; font-size: ' + sc_item_msg_body_font_size + 'px;">'+ sc_message +'</span></div>'+
@@ -5303,6 +5472,19 @@
 
             sc_item_side_fold_touch_flag = true;
             sc_item_side_fold_touch_oj = $(this).parent();
+
+            const bg_color = $(this).css('background-color');
+            let bg_color_op_val = sc_live_item_bg_opacity_val;
+            if (bg_color_op_val < 0.5) {
+                // 防止太透明导致看不清
+                bg_color_op_val = 0.5
+            }
+            const sc_background_color = change_color_opacity(bg_color, bg_color_op_val);
+            $(this).css('background-color', sc_background_color);
+
+            const bg_p_color = $(this).parent().css('background-color');
+            const sc_p_background_color = change_color_opacity(bg_p_color, bg_color_op_val);
+            $(this).parent().css('background-color', sc_p_background_color);
         });
 
         $(document).on('mouseleave', '.sc_msg_head', function() {
@@ -5323,6 +5505,84 @@
 
             sc_item_side_fold_touch_flag = false;
             sc_item_side_fold_touch_oj = {};
+
+            if (sc_isFullscreen) {
+                if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag_fullscreen) {
+                    const bg_color = $(this).css('background-color');
+                    const sc_background_color = change_color_opacity(bg_color, 0);
+                    $(this).css('background-color', sc_background_color);
+
+                    const bg_p_color = $(this).parent().css('background-color');
+                    const sc_p_background_color = change_color_opacity(bg_p_color, 0);
+                    $(this).parent().css('background-color', sc_p_background_color);
+                }
+            } else {
+                if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag) {
+                    const bg_color = $(this).css('background-color');
+                    const sc_background_color = change_color_opacity(bg_color, 0);
+                    $(this).css('background-color', sc_background_color);
+
+                    const bg_p_color = $(this).parent().css('background-color');
+                    const sc_p_background_color = change_color_opacity(bg_p_color, 0);
+                    $(this).parent().css('background-color', sc_p_background_color);
+                }
+            }
+        });
+
+        $(document).on('mouseenter', '.sc_long_item,.sc_msg_head', function() {
+            if (!sc_live_item_suspend_bg_opacity_one_flag) return;
+
+            if ($(this).hasClass('sc_long_item')) {
+                let the_sc_msg_head_obj = $(this).find('.sc_msg_head');
+                let the_sc_item_head_bg_color = the_sc_msg_head_obj.css('background-color');
+                the_sc_item_head_bg_color = change_color_opacity(the_sc_item_head_bg_color, 1);
+
+                let the_sc_item_bg_color = $(this).css('background-color');
+                the_sc_item_bg_color = change_color_opacity(the_sc_item_bg_color, 1);
+
+                $(this).css('background-color', the_sc_item_bg_color);
+                the_sc_msg_head_obj.css('background-color', the_sc_item_head_bg_color);
+            } else {
+                let the_sc_item_head_bg_color = $(this).css('background-color');
+                the_sc_item_head_bg_color = change_color_opacity(the_sc_item_head_bg_color, 1);
+
+                let the_sc_item_bg_color = $(this).parent().css('background-color');
+                the_sc_item_bg_color = change_color_opacity(the_sc_item_bg_color, 1);
+
+                $(this).parent().css('background-color', the_sc_item_bg_color);
+                $(this).css('background-color', the_sc_item_head_bg_color);
+            }
+        });
+
+        $(document).on('mouseleave', '.sc_long_item', function() {
+            if (!sc_live_item_suspend_bg_opacity_one_flag) return;
+
+            let the_sc_live_item_bg_opacity_val = sc_live_item_bg_opacity_val;
+            let the_sc_switch = sc_switch;
+            let the_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
+            if (sc_isFullscreen) {
+                the_sc_switch = sc_switch_fullscreen;
+                the_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
+            }
+            if ((the_sc_switch === 0 || the_sc_switch === 6) && sc_live_item_bg_opacity_val < 0.3) {
+                // 主题是白色的时候，为了能够看清内容，调整透明度为0.3
+                the_sc_live_item_bg_opacity_val = 0.3;
+            }
+
+            if (sc_live_side_fold_head_border_bg_opacity_flag && the_sc_panel_side_fold_flag) {
+                // 侧折模式，并且设置了边框透明
+                the_sc_live_item_bg_opacity_val = 0;
+            }
+
+            let the_sc_msg_head_obj = $(this).find('.sc_msg_head');
+            let the_sc_item_head_bg_color = the_sc_msg_head_obj.css('background-color');
+            the_sc_item_head_bg_color = change_color_opacity(the_sc_item_head_bg_color, the_sc_live_item_bg_opacity_val);
+
+            let the_sc_item_bg_color = $(this).css('background-color');
+            the_sc_item_bg_color = change_color_opacity(the_sc_item_bg_color, the_sc_live_item_bg_opacity_val);
+
+            $(this).css('background-color', the_sc_item_bg_color);
+            the_sc_msg_head_obj.css('background-color', the_sc_item_head_bg_color);
         });
 
         $(document).on('click', '.sc_long_item', sc_toggle_msg_body);
@@ -7596,7 +7856,7 @@
 
             .sc_live_other_modal_content {
                 background-color: #fefefe;
-                margin: 15% auto;
+                margin: 10% auto;
                 padding: 20px;
                 border: 1px solid #888;
                 width: 42%;
@@ -7704,6 +7964,10 @@
                             <label for="sc_live_other_fullscreen_auto_hide_list" class="sc_live_other_checkbox_inline">侧折模式下，切换全屏时，自动隐藏醒目留言列表</label>
                         </div>
                         <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_side_fold_head_border_bg_opacity_flag" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_side_fold_head_border_bg_opacity_flag" class="sc_live_other_checkbox_inline">侧折模式下，隐藏头像边框</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
                             <input type="checkbox" id="sc_live_other_start_time_simple_flag" class="sc_live_other_checkbox_inline"/>
                             <label for="sc_live_other_start_time_simple_flag" class="sc_live_other_checkbox_inline">设置SC发送的时间显示为简单的时分</label>
                         </div>
@@ -7724,6 +7988,22 @@
                             <input type="number" min="0" max="10" id="sc_live_other_all_font_size_add" class="sc_live_other_checkbox_inline" value="0" style="width: 42px;" />
                             <input type="checkbox" id="sc_live_other_font_size_only_message_flag" class="sc_live_other_checkbox_inline" checked/>
                             <label for="sc_live_other_font_size_only_message_flag" class="sc_live_other_checkbox_inline">不调整用户名显示</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <label for="sc_live_item_bg_opacity_val" class="sc_live_other_checkbox_inline">调整SC显示卡片背景的透明度（0~1）（1为完全不透明）：</label>
+                            <input type="number" min="0" max="1" step="0.1" id="sc_live_item_bg_opacity_val" class="sc_live_other_checkbox_inline" value="1" style="width: 42px;" />
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_item_suspend_bg_opacity_one_flag" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_item_suspend_bg_opacity_one_flag" class="sc_live_other_checkbox_inline">设置鼠标悬浮在SC显示卡片上方的时候，其背景的透明度变为1</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_hide_value_font_flag" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_hide_value_font_flag" class="sc_live_other_checkbox_inline">设置隐藏SC的价格</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_hide_diff_time_flag" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_hide_diff_time_flag" class="sc_live_other_checkbox_inline">设置隐藏SC的时间距离</label>
                         </div>
                     </form>
                     <div class="sc_live_other_btn_div">
@@ -7755,6 +8035,10 @@
                             <label for="sc_live_other_fullscreen_auto_hide_list_fullscreen" class="sc_live_other_checkbox_inline">侧折模式下，切换全屏时，自动隐藏醒目留言列表</label>
                         </div>
                         <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_side_fold_head_border_bg_opacity_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_side_fold_head_border_bg_opacity_flag_fullscreen" class="sc_live_other_checkbox_inline">侧折模式下，隐藏头像边框</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
                             <input type="checkbox" id="sc_live_other_start_time_simple_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
                             <label for="sc_live_other_start_time_simple_flag_fullscreen" class="sc_live_other_checkbox_inline">设置SC发送的时间显示为简单的时分</label>
                         </div>
@@ -7775,6 +8059,22 @@
                             <input type="number" min="0" max="10" id="sc_live_other_all_font_size_add_fullscreen" class="sc_live_other_checkbox_inline" value="0" style="width: 42px;" />
                             <input type="checkbox" id="sc_live_other_font_size_only_message_flag_fullscreen" class="sc_live_other_checkbox_inline" checked/>
                             <label for="sc_live_other_font_size_only_message_flag_fullscreen" class="sc_live_other_checkbox_inline">不调整用户名显示</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <label for="sc_live_item_bg_opacity_val_fullscreen" class="sc_live_other_checkbox_inline">调整SC显示卡片背景的透明度（0~1）（1为完全不透明）：</label>
+                            <input type="number" min="0" max="1" step="0.1" id="sc_live_item_bg_opacity_val_fullscreen" class="sc_live_other_checkbox_inline" value="1" style="width: 42px;" />
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_item_suspend_bg_opacity_one_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_item_suspend_bg_opacity_one_flag_fullscreen" class="sc_live_other_checkbox_inline">设置鼠标悬浮在SC显示卡片上方的时候，其背景的透明度变为1</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_hide_value_font_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_hide_value_font_flag_fullscreen" class="sc_live_other_checkbox_inline">设置隐藏SC的价格</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_hide_diff_time_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_hide_diff_time_flag_fullscreen" class="sc_live_other_checkbox_inline">设置隐藏SC的时间距离</label>
                         </div>
                     </form>
                     <div class="sc_live_other_btn_div_fullscreen">
@@ -7816,6 +8116,108 @@
             }
 
             sc_live_font_size_only_message_flag = $(document).find('#sc_live_other_font_size_only_message_flag').is(':checked');
+
+            sc_live_side_fold_head_border_bg_opacity_flag = $(document).find('#sc_live_other_side_fold_head_border_bg_opacity_flag').is(':checked');
+
+            sc_live_item_bg_opacity_val = $(document).find('#sc_live_item_bg_opacity_val').val();
+            sc_live_item_bg_opacity_val = parseFloat(sc_live_item_bg_opacity_val);
+            if (sc_live_item_bg_opacity_val < 0) {
+                sc_live_item_bg_opacity_val = 0;
+            } else if (sc_live_item_bg_opacity_val > 1) {
+                sc_live_item_bg_opacity_val = 1;
+            }
+
+            if (sc_isFullscreen) {
+                if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag_fullscreen) {
+                    // head
+                    $(document).find('.sc_msg_head').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, 0);
+                        $(this).css('background-color', sc_background_color);
+                    })
+
+                    // item
+                    $(document).find('.sc_long_item').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, 0);
+                        $(this).css('background-color', sc_background_color);
+                    })
+                } else {
+                    let the_sc_live_item_bg_opacity_val = sc_live_item_bg_opacity_val;
+                    if ((sc_switch_fullscreen === 0 || sc_switch_fullscreen === 6) && sc_live_item_bg_opacity_val < 0.3) {
+                        // 主题为白色的时候，为了看清内容，调整透明度为0.3
+                        the_sc_live_item_bg_opacity_val = 0.3;
+                    }
+
+                    // head
+                    $(document).find('.sc_msg_head').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, the_sc_live_item_bg_opacity_val);
+                        $(this).css('background-color', sc_background_color);
+                    })
+
+                    // item
+                    $(document).find('.sc_long_item').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, the_sc_live_item_bg_opacity_val);
+                        $(this).css('background-color', sc_background_color);
+                    })
+                }
+            } else {
+                if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag) {
+                    // head
+                    $(document).find('.sc_msg_head').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, 0);
+                        $(this).css('background-color', sc_background_color);
+                    })
+
+                    // item
+                    $(document).find('.sc_long_item').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, 0);
+                        $(this).css('background-color', sc_background_color);
+                    })
+                } else {
+                    let the_sc_live_item_bg_opacity_val = sc_live_item_bg_opacity_val;
+                    if ((sc_switch === 0 || sc_switch === 6) && sc_live_item_bg_opacity_val < 0.3) {
+                        // 主题为白色的时候，为了看清内容，调整透明度为0.3
+                        the_sc_live_item_bg_opacity_val = 0.3;
+                    }
+
+                    // head
+                    $(document).find('.sc_msg_head').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, the_sc_live_item_bg_opacity_val);
+                        $(this).css('background-color', sc_background_color);
+                    })
+
+                    // item
+                    $(document).find('.sc_long_item').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, the_sc_live_item_bg_opacity_val);
+                        $(this).css('background-color', sc_background_color);
+                    })
+                }
+            }
+
+            sc_live_item_suspend_bg_opacity_one_flag = $(document).find('#sc_live_item_suspend_bg_opacity_one_flag').is(':checked');
+
+            sc_live_hide_value_font_flag = $(document).find('#sc_live_other_hide_value_font_flag').is(':checked');
+
+            if (sc_live_hide_value_font_flag) {
+                $(document).find('.sc_value_font').hide();
+            } else {
+                $(document).find('.sc_value_font').show();
+            }
+
+            sc_live_hide_diff_time_flag = $(document).find('#sc_live_other_hide_diff_time_flag').is(':checked');
+
+            if (sc_live_hide_diff_time_flag) {
+                $(document).find('.sc_diff_time').hide();
+            } else {
+                $(document).find('.sc_diff_time').show();
+            }
 
             sc_live_other_config_store();
 
@@ -7892,6 +8294,96 @@
             }
 
             sc_live_font_size_only_message_flag = $(document).find('#sc_live_other_font_size_only_message_flag_fullscreen').is(':checked');
+
+            sc_live_side_fold_head_border_bg_opacity_flag = $(document).find('#sc_live_other_side_fold_head_border_bg_opacity_flag_fullscreen').is(':checked');
+
+            sc_live_item_bg_opacity_val = $(document).find('#sc_live_item_bg_opacity_val_fullscreen').val();
+            sc_live_item_bg_opacity_val = parseFloat(sc_live_item_bg_opacity_val);
+            if (sc_live_item_bg_opacity_val < 0) {
+                sc_live_item_bg_opacity_val = 0;
+            } else if (sc_live_item_bg_opacity_val > 1) {
+                sc_live_item_bg_opacity_val = 1;
+            }
+
+            if (sc_isFullscreen) {
+                if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag_fullscreen) {
+                    // head
+                    $(document).find('.sc_msg_head').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, 0);
+                        $(this).css('background-color', sc_background_color);
+                    })
+
+                    // item
+                    $(document).find('.sc_long_item').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, 0);
+                        $(this).css('background-color', sc_background_color);
+                    })
+                } else {
+                    // head
+                    $(document).find('.sc_msg_head').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, sc_live_item_bg_opacity_val);
+                        $(this).css('background-color', sc_background_color);
+                    })
+
+                    // item
+                    $(document).find('.sc_long_item').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, sc_live_item_bg_opacity_val);
+                        $(this).css('background-color', sc_background_color);
+                    })
+                }
+            } else {
+                if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag) {
+                    // head
+                    $(document).find('.sc_msg_head').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, 0);
+                        $(this).css('background-color', sc_background_color);
+                    })
+
+                    // item
+                    $(document).find('.sc_long_item').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, 0);
+                        $(this).css('background-color', sc_background_color);
+                    })
+                } else {
+                    // head
+                    $(document).find('.sc_msg_head').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, sc_live_item_bg_opacity_val);
+                        $(this).css('background-color', sc_background_color);
+                    })
+
+                    // item
+                    $(document).find('.sc_long_item').each(function() {
+                        const bg_color = $(this).css('background-color');
+                        const sc_background_color = change_color_opacity(bg_color, sc_live_item_bg_opacity_val);
+                        $(this).css('background-color', sc_background_color);
+                    })
+                }
+            }
+
+            sc_live_item_suspend_bg_opacity_one_flag = $(document).find('#sc_live_item_suspend_bg_opacity_one_flag_fullscreen').is(':checked');
+
+            sc_live_hide_value_font_flag = $(document).find('#sc_live_other_hide_value_font_flag_fullscreen').is(':checked');
+
+            if (sc_live_hide_value_font_flag) {
+                $(document).find('.sc_value_font').hide();
+            } else {
+                $(document).find('.sc_value_font').show();
+            }
+
+            sc_live_hide_diff_time_flag = $(document).find('#sc_live_other_hide_diff_time_flag_fullscreen').is(':checked');
+
+            if (sc_live_hide_diff_time_flag) {
+                $(document).find('.sc_diff_time').hide();
+            } else {
+                $(document).find('.sc_diff_time').show();
+            }
 
             sc_live_other_config_store();
 
@@ -9158,6 +9650,12 @@
             let sc_live_other_auto_dm_combo_flag_checkbox_id = 'sc_live_other_auto_dm_combo_flag';
             let sc_live_other_all_font_size_add_id = 'sc_live_other_all_font_size_add';
             let sc_live_other_font_size_only_message_flag_id = 'sc_live_other_font_size_only_message_flag';
+            let sc_live_other_side_fold_head_border_bg_opacity_flag_id = 'sc_live_other_side_fold_head_border_bg_opacity_flag';
+            let sc_live_item_bg_opacity_val_id = 'sc_live_item_bg_opacity_val';
+            let sc_live_other_item_suspend_bg_opacity_one_flag_id = 'sc_live_item_suspend_bg_opacity_one_flag';
+            let sc_live_other_hide_value_font_flag_id = 'sc_live_other_hide_value_font_flag';
+            let sc_live_other_hide_diff_time_flag_id = 'sc_live_other_hide_diff_time_flag';
+
             if (sc_isFullscreen) {
                 sc_live_other_config_div_id = 'sc_live_other_config_div_fullscreen';
                 the_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag_fullscreen;
@@ -9170,6 +9668,11 @@
                 sc_live_other_auto_dm_combo_flag_checkbox_id = 'sc_live_other_auto_dm_combo_flag_fullscreen';
                 sc_live_other_all_font_size_add_id = 'sc_live_other_all_font_size_add_fullscreen';
                 sc_live_other_font_size_only_message_flag_id = 'sc_live_other_font_size_only_message_flag_fullscreen';
+                sc_live_other_side_fold_head_border_bg_opacity_flag_id = 'sc_live_other_side_fold_head_border_bg_opacity_flag_fullscreen';
+                sc_live_item_bg_opacity_val_id = 'sc_live_item_bg_opacity_val_fullscreen';
+                sc_live_other_item_suspend_bg_opacity_one_flag_id = 'sc_live_item_suspend_bg_opacity_one_flag_fullscreen';
+                sc_live_other_hide_value_font_flag_id = 'sc_live_other_hide_value_font_flag_fullscreen';
+                sc_live_other_hide_diff_time_flag_id = 'sc_live_other_hide_diff_time_flag_fullscreen';
             }
             $(document).find('#' + sc_live_other_config_div_id).show();
 
@@ -9211,6 +9714,32 @@
             $(document).find('#' + sc_live_other_font_size_only_message_flag_id).prop('checked', false);
             if (sc_live_font_size_only_message_flag) {
                 $(document).find('#' + sc_live_other_font_size_only_message_flag_id).prop('checked', true);
+            }
+
+            $(document).find('#sc_live_other_side_fold_head_border_bg_opacity_flag').prop('checked', false);
+            $(document).find('#sc_live_other_side_fold_head_border_bg_opacity_flag_fullscreen').prop('checked', false);
+            if (sc_live_side_fold_head_border_bg_opacity_flag) {
+                $(document).find('#' + sc_live_other_side_fold_head_border_bg_opacity_flag_id).prop('checked', true);
+            }
+
+            $(document).find('#' + sc_live_item_bg_opacity_val_id).val(sc_live_item_bg_opacity_val);
+
+            $(document).find('#sc_live_item_suspend_bg_opacity_one_flag').prop('checked', false);
+            $(document).find('#sc_live_item_suspend_bg_opacity_one_flag_fullscreen').prop('checked', false);
+            if (sc_live_item_suspend_bg_opacity_one_flag) {
+                $(document).find('#' + sc_live_other_item_suspend_bg_opacity_one_flag_id).prop('checked', true);
+            }
+
+            $(document).find('#sc_live_other_hide_value_font_flag').prop('checked', false);
+            $(document).find('#sc_live_other_hide_value_font_flag_fullscreen').prop('checked', false);
+            if (sc_live_hide_value_font_flag) {
+                $(document).find('#' + sc_live_other_hide_value_font_flag_id).prop('checked', true);
+            }
+
+            $(document).find('#sc_live_other_hide_diff_time_flag').prop('checked', false);
+            $(document).find('#sc_live_other_hide_diff_time_flag_fullscreen').prop('checked', false);
+            if (sc_live_hide_diff_time_flag) {
+                $(document).find('#' + sc_live_other_hide_diff_time_flag_id).prop('checked', true);
             }
 
             $(this).parent().fadeOut();
@@ -9504,6 +10033,14 @@
                 tmp_sc_item.css('animation', 'unset');
                 tmp_sc_item.find('.sc_font_color').css('color', '#000000');
                 tmp_sc_item.find('.sc_start_time').show();
+
+                let tmp_sc_item_bg_color = tmp_sc_item.css('background-color');
+                let tmp_sc_item_head_bg_color = tmp_sc_item.find('.sc_msg_head').css('background-color');
+                // 恢复背景透明度为1
+                tmp_sc_item_bg_color = change_color_opacity(tmp_sc_item_bg_color, 1);
+                tmp_sc_item_head_bg_color = change_color_opacity(tmp_sc_item_head_bg_color, 1);
+                tmp_sc_item.css('background-color', tmp_sc_item_bg_color);
+                tmp_sc_item.find('.sc_msg_head').css('background-color', tmp_sc_item_head_bg_color);
 
                 if (sc_copy_btn_id === 'sc_copy_no_time_btn') {
                     tmp_sc_item.find('.sc_start_time').hide();

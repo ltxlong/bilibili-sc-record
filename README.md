@@ -149,6 +149,10 @@ let first_store_sc = sc_store_arr.at(-1); 修改为 let first_store_sc = sc_stor
   >
   >在SC记录板的右键菜单中设置
 
+- 可自定义SC背景颜色的透明度
+  
+  >在SC记录板的右键菜单中设置
+
 - 可让所有的实时SC以弹幕方式展现
   
   >在SC记录板的右键菜单中设置
@@ -255,14 +259,6 @@ let first_store_sc = sc_store_arr.at(-1); 修改为 let first_store_sc = sc_stor
 （从5.0.0开始的时候，其实已经可以实现Edge也用window.BilibiliLive来获取roomId，但match的方法太简单了，就一直用match来获取roomId了）
 
 
-
-### 一个小现象：
-
-版本2.0.0以及之后，引入了html2canvas.js来实现生成图片功能
-
-生成图片的时候会被动触发B站 bmgOnLoad undefined错误，在浏览器控制台可以看到（130个）
-
-但是，没有啥影响，对于网站和插件来说都没有影响，生成图片功能没影响，也没错误。
 
 只不过在控制台显示这些额外的错误而已，生成一次，显示130个，不看的话完全无所谓。
 

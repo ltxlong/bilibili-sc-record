@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.0.1
+// @version      13.0.2
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -3403,7 +3403,10 @@
                 }
 
                 // 兼容页面的不会自动更新舰长数的问题
-                const ugc_rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                let ugc_rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                if (ugc_rank_list_ctnr_box_li.length === 0) {
+                    ugc_rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > div.tab-list > div.tab-item');
+                }
                 if (ugc_rank_list_ctnr_box_li.length) {
                     const ugc_guard_n = ugc_rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
 
@@ -4259,7 +4262,10 @@
                 high_energy_num = high_energy_contribute_num;
             }
         } else {
-            const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            let rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (rank_data_show_div.length === 0) {
+                rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > div.tab-list > div.tab-item');
+            }
             if (rank_data_show_div.length) {
                 $(document).find('.sc_captain_num_right').text(rank_data_show_div.last().text().match(/\d+/) ?? 0);
                 sc_update_date_guard_once = true;
@@ -4291,7 +4297,10 @@
         // 页面的
         // 弹幕框顶部
         if (data_show_top_flag) {
-            const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            let rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (rank_data_show_div.length === 0) {
+                rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > div.tab-list > div.tab-item');
+            }
 
             if (rank_data_show_div.length) {
                 const default_high_energy_pattern1 = /房间观众/;
@@ -4343,7 +4352,11 @@
                 sc_urc_data_show_bottom_div.attr('title', '同接/高能('+ high_energy_contribute_num + '/' + high_energy_num +') = ' + (high_energy_contribute_num / high_energy_num * 100).toFixed(2) + '%');
 
             } else {
-                const rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                let rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                if (rank_data_show_div.length === 0) {
+                    rank_data_show_div = $(document).find('#rank-list-ctnr-box > div.tabs > div.tab-list > div.tab-item');
+                }
+
                 if (rank_data_show_div.length) {
                     const guard_text = rank_data_show_div.last().text();
 
@@ -10301,7 +10314,11 @@
 
         setTimeout(() => {
             // setTimeout的时间差内先更新一下再定时
-            const _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            let _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+            if (_rank_list_ctnr_box_li.length === 0) {
+                _rank_list_ctnr_box_li = $(document).find('#rank-list-ctnr-box > div.tabs > div.tab-list > div.tab-item');
+            }
+
             if (_rank_list_ctnr_box_li.length) {
                 let _guard_n = _rank_list_ctnr_box_li.last().text().match(/\d+/) ?? 0;
                 _guard_n = parseInt(_guard_n, 10);
@@ -10318,7 +10335,11 @@
             }
 
             let rank_list_ctnr_box_interval = setInterval(() => {
-                const rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                let rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > ul > li.item');
+                if (rank_list_ctnr_box_item.length === 0) {
+                    rank_list_ctnr_box_item = $(document).find('#rank-list-ctnr-box > div.tabs > div.tab-list > div.tab-item');
+                }
+
                 if (rank_list_ctnr_box_item.length) {
                     const guard_text_target = rank_list_ctnr_box_item.last();
 

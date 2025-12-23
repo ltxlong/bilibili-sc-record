@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.0.2
+// @version      13.0.3
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -161,9 +161,11 @@
     let sc_side_fold_custom_auto_run_flag = false; // 是否在运行自动展现SC了
     let sc_side_fold_custom_stop_from_auto_flag = false; // 是否自动运行时间到的停止
 
-    let sc_panel_show_time_mode = 0; // 展开模式下，SC的显示模式：0-默认一直显示，1-停留30秒，2-停留1~120分钟，3-依照SC的时间停留，4-依照SC的时间，同时最多停留1~120分钟
-    let sc_panel_show_time_each_same = 0.5; // 模式1和2、4，所有SC停留多少分钟，默认半分钟，即30秒
+    let sc_panel_show_time_mode = 0; // 展开模式下，SC的显示模式：0-默认一直显示，1-停留30秒，2-停留1~120分钟，3-依照SC的时间停留，4-依照SC的时间，同时最多停留1~120分钟，5-停留30~300秒
+    let sc_panel_show_time_each_same = 0.5; // 模式1和2、4、5，所有SC停留多少分钟，默认半分钟，即30秒
     let sc_live_panel_show_time_click_stop_flag = false; // 是否点击【不记忆地显示醒目留言列表】后，过期检查暂停；点击【不记忆地隐藏过期醒目留言】后，过期检查继续
+    let sc_live_panel_not_show_now_time_sc_flag = false; // 进入直播间的时候，不显示直播间正在挂着的SC
+    let sc_live_panel_not_show_local_sc_flag = false; // 进入直播间的时候，不显示保存在本地的往期SC
 
     let sc_memory = 0; // 0-没记，1-题记，2-个记，3-全记
     let sc_switch = 0;
@@ -431,6 +433,8 @@
         sc_panel_show_time_mode = sc_all_memory_config['sc_panel_show_time_mode'] ?? 0;
         sc_panel_show_time_each_same = sc_all_memory_config['sc_panel_show_time_each_same'] ?? 0.5;
         sc_live_panel_show_time_click_stop_flag = sc_all_memory_config['sc_live_panel_show_time_click_stop_flag'] ?? false;
+        sc_live_panel_not_show_now_time_sc_flag = sc_all_memory_config['sc_live_panel_not_show_now_time_sc_flag'] ?? false;
+        sc_live_panel_not_show_local_sc_flag = sc_all_memory_config['sc_live_panel_not_show_local_sc_flag'] ?? false;
         sc_list_search_shortkey_flag = sc_all_memory_config['sc_list_search_shortkey_flag'] ?? true;
         sc_list_search_div_bg_opacity_range = sc_all_memory_config['sc_list_search_div_bg_opacity_range'] ?? 90;
         sc_live_auto_tianxuan_flag = sc_all_memory_config['sc_live_auto_tianxuan_flag'] ?? false;
@@ -536,6 +540,8 @@
         sc_panel_show_time_mode = sc_self_memory_config['sc_panel_show_time_mode'] ?? 0;
         sc_panel_show_time_each_same = sc_self_memory_config['sc_panel_show_time_each_same'] ?? 0.5;
         sc_live_panel_show_time_click_stop_flag = sc_self_memory_config['sc_live_panel_show_time_click_stop_flag'] ?? false;
+        sc_live_panel_not_show_now_time_sc_flag = sc_self_memory_config['sc_live_panel_not_show_now_time_sc_flag'] ?? false;
+        sc_live_panel_not_show_local_sc_flag = sc_self_memory_config['sc_live_panel_not_show_local_sc_flag'] ?? false;
         sc_list_search_shortkey_flag = sc_self_memory_config['sc_list_search_shortkey_flag'] ?? true;
         sc_list_search_div_bg_opacity_range = sc_self_memory_config['sc_list_search_div_bg_opacity_range'] ?? 90;
         sc_live_auto_tianxuan_flag = sc_self_memory_config['sc_live_auto_tianxuan_flag'] ?? false;
@@ -1936,6 +1942,26 @@
         }
     }
 
+    function sc_live_panel_not_show_now_time_sc_flag_config_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_live_panel_not_show_now_time_sc_flag', sc_live_panel_not_show_now_time_sc_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_live_panel_not_show_now_time_sc_flag', sc_live_panel_not_show_now_time_sc_flag, 'all');
+        }
+    }
+
+    function sc_live_panel_not_show_local_sc_flag_config_store() {
+        if (sc_memory === 2) {
+            // 个记
+            update_sc_memory_config('sc_live_panel_not_show_local_sc_flag', sc_live_panel_not_show_local_sc_flag, 'self');
+        } else if (sc_memory === 3) {
+            // 全记
+            update_sc_memory_config('sc_live_panel_not_show_local_sc_flag', sc_live_panel_not_show_local_sc_flag, 'all');
+        }
+    }
+
     function sc_search_shortkey_flag_config_store() {
         if (sc_memory === 2) {
             // 个记
@@ -3072,6 +3098,8 @@
             sc_panel_show_time_mode_config_store();
             sc_panel_show_time_each_same_config_store();
             sc_live_panel_show_time_click_stop_flag_config_store();
+            sc_live_panel_not_show_now_time_sc_flag_config_store();
+            sc_live_panel_not_show_local_sc_flag_config_store();
             sc_search_shortkey_flag_config_store();
             sc_search_div_bg_opacity_range_config_store();
             sc_live_auto_tianxuan_flag_config_store();
@@ -3108,6 +3136,8 @@
             sc_panel_show_time_mode_config_store();
             sc_panel_show_time_each_same_config_store();
             sc_live_panel_show_time_click_stop_flag_config_store();
+            sc_live_panel_not_show_now_time_sc_flag_config_store();
+            sc_live_panel_not_show_local_sc_flag_config_store();
             sc_search_shortkey_flag_config_store();
             sc_search_div_bg_opacity_range_config_store();
             sc_live_auto_tianxuan_flag_config_store();
@@ -4413,9 +4443,16 @@
                 real_room_id = ret.data?.room_info?.room_id || room_id;
             }
 
+            // 如果设置了-进入直播间的时候，不显示直播间正在挂着的SC
+            if (sc_live_panel_not_show_now_time_sc_flag) {
+                sc_catch = [];
+            }
+
             // 追加到localstorage 和 SC显示板
             let sc_localstorage = [];
             let sc_sid_localstorage = [];
+            let temp_sc_localstorage = [];
+            let temp_sc_sid_localstorage = [];
             let diff_arr_new_sc = [];
             let sc_add_arr = [];
             let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
@@ -4424,27 +4461,47 @@
             } else {
                 sc_localstorage = JSON.parse(sc_localstorage_json);
                 sc_sid_localstorage = JSON.parse(unsafeWindow.localStorage.getItem(sc_sid_localstorage_key));
+                temp_sc_localstorage = sc_localstorage;
+                temp_sc_sid_localstorage = sc_sid_localstorage;
+
+                // 如果设置了-进入直播间的时候，不显示保存在本地的往期SC
+                if (sc_live_panel_not_show_local_sc_flag) {
+                    temp_sc_localstorage = [];
+                    temp_sc_sid_localstorage = [];
+                }
+
                 diff_arr_new_sc = sc_catch.filter(v => {
                     let sid = String(v.id) + '_' + String(v.uid) + '_' + String(v.price);
 
                     return !sc_sid_localstorage.includes(sid);
                 });
+
             }
 
             diff_arr_new_sc = diff_arr_new_sc.sort((a, b) => a.start_time - b.start_time);
 
             if (sc_isListEmpty) {
                 // 一开始进入
-                sc_add_arr = sc_localstorage.concat(diff_arr_new_sc);
+                if (sc_live_panel_not_show_local_sc_flag) {
+                    sc_add_arr = sc_catch;
 
-                if (diff_arr_new_sc.length) {
-                    // 有抓取到实时已经存在的
-                    sc_custom_config_start_class_by_fetch(diff_arr_new_sc);
+                    if (sc_catch.length && !sc_live_panel_not_show_now_time_sc_flag) {
+                        // 有抓取到实时已经存在的
+                        sc_custom_config_start_class_by_fetch(sc_catch);
+                    }
+
+                } else {
+                    sc_add_arr = temp_sc_localstorage.concat(diff_arr_new_sc);
+
+                    if (diff_arr_new_sc.length && !sc_live_panel_not_show_now_time_sc_flag) {
+                        // 有抓取到实时已经存在的
+                        sc_custom_config_start_class_by_fetch(diff_arr_new_sc);
+                    }
                 }
 
-                if (!diff_arr_new_sc.length && sc_localstorage.length) {
+                if (!diff_arr_new_sc.length && temp_sc_localstorage.length && !sc_live_panel_not_show_local_sc_flag) {
                     // 没抓取到实时已经存在的，但有存储的
-                    sc_custom_config_start_class_by_store(sc_localstorage);
+                    sc_custom_config_start_class_by_store(temp_sc_localstorage);
                 }
 
             } else {
@@ -4488,7 +4545,7 @@
             if (sc_localstorage_json !== null && sc_localstorage_json !== 'null' && sc_localstorage_json !== '[]' && sc_localstorage_json !== '') {
                 if (sc_isListEmpty) {
                     let sc_localstorage = JSON.parse(sc_localstorage_json);
-                    if (sc_localstorage.length) {
+                    if (sc_localstorage.length && !sc_live_panel_not_show_local_sc_flag) {
                         sc_custom_config_start_class_by_store(sc_localstorage);
 
                         for (let r = 0; r < sc_localstorage.length; r++){
@@ -6207,14 +6264,22 @@
 
                             <div class="sc_live_panel_show_time_form_item">
                                 <input type="radio" id="sc_live_panel_show_time_sc_and_second_option" name="sc_live_panel_show_time_option" value="5" />
-                                <label for="sc_live_panel_show_time_sc_and_second_option">过期距离SC发送5~300秒</label>
-                                <input id="sc_live_panel_show_time_sc_and_most_second_input" type="number" min="5" max="300" value="10" style="color: #999;"/>
+                                <label for="sc_live_panel_show_time_sc_and_second_option">过期距离SC发送30~300秒</label>
+                                <input id="sc_live_panel_show_time_sc_and_most_second_input" type="number" min="30" max="300" value="30" style="color: #999;"/>
                             </div>
                             <br>
                         </div>
                         <div class="sc_live_panel_show_time_checkbox_div">
                             <input type="checkbox" id="sc_live_panel_show_time_click_stop" class="sc_live_panel_show_time_checkbox_inline"/>
                             <label for="sc_live_panel_show_time_click_stop" class="sc_live_panel_show_time_checkbox_inline">点击【不记忆地显示醒目留言列表】后，过期检查暂停；点击【不记忆地隐藏过期醒目留言】后，过期检查继续</label>
+                        </div>
+                        <div class="sc_live_panel_show_time_checkbox_div">
+                            <input type="checkbox" id="sc_live_panel_not_show_now_time_sc" class="sc_live_panel_show_time_checkbox_inline"/>
+                            <label for="sc_live_panel_not_show_now_time_sc" class="sc_live_panel_show_time_checkbox_inline">进入直播间的时候，不显示直播间正在挂着的SC</label>
+                        </div>
+                        <div class="sc_live_panel_show_time_checkbox_div">
+                            <input type="checkbox" id="sc_live_panel_not_show_local_sc" class="sc_live_panel_show_time_checkbox_inline"/>
+                            <label for="sc_live_panel_not_show_local_sc" class="sc_live_panel_show_time_checkbox_inline">进入直播间的时候，不显示保存在本地的往期SC</label>
                         </div>
                     </form>
                     <div class="sc_live_panel_show_time_btn_div">
@@ -6267,14 +6332,22 @@
 
                             <div class="sc_live_panel_show_time_form_item">
                                 <input type="radio" id="sc_live_panel_show_time_sc_and_second_option_fullscreen" name="sc_live_panel_show_time_option_fullscreen" value="5" />
-                                <label for="sc_live_panel_show_time_sc_and_second_option_fullscreen">过期距离SC发送5~300秒</label>
-                                <input id="sc_live_panel_show_time_sc_and_most_second_input_fullscreen" type="number" min="5" max="300" value="10" style="color: #999;"/>
+                                <label for="sc_live_panel_show_time_sc_and_second_option_fullscreen">过期距离SC发送30~300秒</label>
+                                <input id="sc_live_panel_show_time_sc_and_most_second_input_fullscreen" type="number" min="30" max="300" value="30" style="color: #999;"/>
                             </div>
                             <br>
                         </div>
                         <div class="sc_live_panel_show_time_checkbox_div">
                             <input type="checkbox" id="sc_live_panel_show_time_click_stop_fullscreen" class="sc_live_panel_show_time_checkbox_inline"/>
                             <label for="sc_live_panel_show_time_click_stop_fullscreen" class="sc_live_panel_show_time_checkbox_inline">点击【不记忆地显示醒目留言列表】后，过期检查暂停；点击【不记忆地隐藏过期醒目留言】后，过期检查继续</label>
+                        </div>
+                        <div class="sc_live_panel_show_time_checkbox_div">
+                            <input type="checkbox" id="sc_live_panel_not_show_now_time_sc_fullscreen" class="sc_live_panel_show_time_checkbox_inline"/>
+                            <label for="sc_live_panel_not_show_now_time_sc_fullscreen" class="sc_live_panel_show_time_checkbox_inline">进入直播间的时候，不显示直播间正在挂着的SC</label>
+                        </div>
+                        <div class="sc_live_panel_show_time_checkbox_div">
+                            <input type="checkbox" id="sc_live_panel_not_show_local_sc_fullscreen" class="sc_live_panel_show_time_checkbox_inline"/>
+                            <label for="sc_live_panel_not_show_local_sc_fullscreen" class="sc_live_panel_show_time_checkbox_inline">进入直播间的时候，不显示保存在本地的往期SC</label>
                         </div>
                     </form>
                     <div class="sc_live_panel_show_time_btn_div_fullscreen">
@@ -6319,20 +6392,24 @@
             } else if (sc_panel_show_time_mode === 5) {
                 let the_sc_panel_show_time_sc_and_most_second_val = $(document).find('#sc_live_panel_show_time_sc_and_most_second_input').val();
                 if (the_sc_panel_show_time_sc_and_most_second_val) {
-                    if (the_sc_panel_show_time_sc_and_most_second_val < 5) {
-                        the_sc_panel_show_time_sc_and_most_second_val = 5;
+                    if (the_sc_panel_show_time_sc_and_most_second_val < 30) {
+                        the_sc_panel_show_time_sc_and_most_second_val = 30;
                     }
                     sc_panel_show_time_each_same = parseFloat((parseInt(the_sc_panel_show_time_sc_and_most_second_val, 10)/60).toFixed(3));
                 } else {
-                    sc_panel_show_time_each_same = 0.1;
+                    sc_panel_show_time_each_same = 0.5;
                 }
             }
 
             sc_live_panel_show_time_click_stop_flag = $(document).find('#sc_live_panel_show_time_click_stop').is(':checked');
+            sc_live_panel_not_show_now_time_sc_flag = $(document).find('#sc_live_panel_not_show_now_time_sc').is(':checked');
+            sc_live_panel_not_show_local_sc_flag = $(document).find('#sc_live_panel_not_show_local_sc').is(':checked');
 
             sc_panel_show_time_mode_config_store();
             sc_panel_show_time_each_same_config_store();
             sc_live_panel_show_time_click_stop_flag_config_store();
+            sc_live_panel_not_show_now_time_sc_flag_config_store();
+            sc_live_panel_not_show_local_sc_flag_config_store();
 
             if (sc_panel_show_time_mode) {
                 // 重启过期检查
@@ -6367,20 +6444,24 @@
             } else if (sc_panel_show_time_mode === 5) {
                 let the_sc_panel_show_time_sc_and_most_second_val = $(document).find('#sc_live_panel_show_time_sc_and_most_second_input_fullscreen').val();
                 if (the_sc_panel_show_time_sc_and_most_second_val) {
-                    if (the_sc_panel_show_time_sc_and_most_second_val < 5) {
-                        the_sc_panel_show_time_sc_and_most_second_val = 5;
+                    if (the_sc_panel_show_time_sc_and_most_second_val < 30) {
+                        the_sc_panel_show_time_sc_and_most_second_val = 30;
                     }
                     sc_panel_show_time_each_same = parseFloat((parseInt(the_sc_panel_show_time_sc_and_most_second_val, 10)/60).toFixed(3));
                 } else {
-                    sc_panel_show_time_each_same = 0.1;
+                    sc_panel_show_time_each_same = 0.5;
                 }
             }
 
             sc_live_panel_show_time_click_stop_flag = $(document).find('#sc_live_panel_show_time_click_stop_fullscreen').is(':checked');
+            sc_live_panel_not_show_now_time_sc_flag = $(document).find('#sc_live_panel_not_show_now_time_sc_fullscreen').is(':checked');
+            sc_live_panel_not_show_local_sc_flag = $(document).find('#sc_live_panel_not_show_local_sc_fullscreen').is(':checked');
 
             sc_panel_show_time_mode_config_store();
             sc_panel_show_time_each_same_config_store();
             sc_live_panel_show_time_click_stop_flag_config_store();
+            sc_live_panel_not_show_now_time_sc_flag_config_store();
+            sc_live_panel_not_show_local_sc_flag_config_store();
 
             if (sc_panel_show_time_mode) {
                 // 重启过期检查
@@ -9254,6 +9335,8 @@
             let sc_live_panel_show_time_sc_and_most_time_input_id = 'sc_live_panel_show_time_sc_and_most_time_input';
             let sc_live_panel_show_time_sc_and_most_second_input_id = 'sc_live_panel_show_time_sc_and_most_second_input';
             let sc_live_panel_show_time_click_stop_checkbox_id = 'sc_live_panel_show_time_click_stop';
+            let sc_live_panel_not_show_now_time_sc_checkbox_id = 'sc_live_panel_not_show_now_time_sc';
+            let sc_live_panel_not_show_local_sc_checkbox_id = 'sc_live_panel_not_show_local_sc';
             if (sc_isFullscreen) {
                 sc_panel_show_time_config_div_id = 'sc_live_panel_show_time_config_div_fullscreen';
                 sc_live_panel_show_time_radio_group_class = 'sc_live_panel_show_time_radio_group_fullscreen';
@@ -9262,6 +9345,8 @@
                 sc_live_panel_show_time_sc_and_most_time_input_id = 'sc_live_panel_show_time_sc_and_most_time_input_fullscreen';
                 sc_live_panel_show_time_sc_and_most_second_input_id = 'sc_live_panel_show_time_sc_and_most_second_input_fullscreen';
                 sc_live_panel_show_time_click_stop_checkbox_id = 'sc_live_panel_show_time_click_stop_fullscreen';
+                sc_live_panel_not_show_now_time_sc_checkbox_id = 'sc_live_panel_not_show_now_time_sc_fullscreen';
+                sc_live_panel_not_show_local_sc_checkbox_id = 'sc_live_panel_not_show_local_sc_fullscreen';
             }
             $(document).find('#' + sc_panel_show_time_config_div_id).show();
             $(document).find('.'+ sc_live_panel_show_time_radio_group_class +' input[name="'+ sc_live_panel_show_time_option_name +'"]').eq(sc_panel_show_time_mode).prop('checked', true);
@@ -9278,9 +9363,19 @@
             }
 
             $(document).find('#sc_live_panel_show_time_click_stop').prop('checked', false);
-            $(document).find('#sc_live_panel_show_time_click_stop').prop('checked', false);
+            $(document).find('#sc_live_panel_show_time_click_stop_fullscreen').prop('checked', false);
             if (sc_live_panel_show_time_click_stop_flag) {
                 $(document).find('#' + sc_live_panel_show_time_click_stop_checkbox_id).prop('checked', true);
+            }
+            $(document).find('#sc_live_panel_not_show_now_time_sc').prop('checked', false);
+            $(document).find('#sc_live_panel_not_show_now_time_sc_fullscreen').prop('checked', false);
+            if (sc_live_panel_not_show_now_time_sc_flag) {
+                $(document).find('#' + sc_live_panel_not_show_now_time_sc_checkbox_id).prop('checked', true);
+            }
+            $(document).find('#sc_live_panel_not_show_local_sc').prop('checked', false);
+            $(document).find('#sc_live_panel_not_show_local_sc_fullscreen').prop('checked', false);
+            if (sc_live_panel_not_show_local_sc_flag) {
+                $(document).find('#' + sc_live_panel_not_show_local_sc_checkbox_id).prop('checked', true);
             }
 
             $(this).parent().fadeOut();

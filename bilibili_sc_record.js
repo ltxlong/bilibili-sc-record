@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.0.3
+// @version      13.1.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -123,6 +123,10 @@
     let sc_update_date_guard_once = false;
     let sc_nesting_live_room_flag = false;
     let sc_date_num_nesting_judge_n = 0;
+    let this_view_high_energy_num_est = 0; // 本次观看期间的最大高能数
+    let this_view_high_energy_contribute_num_est = 0; // 本次观看期间的最大同接数
+    let this_view_high_energy_num_est_time = 0; // 对应的时间
+    let this_view_high_energy_contribute_num_est_time = 0; //对应的时间
 
     let sc_room_blacklist_flag = false;
 
@@ -1153,7 +1157,7 @@
         sc_copy_modal.style.border = 0;
         sc_copy_modal.style.boxShadow = '0 0 3px rgba(0, 0, 0, 0.3)';
         sc_copy_modal.innerHTML = show_str;
-        sc_copy_modal.style.zIndex = 3333;
+        sc_copy_modal.style.zIndex = 6666;
 
         if (mode === 0) {
             sc_copy_modal.style.width = '30px';
@@ -3232,8 +3236,11 @@
         if (sc_localstorage_json_export === null || sc_localstorage_json_export === 'null' || sc_localstorage_json_export === '[]' || sc_localstorage_json_export === '') {
             return;
         } else {
+            const the_sc_export_time_str = getTimestampConversion((new Date()).getTime());
             let sc_localstorage_export = JSON.parse(sc_localstorage_json_export);
             let sc_export_str = '';
+            sc_export_str += '本次观看期间的最大同接 / 高能：' + this_view_high_energy_contribute_num_est + ' / ' + this_view_high_energy_num_est + '，对应的时间：' + getTimestampConversion(this_view_high_energy_contribute_num_est_time) + ' / ' + getTimestampConversion(this_view_high_energy_num_est_time) + '\n\n';
+            sc_export_str += '导出数据时候的同接/高能：' + high_energy_contribute_num + '/' + high_energy_num + '，对应的时间：' + the_sc_export_time_str + '\n\n';
             for (let j = 0; j < sc_localstorage_export.length; j++) {
                 let sc_export_timestamp = '[' + getTimestampConversion(sc_localstorage_export[j]["start_time"]) + ']';
                 let sc_export_uname = '[ ' + sc_localstorage_export[j]["user_info"]["uname"] + ' ]';
@@ -3257,14 +3264,14 @@
             }
 
             // 创建一个Blob对象，将字符串放入其中
-            const sc_export_blob = new Blob([sc_export_str], { type: 'text/plain' });
+            const sc_export_blob = new Blob([sc_export_str], { type: 'text/plain;charset=utf-8' });
 
             // 创建一个下载链接
             const sc_export_downloadLink = document.createElement('a');
             sc_export_downloadLink.href = URL.createObjectURL(sc_export_blob);
 
             // 设置文件名
-            sc_export_downloadLink.download = 'B站SC记录_' + sc_live_room_title + '_' + getTimestampConversion((new Date()).getTime()) + '.txt';
+            sc_export_downloadLink.download = 'B站SC记录_' + sc_live_room_title + '_' + the_sc_export_time_str + '.txt';
 
             // 将链接添加到页面中，模拟点击下载
             document.body.appendChild(sc_export_downloadLink);
@@ -4267,12 +4274,22 @@
             the_urc_sc_data_show_high_energy_num_flag = sc_data_show_high_energy_num_flag_fullscreen;
         }
 
+        const the_update_count_timestamp = (new Date()).getTime();
+
         if (n_count) {
             high_energy_contribute_num = n_count;
+            if (n_count > this_view_high_energy_contribute_num_est) {
+                this_view_high_energy_contribute_num_est = n_count;
+                this_view_high_energy_contribute_num_est_time = the_update_count_timestamp;
+            }
         }
 
         if (n_online_count) {
             high_energy_num = n_online_count;
+            if (n_online_count > this_view_high_energy_num_est) {
+                this_view_high_energy_num_est = n_online_count;
+                this_view_high_energy_num_est_time = the_update_count_timestamp;
+            }
         }
 
         if (sc_update_date_guard_once) {
@@ -8571,6 +8588,20 @@
                 cursor: pointer;
             }
 
+            .sc_live_setting_close {
+                color: #aaa;
+                float: right;
+                font-size: 28px;
+                font-weight: bold;
+            }
+
+            .sc_live_setting_close:hover,
+            .sc_live_setting_close:focus {
+                color: black;
+                text-decoration: none;
+                cursor: pointer;
+            }
+
             .sc_live_search_div_group {
                 display: block;
                 color: #000;
@@ -8624,11 +8655,15 @@
             .sc_live_search_modal_btn {
                 padding: 5px 20px;
                 color: initial;
+                border: unset;
+                cursor: pointer;
             }
 
             .sc_live_search_normal_btn {
                 padding: 5px 5px;
                 color: initial;
+                border: unset;
+                cursor: pointer;
             }
 
             .change_bg_opacity_range,
@@ -8687,6 +8722,38 @@
             .change_bg_opacity_range_fullscreen:hover::-webkit-slider-thumb {
                 background: #000;
             }
+
+            .sc_settings_icon {
+                margin-right: 5px;
+                vertical-align: middle;
+                color: #aaa;
+                cursor: pointer
+            }
+            .sc_settings_icon:hover {
+                color: #000;
+            }
+            .sc_live_setting_modal_div {
+                display: none;
+                z-index: 5555;
+                position: fixed;
+                top: 18%;
+                left: 50%;
+                margin-left: -15%;
+                width: 30%;
+                box-shadow: 5px 5px 5px #aaa;
+            }
+            .sc_live_setting_modal_content {
+                background-color: rgb(255, 255, 255);
+                padding: 20px;
+                border: 1px solid #888;
+            }
+            .sc_live_setting_item_div {
+                text-align: center;
+            }
+            .sc_live_setting_item {
+                padding: 5px;
+                margin: 5px;
+            }
         `;
 
         document.head.appendChild(sc_live_search_modal_style);
@@ -8697,7 +8764,12 @@
         sc_live_search_modal_html.innerHTML = `
                 <div class="sc_live_search_modal_content">
                     <span class="sc_live_search_close">&times;</span>
-                    <p>自定义搜索SC：</p>
+                    <p>
+                        <svg class="sc_settings_icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20">
+                            <path fill="currentColor" d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                        </svg>
+                    自定义搜索SC：
+                    </p>
                     <input type="range" min="0" max="100" value="90" class="change_bg_opacity_range">
                     <form id="sc_live_search_form">
                         <div class="sc_live_search_div_group">
@@ -8733,14 +8805,32 @@
                         <div class="sc_live_search_result_div" style="width: 100%;">
                         </div>
                     </form>
-                    <div class="sc_live_search_btn_div">
-                        <button id="sc_live_search_cancel_btn" class="sc_live_search_modal_btn sc_live_search_modal_close_btn">取消</button>
-                        <button id="sc_live_search_confirm_btn" class="sc_live_search_modal_btn sc_live_search_modal_close_btn">关闭</button>
-                    </div>
                 </div>
         `;
 
         document.body.appendChild(sc_live_search_modal_html);
+
+        let sc_live_setting_modal_html = document.createElement('div');
+        sc_live_setting_modal_html.id = 'sc_live_setting_modal';
+        sc_live_setting_modal_html.className = 'sc_live_setting_modal_div';
+        sc_live_setting_modal_html.innerHTML = `
+                <div class="sc_live_setting_modal_content">
+                    <span class="sc_live_setting_close">&times;</span>
+                    <p>记录板配置：</p>
+                    <div class="sc_live_setting_item_div">
+                        <button id="sc_live_catch_reset_setting_btn" class="sc_live_setting_item" type="button">重置配置</button>
+                        <button id="sc_live_catch_output_setting_btn" class="sc_live_setting_item" type="button">导出配置</button>
+                        <button id="sc_live_catch_import_setting_btn" class="sc_live_setting_item" type="button">导入配置</button>
+                    </div>
+                    <div class="sc_live_setting_item_div">
+                        <textarea id="sc_live_setting_import_textarea_content" style="min-width: 60%; min-height: 100px; max-width: 90%; max-height: 160px; margin: 5px;" placeholder="输入json格式配置，并且点击导入配置按钮\n\n注意：\n\n重置配置不是清空本输入框的内容\n\n重置配置是清空记录板的所有配置"></textarea>
+                    </div>
+                    <div class="sc_live_setting_item_div">
+                        <button id="sc_live_setting_sample_json_btn" class="sc_live_setting_item" type="button">填充示例配置</button>
+                    </div>
+                </div>
+        `;
+        document.body.appendChild(sc_live_setting_modal_html);
 
         let sc_live_search_modal_html_fullscreen = document.createElement('div');
         sc_live_search_modal_html_fullscreen.id = 'sc_live_search_config_div_fullscreen';
@@ -8784,10 +8874,6 @@
                         <div class="sc_live_search_result_div_fullscreen" style="width: 100%;">
                         </div>
                     </form>
-                    <div class="sc_live_search_btn_div_fullscreen">
-                        <button id="sc_live_search_cancel_btn" class="sc_live_search_modal_btn sc_live_search_modal_close_btn">取消</button>
-                        <button id="sc_live_search_confirm_btn_fullscreen" class="sc_live_search_modal_btn sc_live_search_modal_close_btn">关闭</button>
-                    </div>
                 </div>
         `;
 
@@ -8797,7 +8883,7 @@
             $(document).find('.sc_live_search_config_modal').hide();
         }
 
-        $(document).on('click', '.sc_live_search_close, .sc_live_search_modal_close_btn', function() {
+        $(document).on('click', '.sc_live_search_close', function() {
             sc_close_live_search_modal();
         });
 
@@ -8834,11 +8920,15 @@
         sc_list_search_div_bg_opacity_range = parseInt(sc_list_search_div_bg_opacity_range, 10);
 
         $(document).find('.sc_live_search_modal_content').css('background-color', 'rgb(255, 255, 255, '+ sc_list_search_div_bg_opacity_range / 100 +')');
+        $(document).find('.sc_live_search_modal_btn').css('background-color', 'rgb(220, 220, 220, '+ sc_list_search_div_bg_opacity_range / 100 +')');
+        $(document).find('.sc_live_search_normal_btn').css('background-color', 'rgb(220, 220, 220, '+ sc_list_search_div_bg_opacity_range / 100 +')');
         $(document).find('.change_bg_opacity_range').val(sc_list_search_div_bg_opacity_range);
         $(document).find('.change_bg_opacity_range_fullscreen').val(sc_list_search_div_bg_opacity_range);
 
         $(document).on('input', '.change_bg_opacity_range', function() {
             $(document).find('.sc_live_search_modal_content').css('background-color', 'rgb(255, 255, 255, '+ $(this).val() / 100 +')');
+            $(document).find('.sc_live_search_modal_btn').css('background-color', 'rgb(220, 220, 220, '+ $(this).val() / 100 +')');
+            $(document).find('.sc_live_search_normal_btn').css('background-color', 'rgb(220, 220, 220, '+ $(this).val() / 100 +')');
             $(document).find('.change_bg_opacity_range_fullscreen').val($(this).val());
 
             clearTimeout(sc_change_bg_opacity_timeout);
@@ -8851,6 +8941,8 @@
 
         $(document).on('input', '.change_bg_opacity_range_fullscreen', function() {
             $(document).find('.sc_live_search_modal_content').css('background-color', 'rgb(255, 255, 255, '+ $(this).val() / 100 +')');
+            $(document).find('.sc_live_search_modal_btn').css('background-color', 'rgb(220, 220, 220, '+ $(this).val() / 100 +')');
+            $(document).find('.sc_live_search_normal_btn').css('background-color', 'rgb(220, 220, 220, '+ $(this).val() / 100 +')');
             $(document).find('.change_bg_opacity_range').val($(this).val());
 
             clearTimeout(sc_change_bg_opacity_fullscreen_timeout);
@@ -8907,6 +8999,277 @@
 
         $(document).on('click', '#sc_live_search_next_btn_fullscreen', function() {
             sc_live_search_confirm_next();
+        });
+
+        $(document).on('click', '.sc_settings_icon', function() {
+            $(document).find('.sc_live_setting_modal_div').show();
+        });
+
+        $(document).on('click', '.sc_live_setting_close', function() {
+            $(document).find('.sc_live_setting_modal_div').hide();
+            $(document).find('#sc_live_setting_import_textarea_content').val('');
+        });
+
+        $(document).on('click', '#sc_live_catch_reset_setting_btn', function(e) {
+            if (confirm('清空记录板的所有配置，恢复默认配置')) {
+                unsafeWindow.localStorage.removeItem('live_sc_all_memory_config');
+                unsafeWindow.localStorage.removeItem('live_sc_self_memory_config');
+                unsafeWindow.localStorage.removeItem('live_sc_memory_all_rooms_mode');
+                unsafeWindow.localStorage.removeItem('live_sc_switch_memory_rooms');
+                unsafeWindow.localStorage.removeItem('live_sc_switch_record');
+                unsafeWindow.localStorage.removeItem('live_sc_switch_record_fullscreen');
+                unsafeWindow.localStorage.removeItem('live_sc_room_blacklist');
+                unsafeWindow.localStorage.removeItem('live_sc_screen_resolution_str');
+                unsafeWindow.localStorage.removeItem('live_sc_special_tip_location');
+                unsafeWindow.localStorage.removeItem('live_sc_special_tip_str');
+                unsafeWindow.localStorage.removeItem('live_sc_special_msg_flag');
+                unsafeWindow.localStorage.removeItem('live_sc_special_sc_flag');
+                unsafeWindow.localStorage.removeItem('live_sc_special_danmu_mode');
+                unsafeWindow.localStorage.removeItem('live_sc_to_danmu_show_flag');
+                unsafeWindow.localStorage.removeItem('live_sc_to_danmu_show_location');
+                unsafeWindow.localStorage.removeItem('live_sc_to_danmu_show_mode');
+                unsafeWindow.localStorage.removeItem('live_special_sc_no_remain_flag');
+                unsafeWindow.localStorage.removeItem('live_sc_to_danmu_no_remain_flag');
+
+                // 个记
+                for (let i = 0; i < unsafeWindow.localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key.startsWith('live_') && key.endsWith('_sc_self_memory_config')) {
+                        unsafeWindow.localStorage.removeItem(key);
+                    }
+                }
+
+                alert("配置已清空，刷新页面生效！");
+                unsafeWindow.location.reload();
+            }
+        });
+
+        $(document).on('click', '#sc_live_catch_output_setting_btn', function(e) {
+
+            let the_sc_live_setting_obj = {};
+
+            let sc_live_catch_all_memory_config = unsafeWindow.localStorage.getItem('live_sc_all_memory_config');
+            if (sc_live_catch_all_memory_config !== null && sc_live_catch_all_memory_config !== 'null' && sc_live_catch_all_memory_config !== '') {
+                the_sc_live_setting_obj.live_sc_all_memory_config = JSON.parse(sc_live_catch_all_memory_config);
+            }
+
+            let sc_live_catch_self_memory_config = unsafeWindow.localStorage.getItem('live_sc_self_memory_config');
+            if (sc_live_catch_self_memory_config !== null && sc_live_catch_self_memory_config !== 'null' && sc_live_catch_self_memory_config !== '') {
+                the_sc_live_setting_obj.live_sc_self_memory_config = JSON.parse(sc_live_catch_self_memory_config);
+            }
+
+            let sc_live_catch_memory_all_rooms_mode = unsafeWindow.localStorage.getItem('live_sc_memory_all_rooms_mode');
+            if (sc_live_catch_memory_all_rooms_mode !== null && sc_live_catch_memory_all_rooms_mode !== 'null' && sc_live_catch_memory_all_rooms_mode !== '') {
+                the_sc_live_setting_obj.live_sc_memory_all_rooms_mode = sc_live_catch_memory_all_rooms_mode;
+            }
+
+            let sc_live_catch_switch_memory_rooms = unsafeWindow.localStorage.getItem('live_sc_switch_memory_rooms');
+            if (sc_live_catch_switch_memory_rooms !== null && sc_live_catch_switch_memory_rooms !== 'null' && sc_live_catch_switch_memory_rooms !== '') {
+                the_sc_live_setting_obj.live_sc_switch_memory_rooms = JSON.parse(sc_live_catch_switch_memory_rooms);
+            }
+
+            let sc_live_catch_switch_record = unsafeWindow.localStorage.getItem('live_sc_switch_record');
+            if (sc_live_catch_switch_record !== null && sc_live_catch_switch_record !== 'null' && sc_live_catch_switch_record !== '') {
+                the_sc_live_setting_obj.live_sc_switch_record = sc_live_catch_switch_record;
+            }
+
+            let sc_live_catch_switch_record_fullscreen = unsafeWindow.localStorage.getItem('live_sc_switch_record_fullscreen');
+            if (sc_live_catch_switch_record_fullscreen !== null && sc_live_catch_switch_record_fullscreen !== 'null' && sc_live_catch_switch_record_fullscreen !== '') {
+                the_sc_live_setting_obj.live_sc_switch_record_fullscreen = sc_live_catch_switch_record_fullscreen;
+            }
+
+            let sc_live_catch_room_blacklist = unsafeWindow.localStorage.getItem('live_sc_room_blacklist');
+            if (sc_live_catch_room_blacklist !== null && sc_live_catch_room_blacklist !== 'null' && sc_live_catch_room_blacklist !== '') {
+                the_sc_live_setting_obj.live_sc_room_blacklist = JSON.parse(sc_live_catch_room_blacklist);
+            }
+
+            let sc_live_catch_screen_resolution_str = unsafeWindow.localStorage.getItem('live_sc_screen_resolution_str');
+            if (sc_live_catch_screen_resolution_str !== null && sc_live_catch_screen_resolution_str !== 'null' && sc_live_catch_screen_resolution_str !== '') {
+                the_sc_live_setting_obj.live_sc_screen_resolution_str = sc_live_catch_screen_resolution_str;
+            }
+
+            let sc_live_catch_special_tip_location = unsafeWindow.localStorage.getItem('live_sc_special_tip_location');
+            if (sc_live_catch_special_tip_location !== null && sc_live_catch_special_tip_location !== 'null' && sc_live_catch_special_tip_location !== '') {
+                the_sc_live_setting_obj.live_sc_special_tip_location = sc_live_catch_special_tip_location;
+            }
+
+            let sc_live_catch_special_tip_str = unsafeWindow.localStorage.getItem('live_sc_special_tip_str');
+            if (sc_live_catch_special_tip_str !== null && sc_live_catch_special_tip_str !== 'null' && sc_live_catch_special_tip_str !== '') {
+                the_sc_live_setting_obj.live_sc_special_tip_str = sc_live_catch_special_tip_str;
+            }
+
+            let sc_live_catch_special_msg_flag = unsafeWindow.localStorage.getItem('live_sc_special_msg_flag');
+            if (sc_live_catch_special_msg_flag !== null && sc_live_catch_special_msg_flag !== 'null' && sc_live_catch_special_msg_flag !== '') {
+                the_sc_live_setting_obj.live_sc_special_msg_flag = sc_live_catch_special_msg_flag;
+            }
+
+            let sc_live_catch_special_sc_flag = unsafeWindow.localStorage.getItem('live_sc_special_sc_flag');
+            if (sc_live_catch_special_sc_flag !== null && sc_live_catch_special_sc_flag !== 'null' && sc_live_catch_special_sc_flag !== '') {
+                the_sc_live_setting_obj.live_sc_special_sc_flag = sc_live_catch_special_sc_flag;
+            }
+
+            let sc_live_catch_special_danmu_mode = unsafeWindow.localStorage.getItem('live_sc_special_danmu_mode');
+            if (sc_live_catch_special_danmu_mode !== null && sc_live_catch_special_danmu_mode !== 'null' && sc_live_catch_special_danmu_mode !== '') {
+                the_sc_live_setting_obj.live_sc_special_danmu_mode = sc_live_catch_special_danmu_mode;
+            }
+
+            let sc_live_catch_to_danmu_show_flag = unsafeWindow.localStorage.getItem('live_sc_to_danmu_show_flag');
+            if (sc_live_catch_to_danmu_show_flag !== null && sc_live_catch_to_danmu_show_flag !== 'null' && sc_live_catch_to_danmu_show_flag !== '') {
+                the_sc_live_setting_obj.live_sc_to_danmu_show_flag = sc_live_catch_to_danmu_show_flag;
+            }
+
+            let sc_live_catch_to_danmu_show_location = unsafeWindow.localStorage.getItem('live_sc_to_danmu_show_location');
+            if (sc_live_catch_to_danmu_show_location !== null && sc_live_catch_to_danmu_show_location !== 'null' && sc_live_catch_to_danmu_show_location !== '') {
+                the_sc_live_setting_obj.live_sc_to_danmu_show_location = sc_live_catch_to_danmu_show_location;
+            }
+
+            let sc_live_catch_to_danmu_show_mode = unsafeWindow.localStorage.getItem('live_sc_to_danmu_show_mode');
+            if (sc_live_catch_to_danmu_show_mode !== null && sc_live_catch_to_danmu_show_mode !== 'null' && sc_live_catch_to_danmu_show_mode !== '') {
+                the_sc_live_setting_obj.live_sc_to_danmu_show_mode = sc_live_catch_to_danmu_show_mode;
+            }
+
+            let sc_live_catch_special_sc_no_remain_flag = unsafeWindow.localStorage.getItem('live_special_sc_no_remain_flag');
+            if (sc_live_catch_special_sc_no_remain_flag !== null && sc_live_catch_special_sc_no_remain_flag !== 'null' && sc_live_catch_special_sc_no_remain_flag !== '') {
+                the_sc_live_setting_obj.live_special_sc_no_remain_flag = sc_live_catch_special_sc_no_remain_flag;
+            }
+
+            let sc_live_catch_to_danmu_no_remain_flag = unsafeWindow.localStorage.getItem('live_sc_to_danmu_no_remain_flag');
+            if (sc_live_catch_to_danmu_no_remain_flag !== null && sc_live_catch_to_danmu_no_remain_flag !== 'null' && sc_live_catch_to_danmu_no_remain_flag !== '') {
+                the_sc_live_setting_obj.live_sc_to_danmu_no_remain_flag = sc_live_catch_to_danmu_no_remain_flag;
+            }
+
+            // 个记
+            for (let i = 0; i < unsafeWindow.localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('live_') && key.endsWith('_sc_self_memory_config')) {
+                    let sc_live_catch_self_config = unsafeWindow.localStorage.getItem(key);
+                    if (sc_live_catch_self_config !== null && sc_live_catch_self_config !== 'null' && sc_live_catch_self_config !== '') {
+                        the_sc_live_setting_obj[key] = JSON.parse(sc_live_catch_self_config);
+                    }
+                }
+            }
+
+            const the_sc_live_catch_Json = JSON.stringify(the_sc_live_setting_obj, null, 2)
+
+            // 创建一个Blob对象，将字符串放入其中
+            const sc_setting_export_blob = new Blob([the_sc_live_catch_Json], { type: 'application/json' });
+
+            // 创建一个下载链接
+            const sc_setting_export_downloadLink = document.createElement('a');
+            sc_setting_export_downloadLink.href = URL.createObjectURL(sc_setting_export_blob);
+
+            // 设置文件名
+            sc_setting_export_downloadLink.download = 'B站直播间SC记录板配置.json';
+
+            // 将链接添加到页面中，模拟点击下载
+            document.body.appendChild(sc_setting_export_downloadLink);
+            sc_setting_export_downloadLink.click();
+
+            // 移除链接
+            document.body.removeChild(sc_setting_export_downloadLink);
+
+        });
+
+        $(document).on('click', '#sc_live_catch_import_setting_btn', function(e) {
+            const the_import_setting_json_str = $(document).find('#sc_live_setting_import_textarea_content').val();
+            if (the_import_setting_json_str.length) {
+                try {
+                    const the_import_setting_json = JSON.parse(the_import_setting_json_str);
+
+                    // 如果大于30项，说明不是记录板的配置，小小的预防下错误
+                    if (Object.keys(the_import_setting_json).length > 30) {
+                        open_and_close_sc_modal('✗ 导入失败，请输入正确的配置', 'red', e, 1);
+                    } else {
+
+                        for (let setting_item in the_import_setting_json) {
+                            if (typeof the_import_setting_json[setting_item] === 'object') {
+                                unsafeWindow.localStorage.setItem(setting_item, JSON.stringify(the_import_setting_json[setting_item]));
+                            } else {
+                                unsafeWindow.localStorage.setItem(setting_item, the_import_setting_json[setting_item]);
+                            }
+                        }
+
+                        alert("配置导入成功！刷新页面生效！");
+                        unsafeWindow.location.reload();
+                    }
+                } catch {
+                    open_and_close_sc_modal('✗ 导入失败，配置格式错误', 'red', e, 1);
+                }
+            }
+        });
+
+        $(document).on('click', '#sc_live_setting_sample_json_btn', function(e) {
+            const the_default_setting_str = `{
+  "live_sc_all_memory_config": {
+    "sc_switch": 1,
+    "sc_switch_fullscreen": 1,
+    "sc_panel_fold_mode": 1,
+    "sc_panel_fold_mode_fullscreen": 1,
+    "sc_panel_side_fold_flag": true,
+    "sc_panel_side_fold_flag_fullscreen": true,
+    "sc_panel_side_fold_simple": false,
+    "sc_panel_side_fold_simple_fullscreen": false,
+    "sc_func_btn_mode": 2,
+    "sc_func_btn_mode_fullscreen": 4,
+    "sc_side_fold_custom_config": 1,
+    "sc_side_fold_custom_time": 11.5,
+    "sc_side_fold_custom_each_same_time_flag": true,
+    "sc_rectangle_width": 388,
+    "sc_rectangle_width_fullscreen": 325,
+    "sc_panel_list_height": 170,
+    "sc_panel_list_height_fullscreen": 400,
+    "sc_item_order_up_flag": false,
+    "data_show_bottom_flag": false,
+    "sc_panel_allow_drag_flag": true,
+    "sc_welt_hide_circle_half_flag": true,
+    "sc_start_time_show_flag": true,
+    "sc_live_sidebar_left_flag": false,
+    "sc_live_fullscreen_config_separate_memory_flag": true,
+    "sc_data_show_high_energy_num_flag": true,
+    "sc_data_show_high_energy_num_flag_fullscreen": true,
+    "sc_side_fold_fullscreen_auto_hide_list_flag": true,
+    "sc_panel_show_time_mode": 0,
+    "sc_panel_show_time_each_same": 0.5,
+    "sc_live_panel_show_time_click_stop_flag": true,
+    "sc_panel_drag_left": 1329.5,
+    "sc_panel_drag_top": 80,
+    "sc_panel_drag_left_percent": "0.9265",
+    "sc_panel_drag_top_percent": "0.1230",
+    "sc_panel_drag_top_fullscreen_percent": "0.22",
+    "sc_panel_drag_left_fullscreen": 9.5,
+    "sc_panel_drag_top_fullscreen": 209,
+    "sc_panel_drag_left_fullscreen_percent": "0.0066",
+    "sc_start_time_simple_flag": true,
+    "sc_list_search_shortkey_flag": true,
+    "sc_list_search_div_bg_opacity_range": "27",
+    "sc_live_auto_tianxuan_flag": false,
+    "sc_live_send_dm_combo_flag": false,
+    "sc_live_all_font_size_add": 5,
+    "sc_live_font_size_only_message_flag": true,
+    "sc_live_side_fold_head_border_bg_opacity_flag": false,
+    "sc_live_item_bg_opacity_val": 0.7,
+    "sc_live_hide_value_font_flag": true,
+    "sc_live_hide_diff_time_flag": false,
+    "sc_live_item_suspend_bg_opacity_one_flag": false,
+    "sc_live_panel_not_show_now_time_sc_flag": false,
+    "sc_live_panel_not_show_local_sc_flag": false
+  },
+  "live_sc_memory_all_rooms_mode": "3",
+  "live_sc_screen_resolution_str": "1441_961",
+  "live_sc_special_tip_location": "1",
+  "live_sc_special_msg_flag": "true",
+  "live_sc_special_sc_flag": "true",
+  "live_sc_special_danmu_mode": "1",
+  "live_sc_to_danmu_show_flag": "true",
+  "live_sc_to_danmu_show_location": "0",
+  "live_sc_to_danmu_show_mode": "3",
+  "live_special_sc_no_remain_flag": "false",
+  "live_sc_to_danmu_no_remain_flag": "false"
+}`;
+
+            $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
+
+            open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
         });
 
 

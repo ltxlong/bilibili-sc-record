@@ -8823,7 +8823,7 @@
                         <button id="sc_live_catch_import_setting_btn" class="sc_live_setting_item" type="button">导入配置</button>
                     </div>
                     <div class="sc_live_setting_item_div">
-                        <textarea id="sc_live_setting_import_textarea_content" style="min-width: 60%; min-height: 100px; max-width: 90%; max-height: 160px; margin: 5px;" placeholder="输入json格式配置，并且点击导入配置按钮\n\n注意：\n\n重置配置不是清空本输入框的内容\n\n重置配置是清空记录板的所有配置"></textarea>
+                        <textarea id="sc_live_setting_import_textarea_content" style="min-width: 60%; min-height: 100px; max-width: 90%; max-height: 160px; margin: 5px;" placeholder="输入json格式配置，点击导入配置按钮\n\n注意：\n\n重置配置不是清空本输入框的内容\n\n重置配置是清空记录板的所有配置"></textarea>
                     </div>
                     <div class="sc_live_setting_item_div">
                         <button id="sc_live_setting_sample_json_btn" class="sc_live_setting_item" type="button">填充示例配置</button>

@@ -287,7 +287,7 @@
     function sc_screen_resolution_change_check() {
         let the_sc_screen_resolution_change_flag = sc_screen_resolution_change_flag;
         let live_sc_screen_resolution_str = unsafeWindow.localStorage.getItem('live_sc_screen_resolution_str');
-        let the_now_screen_resolution_str = unsafeWindow.screen.width + '_' + unsafeWindow.screen.height;
+        let the_now_screen_resolution_str = unsafeWindow.top.document.documentElement.clientWidth + '_' + unsafeWindow.top.document.documentElement.clientHeight;
         if (live_sc_screen_resolution_str !== null && live_sc_screen_resolution_str !== 'null' && live_sc_screen_resolution_str !== '') {
 
             the_sc_screen_resolution_change_flag = the_now_screen_resolution_str !== live_sc_screen_resolution_str;
@@ -9248,7 +9248,7 @@
     "sc_live_all_font_size_add": 5,
     "sc_live_font_size_only_message_flag": true,
     "sc_live_side_fold_head_border_bg_opacity_flag": false,
-    "sc_live_item_bg_opacity_val": 0.7,
+    "sc_live_item_bg_opacity_val": 0.8,
     "sc_live_hide_value_font_flag": true,
     "sc_live_hide_diff_time_flag": false,
     "sc_live_item_suspend_bg_opacity_one_flag": false,
@@ -9256,7 +9256,7 @@
     "sc_live_panel_not_show_local_sc_flag": false
   },
   "live_sc_memory_all_rooms_mode": "3",
-  "live_sc_screen_resolution_str": "1441_961",
+  "live_sc_screen_resolution_str": "1435_792",
   "live_sc_special_tip_location": "1",
   "live_sc_special_msg_flag": "true",
   "live_sc_special_sc_flag": "true",
@@ -10660,7 +10660,7 @@
 
             clearTimeout(sc_window_resizeTimeout);
 
-            // 设置一个延迟来获取最新的 screen.width 或者 screen.height
+            // 设置一个延迟来获取最新的 unsafeWindow.top.document.documentElement.clientWidth 或者 unsafeWindow.top.document.documentElement.clientHeight
             sc_window_resizeTimeout = setTimeout(() => {
 
                 sc_screen_resolution_change_flag = sc_screen_resolution_change_check();

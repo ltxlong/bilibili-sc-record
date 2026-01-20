@@ -8830,6 +8830,7 @@
                     </div>
                 </div>
         `;
+
         document.body.appendChild(sc_live_setting_modal_html);
 
         let sc_live_search_modal_html_fullscreen = document.createElement('div');
@@ -9045,7 +9046,6 @@
         });
 
         $(document).on('click', '#sc_live_catch_output_setting_btn', function(e) {
-
             let the_sc_live_setting_obj = {};
 
             let sc_live_catch_all_memory_config = unsafeWindow.localStorage.getItem('live_sc_all_memory_config');
@@ -9167,7 +9167,6 @@
 
             // 移除链接
             document.body.removeChild(sc_setting_export_downloadLink);
-
         });
 
         $(document).on('click', '#sc_live_catch_import_setting_btn', function(e) {
@@ -9182,10 +9181,12 @@
                     } else {
 
                         for (let setting_item in the_import_setting_json) {
-                            if (typeof the_import_setting_json[setting_item] === 'object') {
-                                unsafeWindow.localStorage.setItem(setting_item, JSON.stringify(the_import_setting_json[setting_item]));
-                            } else {
-                                unsafeWindow.localStorage.setItem(setting_item, the_import_setting_json[setting_item]);
+                            if (setting_item.startsWith('live_')) {
+                                if (typeof the_import_setting_json[setting_item] === 'object') {
+                                    unsafeWindow.localStorage.setItem(setting_item, JSON.stringify(the_import_setting_json[setting_item]));
+                                } else {
+                                    unsafeWindow.localStorage.setItem(setting_item, the_import_setting_json[setting_item]);
+                                }
                             }
                         }
 
@@ -9271,7 +9272,6 @@
 
             open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
         });
-
 
         // 创建一个自定义右键菜单
         let sc_func_button1 = document.createElement('button');

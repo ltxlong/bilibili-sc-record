@@ -694,28 +694,40 @@
         unsafeWindow.localStorage.removeItem(sc_sid_localstorage_key);
     }
 
-    function check_and_clear_all_sc_store(manual_flag = false) {
-        if (!sc_live_manual_clear_flag || (sc_live_manual_clear_flag && manual_flag)) {
-            // 遍历清除所有过期的sc存储
-            let live_sc_rooms_json = unsafeWindow.localStorage.getItem('live_sc_rooms');
-            if (live_sc_rooms_json !== null && live_sc_rooms_json !== 'null' && live_sc_rooms_json !== '[]' && live_sc_rooms_json !== '') {
-                let live_sc_rooms = JSON.parse(live_sc_rooms_json);
-                let live_sc_rooms_new = [];
-                for (let m = 0; m < live_sc_rooms.length; m++) {
-                    let sc_keep_time_item = unsafeWindow.localStorage.getItem('live_' + live_sc_rooms[m] + '_sc_keep_time');
-                    if (sc_keep_time_item === null || sc_keep_time_item === 'null' || sc_keep_time_item === 0 || sc_keep_time_item === '') {
-                        continue;
-                    } else if (sc_keep_time_item !== null && sc_keep_time_item !== 'null' && sc_keep_time_item !== 0 && sc_keep_time_item !== '' && ((sc_now_time - parseInt(sc_keep_time_item, 10)) / (1000 * 60 * 60)) > sc_clear_time_hour) {
-                        unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
-                        unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_sid'); // 清除sc的sid存储
-                        unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_keep_time'); //清除sc的keep time存储
-                    } else {
-                        live_sc_rooms_new.push(live_sc_rooms[m]);
-                    }
+    function check_and_clear_all_sc_store() {
+        // 遍历清除所有过期的sc存储
+        let live_sc_rooms_json = unsafeWindow.localStorage.getItem('live_sc_rooms');
+        if (live_sc_rooms_json !== null && live_sc_rooms_json !== 'null' && live_sc_rooms_json !== '[]' && live_sc_rooms_json !== '') {
+            let live_sc_rooms = JSON.parse(live_sc_rooms_json);
+            let live_sc_rooms_new = [];
+            for (let m = 0; m < live_sc_rooms.length; m++) {
+                let sc_keep_time_item = unsafeWindow.localStorage.getItem('live_' + live_sc_rooms[m] + '_sc_keep_time');
+                if (sc_keep_time_item === null || sc_keep_time_item === 'null' || sc_keep_time_item === 0 || sc_keep_time_item === '') {
+                    continue;
+                } else if (sc_keep_time_item !== null && sc_keep_time_item !== 'null' && sc_keep_time_item !== 0 && sc_keep_time_item !== '' && ((sc_now_time - parseInt(sc_keep_time_item, 10)) / (1000 * 60 * 60)) > sc_clear_time_hour) {
+                    unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
+                    unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_sid'); // 清除sc的sid存储
+                    unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_keep_time'); //清除sc的keep time存储
+                } else {
+                    live_sc_rooms_new.push(live_sc_rooms[m]);
                 }
-                // 更新live_sc_rooms
-                unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify(live_sc_rooms_new));
             }
+            // 更新live_sc_rooms
+            unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify(live_sc_rooms_new));
+        }
+    }
+
+    function clear_all_sc_store() {
+        let live_sc_rooms_json = unsafeWindow.localStorage.getItem('live_sc_rooms');
+        if (live_sc_rooms_json !== null && live_sc_rooms_json !== 'null' && live_sc_rooms_json !== '[]' && live_sc_rooms_json !== '') {
+            let live_sc_rooms = JSON.parse(live_sc_rooms_json);
+            for (let m = 0; m < live_sc_rooms.length; m++) {
+                unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
+                unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_sid'); // 清除sc的sid存储
+                unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_keep_time'); //清除sc的keep time存储
+            }
+            // 更新live_sc_rooms
+            unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify([]));
         }
     }
 
@@ -8277,7 +8289,7 @@
 
         $(document).on('click', '.sc_live_other_clear_all_room_data', function(e) {
             if (confirm('清除所有直播间数据，并且刷新页面')) {
-                check_and_clear_all_sc_store(true);
+                clear_all_sc_store();
                 update_select_manual_clear();
 
                 unsafeWindow.location.reload();
@@ -9343,10 +9355,10 @@
     "sc_panel_show_time_mode": 0,
     "sc_panel_show_time_each_same": 0.5,
     "sc_live_panel_show_time_click_stop_flag": true,
-    "sc_panel_drag_left": 1306.7321777,
-    "sc_panel_drag_top": 96.6964340,
-    "sc_panel_drag_left_percent": "0.9400951",
-    "sc_panel_drag_top_percent": "0.1158041",
+    "sc_panel_drag_left": 1329.5357666,
+    "sc_panel_drag_top": 99.7142868,
+    "sc_panel_drag_left_percent": "0.9265058",
+    "sc_panel_drag_top_percent": "0.1259019",
     "sc_panel_drag_top_fullscreen_percent": "0.1810428",
     "sc_panel_drag_left_fullscreen": 12.4910717,
     "sc_panel_drag_top_fullscreen": 173.9821472,

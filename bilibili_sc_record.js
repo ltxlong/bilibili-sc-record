@@ -8264,20 +8264,26 @@
         });
 
         $(document).on('click', '.sc_live_other_clear_this_room_data', function(e) {
-            unsafeWindow.localStorage.removeItem(sc_localstorage_key);
-            unsafeWindow.localStorage.removeItem(sc_sid_localstorage_key);
-            update_select_manual_clear();
+            if (confirm('清除本直播间数据，并且刷新页面')) {
+                unsafeWindow.localStorage.removeItem(sc_localstorage_key);
+                unsafeWindow.localStorage.removeItem(sc_sid_localstorage_key);
+                update_select_manual_clear();
 
-            alert('清除本直播间成功！刷新页面后生效~');
-            unsafeWindow.location.reload();
+                unsafeWindow.location.reload();
+            } else {
+                return false;
+            }
         });
 
         $(document).on('click', '.sc_live_other_clear_all_room_data', function(e) {
-            check_and_clear_all_sc_store(true);
-            update_select_manual_clear();
+            if (confirm('清除所有直播间数据，并且刷新页面')) {
+                check_and_clear_all_sc_store(true);
+                update_select_manual_clear();
 
-            alert('清除所有直播间成功！刷新页面后生效~');
-            unsafeWindow.location.reload();
+                unsafeWindow.location.reload();
+            } else {
+                return false;
+            }
         });
 
         $(document).on('change', '#sc_live_other_manual_clear_flag', function() {
@@ -9145,6 +9151,8 @@
 
                 alert("配置已清空，刷新页面生效！");
                 unsafeWindow.location.reload();
+            } else {
+                return false;
             }
         });
 
@@ -9371,10 +9379,10 @@
   "live_sc_to_danmu_no_remain_flag": "false"
 }`;
 
-    $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
+            $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
 
-    open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
-});
+            open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
+        });
 
         // 创建一个自定义右键菜单
         let sc_func_button1 = document.createElement('button');

@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.1.0
+// @version      13.1.1
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -284,6 +284,9 @@
     let sc_live_hide_value_font_flag = false; // 是否隐藏SC的价格
     let sc_live_hide_diff_time_flag = false; // 是否隐藏SC的时间距离
 
+    let sc_live_swap_two_btn_flag = false; // 是否调换 [切换] 和 [折叠] 按钮
+    let sc_live_manual_clear_flag = false; // 是否切换到手动清除直播间数据
+
     function sc_screen_resolution_change_check() {
         let the_sc_screen_resolution_change_flag = sc_screen_resolution_change_flag;
         let live_sc_screen_resolution_str = unsafeWindow.localStorage.getItem('live_sc_screen_resolution_str');
@@ -433,6 +436,8 @@
         sc_live_item_suspend_bg_opacity_one_flag = sc_all_memory_config['sc_live_item_suspend_bg_opacity_one_flag'] ?? false;
         sc_live_hide_value_font_flag = sc_all_memory_config['sc_live_hide_value_font_flag'] ?? false;
         sc_live_hide_diff_time_flag = sc_all_memory_config['sc_live_hide_diff_time_flag'] ?? false;
+        sc_live_swap_two_btn_flag = sc_all_memory_config['sc_live_swap_two_btn_flag'] ?? false;
+        sc_live_manual_clear_flag = sc_all_memory_config['sc_live_manual_clear_flag'] ?? false;
         sc_live_fullscreen_config_separate_memory_flag = sc_all_memory_config['sc_live_fullscreen_config_separate_memory_flag'] ?? false;
         sc_panel_show_time_mode = sc_all_memory_config['sc_panel_show_time_mode'] ?? 0;
         sc_panel_show_time_each_same = sc_all_memory_config['sc_panel_show_time_each_same'] ?? 0.5;
@@ -540,6 +545,8 @@
         sc_live_item_suspend_bg_opacity_one_flag = sc_self_memory_config['sc_live_item_suspend_bg_opacity_one_flag'] ?? false;
         sc_live_hide_value_font_flag = sc_self_memory_config['sc_live_hide_value_font_flag'] ?? false;
         sc_live_hide_diff_time_flag = sc_self_memory_config['sc_live_hide_diff_time_flag'] ?? false;
+        sc_live_swap_two_btn_flag = sc_self_memory_config['sc_live_swap_two_btn_flag'] ?? false;
+        sc_live_manual_clear_flag = sc_self_memory_config['sc_live_manual_clear_flag'] ?? false;
         sc_live_fullscreen_config_separate_memory_flag = sc_self_memory_config['sc_live_fullscreen_config_separate_memory_flag'] ?? false;
         sc_panel_show_time_mode = sc_self_memory_config['sc_panel_show_time_mode'] ?? 0;
         sc_panel_show_time_each_same = sc_self_memory_config['sc_panel_show_time_each_same'] ?? 0.5;
@@ -682,31 +689,33 @@
     }
 
     // 先检测并处理本房间的
-    if (sc_keep_time_flag && (sc_now_time - parseInt(sc_keep_time, 10)) > 1000 * 60 * 60 * sc_clear_time_hour) {
+    if (!sc_live_manual_clear_flag && sc_keep_time_flag && (sc_now_time - parseInt(sc_keep_time, 10)) > 1000 * 60 * 60 * sc_clear_time_hour) {
         unsafeWindow.localStorage.removeItem(sc_localstorage_key);
         unsafeWindow.localStorage.removeItem(sc_sid_localstorage_key);
     }
 
-    function check_and_clear_all_sc_store() {
-        // 遍历清除所有过期的sc存储
-        let live_sc_rooms_json = unsafeWindow.localStorage.getItem('live_sc_rooms');
-        if (live_sc_rooms_json !== null && live_sc_rooms_json !== 'null' && live_sc_rooms_json !== '[]' && live_sc_rooms_json !== '') {
-            let live_sc_rooms = JSON.parse(live_sc_rooms_json);
-            let live_sc_rooms_new = [];
-            for (let m = 0; m < live_sc_rooms.length; m++) {
-                let sc_keep_time_item = unsafeWindow.localStorage.getItem('live_' + live_sc_rooms[m] + '_sc_keep_time');
-                if (sc_keep_time_item === null || sc_keep_time_item === 'null' || sc_keep_time_item === 0 || sc_keep_time_item === '') {
-                    continue;
-                } else if (sc_keep_time_item !== null && sc_keep_time_item !== 'null' && sc_keep_time_item !== 0 && sc_keep_time_item !== '' && ((sc_now_time - parseInt(sc_keep_time_item, 10)) / (1000 * 60 * 60)) > sc_clear_time_hour) {
-                    unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
-                    unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_sid'); // 清除sc的sid存储
-                    unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_keep_time'); //清除sc的keep time存储
-                } else {
-                    live_sc_rooms_new.push(live_sc_rooms[m]);
+    function check_and_clear_all_sc_store(manual_flag = false) {
+        if (!sc_live_manual_clear_flag || (sc_live_manual_clear_flag && manual_flag)) {
+            // 遍历清除所有过期的sc存储
+            let live_sc_rooms_json = unsafeWindow.localStorage.getItem('live_sc_rooms');
+            if (live_sc_rooms_json !== null && live_sc_rooms_json !== 'null' && live_sc_rooms_json !== '[]' && live_sc_rooms_json !== '') {
+                let live_sc_rooms = JSON.parse(live_sc_rooms_json);
+                let live_sc_rooms_new = [];
+                for (let m = 0; m < live_sc_rooms.length; m++) {
+                    let sc_keep_time_item = unsafeWindow.localStorage.getItem('live_' + live_sc_rooms[m] + '_sc_keep_time');
+                    if (sc_keep_time_item === null || sc_keep_time_item === 'null' || sc_keep_time_item === 0 || sc_keep_time_item === '') {
+                        continue;
+                    } else if (sc_keep_time_item !== null && sc_keep_time_item !== 'null' && sc_keep_time_item !== 0 && sc_keep_time_item !== '' && ((sc_now_time - parseInt(sc_keep_time_item, 10)) / (1000 * 60 * 60)) > sc_clear_time_hour) {
+                        unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
+                        unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_sid'); // 清除sc的sid存储
+                        unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_keep_time'); //清除sc的keep time存储
+                    } else {
+                        live_sc_rooms_new.push(live_sc_rooms[m]);
+                    }
                 }
+                // 更新live_sc_rooms
+                unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify(live_sc_rooms_new));
             }
-            // 更新live_sc_rooms
-            unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify(live_sc_rooms_new));
         }
     }
 
@@ -2242,6 +2251,8 @@
             update_sc_memory_config('sc_live_item_suspend_bg_opacity_one_flag', sc_live_item_suspend_bg_opacity_one_flag, 'self');
             update_sc_memory_config('sc_live_hide_value_font_flag', sc_live_hide_value_font_flag, 'self');
             update_sc_memory_config('sc_live_hide_diff_time_flag', sc_live_hide_diff_time_flag, 'self');
+            update_sc_memory_config('sc_live_swap_two_btn_flag', sc_live_swap_two_btn_flag, 'self');
+            update_sc_memory_config('sc_live_manual_clear_flag', sc_live_manual_clear_flag, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_data_show_high_energy_num_flag', sc_data_show_high_energy_num_flag, 'all');
@@ -2254,6 +2265,8 @@
             update_sc_memory_config('sc_live_item_suspend_bg_opacity_one_flag', sc_live_item_suspend_bg_opacity_one_flag, 'all');
             update_sc_memory_config('sc_live_hide_value_font_flag', sc_live_hide_value_font_flag, 'all');
             update_sc_memory_config('sc_live_hide_diff_time_flag', sc_live_hide_diff_time_flag, 'all');
+            update_sc_memory_config('sc_live_swap_two_btn_flag', sc_live_swap_two_btn_flag, 'all');
+            update_sc_memory_config('sc_live_manual_clear_flag', sc_live_manual_clear_flag, 'all');
         }
     }
 
@@ -2695,7 +2708,7 @@
         sc_btn_item.css('margin-top', '15px');
         sc_btn_item.css('margin-bottom', '15px');
         sc_btn_item.css('margin-right', '7px');
-        $(document).find('.sc_button_min').css('margin-right', '0px');
+        sc_btn_item.last().css('margin-right', '0px');
 
         let sc_btn_foldback = $(document).find('.sc_button_foldback');
         sc_btn_foldback.addClass('sc_button_sidefold');
@@ -4678,7 +4691,9 @@
         sc_minimizeButton.textContent = '折叠';
         sc_minimizeButton.classList.add('sc_button_min', 'sc_button_item');
         sc_minimizeButton.style.cursor = 'pointer';
-        sc_minimizeButton.style.marginRight = '0px';
+        if (!sc_live_swap_two_btn_flag) {
+            sc_minimizeButton.style.marginRight = '0px';
+        }
         $(document).on('click', '.sc_button_min', sc_minimize);
 
         // Add a button to the page to trigger sidefold function
@@ -4712,6 +4727,9 @@
         sc_switchButton.title = '主题切换';
         sc_switchButton.classList.add('sc_button_switch', 'sc_button_item');
         sc_switchButton.style.cursor = 'pointer';
+        if (sc_live_swap_two_btn_flag) {
+            sc_switchButton.style.marginRight = '0px';
+        }
         $(document).on('click', '.sc_button_switch', () => sc_switch_css(true));
 
         // Add a button to the page to trigger menu function
@@ -4782,12 +4800,20 @@
         sc_label_data_br3.classList.add('sc_label_data_br', 'sc_label_num_br3');
 
         // Append buttons to the container
-        sc_buttonsContainer.appendChild(sc_switchButton);
+        if (sc_live_swap_two_btn_flag) {
+            sc_buttonsContainer.appendChild(sc_minimizeButton);
+        } else {
+            sc_buttonsContainer.appendChild(sc_switchButton);
+        }
         sc_buttonsContainer.appendChild(sc_exportButton);
         sc_buttonsContainer.appendChild(sc_memoryButton);
         sc_buttonsContainer.appendChild(sc_sidefoldButton);
         sc_buttonsContainer.appendChild(sc_menuButton);
-        sc_buttonsContainer.appendChild(sc_minimizeButton);
+        if (sc_live_swap_two_btn_flag) {
+            sc_buttonsContainer.appendChild(sc_switchButton);
+        } else {
+            sc_buttonsContainer.appendChild(sc_minimizeButton);
+        }
 
         // Append the container to the rectangle
         sc_rectangleContainer.appendChild(sc_buttonsContainer);
@@ -8118,6 +8144,16 @@
                             <input type="checkbox" id="sc_live_other_hide_diff_time_flag" class="sc_live_other_checkbox_inline"/>
                             <label for="sc_live_other_hide_diff_time_flag" class="sc_live_other_checkbox_inline">设置隐藏SC的时间距离</label>
                         </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_swap_two_btn_flag" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_swap_two_btn_flag" class="sc_live_other_checkbox_inline">调换 [切换] 和 [折叠] 按钮的位置（刷新页面生效）</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_manual_clear_flag" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_manual_clear_flag" class="sc_live_other_checkbox_inline">切换到手动清除数据</label>
+                            <button style="display: none;" class="sc_live_other_clear_this_room_data">清除本直播间数据</button>
+                            <button style="display: none;" class="sc_live_other_clear_all_room_data">清除所有直播间数据</button>
+                        </div>
                     </form>
                     <div class="sc_live_other_btn_div">
                         <button id="sc_live_other_cancel_btn" class="sc_live_other_modal_btn sc_live_other_modal_close_btn">取消</button>
@@ -8189,6 +8225,16 @@
                             <input type="checkbox" id="sc_live_other_hide_diff_time_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
                             <label for="sc_live_other_hide_diff_time_flag_fullscreen" class="sc_live_other_checkbox_inline">设置隐藏SC的时间距离</label>
                         </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_swap_two_btn_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_swap_two_btn_flag_fullscreen" class="sc_live_other_checkbox_inline">调换 [切换] 和 [折叠] 按钮的位置（刷新页面生效）</label>
+                        </div>
+                        <div class="sc_live_other_checkbox_div">
+                            <input type="checkbox" id="sc_live_other_manual_clear_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_manual_clear_flag_fullscreen" class="sc_live_other_checkbox_inline">切换到手动清除数据</label>
+                            <button style="display: none;" class="sc_live_other_clear_this_room_data">清除本直播间数据</button>
+                            <button style="display: none;" class="sc_live_other_clear_all_room_data">清除所有直播间数据</button>
+                        </div>
                     </form>
                     <div class="sc_live_other_btn_div_fullscreen">
                         <button id="sc_live_other_cancel_btn" class="sc_live_other_modal_btn sc_live_other_modal_close_btn">取消</button>
@@ -8196,6 +8242,16 @@
                     </div>
                 </div>
         `;
+
+        // 优化流程，单独保存
+        function update_select_manual_clear() {
+            sc_live_manual_clear_flag = true;
+            if (sc_memory === 2) {
+                update_sc_memory_config('sc_live_manual_clear_flag', sc_live_manual_clear_flag, 'self');
+            } else if (sc_memory === 3) {
+                update_sc_memory_config('sc_live_manual_clear_flag', sc_live_manual_clear_flag, 'all');
+            }
+        }
 
         $(live_player_div).append(sc_live_other_modal_html_fullscreen);
 
@@ -8205,6 +8261,45 @@
 
         $(document).on('click', '.sc_live_other_close, .sc_live_other_modal_close_btn', function() {
             sc_close_live_other_modal();
+        });
+
+        $(document).on('click', '.sc_live_other_clear_this_room_data', function(e) {
+            unsafeWindow.localStorage.removeItem(sc_localstorage_key);
+            unsafeWindow.localStorage.removeItem(sc_sid_localstorage_key);
+            update_select_manual_clear();
+
+            alert('清除本直播间成功！刷新页面后生效~');
+            unsafeWindow.location.reload();
+        });
+
+        $(document).on('click', '.sc_live_other_clear_all_room_data', function(e) {
+            check_and_clear_all_sc_store(true);
+            update_select_manual_clear();
+
+            alert('清除所有直播间成功！刷新页面后生效~');
+            unsafeWindow.location.reload();
+        });
+
+        $(document).on('change', '#sc_live_other_manual_clear_flag', function() {
+            let is_checked = $(this).prop('checked');
+            if (is_checked) {
+                $('.sc_live_other_clear_this_room_data').show();
+                $('.sc_live_other_clear_all_room_data').show();
+            } else {
+                $('.sc_live_other_clear_this_room_data').hide();
+                $('.sc_live_other_clear_all_room_data').hide();
+            }
+        });
+
+        $(document).on('change', '#sc_live_other_manual_clear_flag_fullscreen', function() {
+            let is_checked = $(this).prop('checked');
+            if (is_checked) {
+                $('.sc_live_other_clear_this_room_data').show();
+                $('.sc_live_other_clear_all_room_data').show();
+            } else {
+                $('.sc_live_other_clear_this_room_data').hide();
+                $('.sc_live_other_clear_all_room_data').hide();
+            }
         });
 
         $(document).on('click', '#sc_live_other_confirm_btn', function(e) {
@@ -8331,6 +8426,10 @@
             } else {
                 $(document).find('.sc_diff_time').show();
             }
+
+            sc_live_swap_two_btn_flag = $(document).find('#sc_live_other_swap_two_btn_flag').is(':checked');
+
+            sc_live_manual_clear_flag = $(document).find('#sc_live_other_manual_clear_flag').is(':checked');
 
             sc_live_other_config_store();
 
@@ -8497,6 +8596,10 @@
             } else {
                 $(document).find('.sc_diff_time').show();
             }
+
+            sc_live_swap_two_btn_flag = $(document).find('#sc_live_other_swap_two_btn_flag_fullscreen').is(':checked');
+
+            sc_live_manual_clear_flag = $(document).find('#sc_live_other_manual_clear_flag_fullscreen').is(':checked');
 
             sc_live_other_config_store();
 
@@ -9232,10 +9335,10 @@
     "sc_panel_show_time_mode": 0,
     "sc_panel_show_time_each_same": 0.5,
     "sc_live_panel_show_time_click_stop_flag": true,
-    "sc_panel_drag_left": 1306.7321777,
-    "sc_panel_drag_top": 96.6964340,
-    "sc_panel_drag_left_percent": "0.9400951",
-    "sc_panel_drag_top_percent": "0.1158041",
+    "sc_panel_drag_left": 1329.5357666,
+    "sc_panel_drag_top": 99.7142868,
+    "sc_panel_drag_left_percent": "0.9265058",
+    "sc_panel_drag_top_percent": "0.1259019",
     "sc_panel_drag_top_fullscreen_percent": "0.1810428",
     "sc_panel_drag_left_fullscreen": 12.4910717,
     "sc_panel_drag_top_fullscreen": 173.9821472,
@@ -9268,10 +9371,10 @@
   "live_sc_to_danmu_no_remain_flag": "false"
 }`;
 
-            $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
+    $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
 
-            open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
-        });
+    open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
+});
 
         // 创建一个自定义右键菜单
         let sc_func_button1 = document.createElement('button');
@@ -10128,6 +10231,8 @@
             let sc_live_other_item_suspend_bg_opacity_one_flag_id = 'sc_live_item_suspend_bg_opacity_one_flag';
             let sc_live_other_hide_value_font_flag_id = 'sc_live_other_hide_value_font_flag';
             let sc_live_other_hide_diff_time_flag_id = 'sc_live_other_hide_diff_time_flag';
+            let sc_live_other_swap_two_btn_flag_id = 'sc_live_other_swap_two_btn_flag';
+            let sc_live_other_manual_clear_flag_id = 'sc_live_other_manual_clear_flag';
 
             if (sc_isFullscreen) {
                 sc_live_other_config_div_id = 'sc_live_other_config_div_fullscreen';
@@ -10213,6 +10318,22 @@
             $(document).find('#sc_live_other_hide_diff_time_flag_fullscreen').prop('checked', false);
             if (sc_live_hide_diff_time_flag) {
                 $(document).find('#' + sc_live_other_hide_diff_time_flag_id).prop('checked', true);
+            }
+
+            $(document).find('#sc_live_other_swap_two_btn_flag').prop('checked', false);
+            $(document).find('#sc_live_other_swap_two_btn_flag_fullscreen').prop('checked', false);
+            if (sc_live_swap_two_btn_flag) {
+                $(document).find('#' + sc_live_other_swap_two_btn_flag_id).prop('checked', true);
+            }
+
+            $(document).find('#sc_live_other_manual_clear_flag').prop('checked', false);
+            $(document).find('#sc_live_other_manual_clear_flag_fullscreen').prop('checked', false);
+            $(document).find('.sc_live_other_clear_this_room_data').hide();
+            $(document).find('.sc_live_other_clear_all_room_data').hide();
+            if (sc_live_manual_clear_flag) {
+                $(document).find('#' + sc_live_other_manual_clear_flag_id).prop('checked', true);
+                $(document).find('.sc_live_other_clear_this_room_data').show();
+                $(document).find('.sc_live_other_clear_all_room_data').show();
             }
 
             $(this).parent().fadeOut();

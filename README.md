@@ -91,7 +91,9 @@ let first_store_sc = sc_store_arr.at(-1); 修改为 let first_store_sc = sc_stor
 
 - 拖拽移动  
 
-- 导出数据  
+- 导出数据    
+
+- 导入导出配置    
 
 - 展开和折叠记录板  
     
@@ -136,6 +138,8 @@ let first_store_sc = sc_store_arr.at(-1); 修改为 let first_store_sc = sc_stor
 - 直播全屏可用  
 
 - 自动清除超过12小时的房间SC存储
+
+- 可手动清除房间SC存储
 
 - 对指定用户进入直播间提示、弹幕高亮、SC转高亮弹幕
 

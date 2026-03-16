@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.1.1
+// @version      13.1.2
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -5142,6 +5142,7 @@
         $(document).on('mouseup', '.sc_drag_div', sc_stopDragging);
 
         function sc_handleFullscreenChange() {
+            
             let the_hfc_sc_panel_fold_mode = sc_panel_fold_mode;
             if (sc_live_fullscreen_config_separate_memory_flag) {
                 the_hfc_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
@@ -5227,10 +5228,10 @@
         }
 
         // 让全屏直播的情况下也显示
-        live_player_div.addEventListener('fullscreenchange', sc_handleFullscreenChange);
-        live_player_div.addEventListener('webkitfullscreenchange', sc_handleFullscreenChange);
-        live_player_div.addEventListener('mozfullscreenchange', sc_handleFullscreenChange);
-        live_player_div.addEventListener('MSFullscreenChange', sc_handleFullscreenChange);
+        document.addEventListener('fullscreenchange', sc_handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', sc_handleFullscreenChange);
+        document.addEventListener('mozfullscreenchange', sc_handleFullscreenChange);
+        document.addEventListener('MSFullscreenChange', sc_handleFullscreenChange);
 
         $(document).on('click', '.sc_long_circle', () => {
             if (sc_isClickAllowed) {

@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.1.2
+// @version      13.1.3
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -5683,7 +5683,6 @@
         });
 
         $(document).on('mouseleave', '.sc_long_item', function() {
-            if (!sc_live_item_suspend_bg_opacity_one_flag) return;
 
             let the_sc_live_item_bg_opacity_val = sc_live_item_bg_opacity_val;
             let the_sc_switch = sc_switch;
@@ -8948,7 +8947,10 @@
                         <textarea id="sc_live_setting_import_textarea_content" style="min-width: 60%; min-height: 100px; max-width: 90%; max-height: 160px; margin: 5px;" placeholder="输入json格式配置，点击导入配置按钮\n\n注意：\n\n重置配置不是清空本输入框的内容\n\n重置配置是清空记录板的所有配置"></textarea>
                     </div>
                     <div class="sc_live_setting_item_div">
-                        <button id="sc_live_setting_sample_json_btn" class="sc_live_setting_item" type="button">填充示例配置</button>
+                        <button id="sc_live_top_label_setting_sample_json_btn" class="sc_live_setting_item" type="button">横向标签页-填充示例配置</button>
+                    </div>
+                    <div class="sc_live_setting_item_div">
+                        <button id="sc_live_left_label_setting_sample_json_btn" class="sc_live_setting_item" type="button">垂直标签页-填充示例配置</button>
                     </div>
                 </div>
         `;
@@ -9323,7 +9325,81 @@
             }
         });
 
-        $(document).on('click', '#sc_live_setting_sample_json_btn', function(e) {
+        $(document).on('click', '#sc_live_left_label_setting_sample_json_btn', function(e) {
+            const the_default_setting_str = `{
+  "live_sc_all_memory_config": {
+    "sc_switch": 1,
+    "sc_switch_fullscreen": 1,
+    "sc_panel_fold_mode": 1,
+    "sc_panel_fold_mode_fullscreen": 1,
+    "sc_panel_side_fold_flag": true,
+    "sc_panel_side_fold_flag_fullscreen": true,
+    "sc_panel_side_fold_simple": false,
+    "sc_panel_side_fold_simple_fullscreen": false,
+    "sc_func_btn_mode": 2,
+    "sc_func_btn_mode_fullscreen": 4,
+    "sc_side_fold_custom_config": 1,
+    "sc_side_fold_custom_time": 11.5,
+    "sc_side_fold_custom_each_same_time_flag": true,
+    "sc_rectangle_width": 388,
+    "sc_rectangle_width_fullscreen": 325,
+    "sc_panel_list_height": 170,
+    "sc_panel_list_height_fullscreen": 400,
+    "sc_item_order_up_flag": false,
+    "data_show_bottom_flag": false,
+    "sc_panel_allow_drag_flag": true,
+    "sc_welt_hide_circle_half_flag": true,
+    "sc_start_time_show_flag": true,
+    "sc_live_sidebar_left_flag": false,
+    "sc_live_fullscreen_config_separate_memory_flag": true,
+    "sc_data_show_high_energy_num_flag": true,
+    "sc_data_show_high_energy_num_flag_fullscreen": true,
+    "sc_side_fold_fullscreen_auto_hide_list_flag": true,
+    "sc_panel_show_time_mode": 0,
+    "sc_panel_show_time_each_same": 0.5,
+    "sc_live_panel_show_time_click_stop_flag": true,
+    "sc_panel_drag_left": 1306.7321777,
+    "sc_panel_drag_top": 96.6964340,
+    "sc_panel_drag_left_percent": "0.9400951",
+    "sc_panel_drag_top_percent": "0.1158041",
+    "sc_panel_drag_top_fullscreen_percent": "0.1810428",
+    "sc_panel_drag_left_fullscreen": 12.4910717,
+    "sc_panel_drag_top_fullscreen": 173.9821472,
+    "sc_panel_drag_left_fullscreen_percent": "0.0086683",
+    "sc_start_time_simple_flag": true,
+    "sc_list_search_shortkey_flag": true,
+    "sc_list_search_div_bg_opacity_range": "30",
+    "sc_live_auto_tianxuan_flag": false,
+    "sc_live_send_dm_combo_flag": false,
+    "sc_live_all_font_size_add": 5,
+    "sc_live_font_size_only_message_flag": true,
+    "sc_live_side_fold_head_border_bg_opacity_flag": false,
+    "sc_live_item_bg_opacity_val": 0.8,
+    "sc_live_hide_value_font_flag": true,
+    "sc_live_hide_diff_time_flag": false,
+    "sc_live_item_suspend_bg_opacity_one_flag": false,
+    "sc_live_panel_not_show_now_time_sc_flag": false,
+    "sc_live_panel_not_show_local_sc_flag": false
+  },
+  "live_sc_memory_all_rooms_mode": "3",
+  "live_sc_screen_resolution_str": "1390_835",
+  "live_sc_special_tip_location": "1",
+  "live_sc_special_msg_flag": "true",
+  "live_sc_special_sc_flag": "true",
+  "live_sc_special_danmu_mode": "1",
+  "live_sc_to_danmu_show_flag": "true",
+  "live_sc_to_danmu_show_location": "0",
+  "live_sc_to_danmu_show_mode": "3",
+  "live_special_sc_no_remain_flag": "false",
+  "live_sc_to_danmu_no_remain_flag": "false"
+}`;
+
+            $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
+
+            open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
+        });
+
+        $(document).on('click', '#sc_live_top_label_setting_sample_json_btn', function(e) {
             const the_default_setting_str = `{
   "live_sc_all_memory_config": {
     "sc_switch": 1,

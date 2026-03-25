@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.1.3
+// @version      13.1.4
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -165,8 +165,8 @@
     let sc_side_fold_custom_auto_run_flag = false; // 是否在运行自动展现SC了
     let sc_side_fold_custom_stop_from_auto_flag = false; // 是否自动运行时间到的停止
 
-    let sc_panel_show_time_mode = 0; // 展开模式下，SC的显示模式：0-默认一直显示，1-停留30秒，2-停留1~120分钟，3-依照SC的时间停留，4-依照SC的时间，同时最多停留1~120分钟，5-停留30~300秒
-    let sc_panel_show_time_each_same = 0.5; // 模式1和2、4、5，所有SC停留多少分钟，默认半分钟，即30秒
+    let sc_panel_show_time_mode = 0; // 展开模式下，SC的显示模式：0-默认一直显示，1-停留30秒，2-停留1~120分钟，3-依照SC的时间停留，4-依照SC的时间，同时最多停留1~120分钟，5-停留30~300秒，6-停留20秒，7-停留10秒
+    let sc_panel_show_time_each_same = 0.5; // 模式1和2、4、5、6、7，所有SC停留多少分钟，默认半分钟，即30秒
     let sc_live_panel_show_time_click_stop_flag = false; // 是否点击【不记忆地显示醒目留言列表】后，过期检查暂停；点击【不记忆地隐藏过期醒目留言】后，过期检查继续
     let sc_live_panel_not_show_now_time_sc_flag = false; // 进入直播间的时候，不显示直播间正在挂着的SC
     let sc_live_panel_not_show_local_sc_flag = false; // 进入直播间的时候，不显示保存在本地的往期SC
@@ -2596,6 +2596,7 @@
         $(document).find('.sc_long_list').css('padding-left', '11px');
         $(document).find('.sc_long_item').css('width', '50px');
         $(document).find('.sc_long_item').css('height', '50px');
+        $(document).find('.sc_msg_head').addClass('sc_msg_head_bg_hide');
         let sc_btn_item = $(document).find('.sc_button_item');
         sc_btn_item.css('margin-top', '6px');
         sc_btn_item.css('margin-bottom', '0px');
@@ -2716,6 +2717,7 @@
         $(document).find('.sc_long_list').css('padding-left', '10px');
         $(document).find('.sc_long_item').css('width', 'unset');
         $(document).find('.sc_long_item').css('height', 'unset');
+        $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
         let sc_btn_item = $(document).find('.sc_button_item');
         sc_btn_item.css('margin-top', '15px');
         sc_btn_item.css('margin-bottom', '15px');
@@ -2842,6 +2844,7 @@
             if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
                 sc_switch_fullscreen++;
             } else {
+                sc_switch_fullscreen++;
                 sc_switch++;
             }
 
@@ -2913,6 +2916,8 @@
                 background: rgba(204,204,204,0);
             }
             `);
+
+            $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
         } else if(the_theme_sc_switch === 1) {
             // 透明
             sc_rectangle.css('background-color', 'rgba(255,255,255,0)');
@@ -2938,6 +2943,12 @@
                 background: rgba(255,255,255,0);
             }
             `);
+
+            if (sc_live_item_bg_opacity_val <= 0.5) {
+                $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
+                $(document).find('.sc_msg_head').addClass('sc_msg_head_bg_hide');
+            }
+
         } else if(the_theme_sc_switch === 2) {
             // 半透明（白0.1）
             sc_rectangle.css('background-color', 'rgba(255,255,255,0.1)');
@@ -2963,6 +2974,12 @@
                 background: rgba(204,204,204,0);
             }
             `);
+
+            if (sc_live_item_bg_opacity_val <= 0.5) {
+                $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
+                $(document).find('.sc_msg_head').addClass('sc_msg_head_bg_hide');
+            }
+
         } else if(the_theme_sc_switch === 3) {
             // 半透明（白0.5）
             sc_rectangle.css('background-color', 'rgba(255,255,255,0.5)');
@@ -2988,6 +3005,12 @@
                 background: rgba(204,204,204,0);
             }
             `);
+
+            if (sc_live_item_bg_opacity_val <= 0.5) {
+                $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
+                $(document).find('.sc_msg_head').addClass('sc_msg_head_bg_hide');
+            }
+
         } else if(the_theme_sc_switch === 4) {
             // 半透明（黑色0.1）
             sc_rectangle.css('background-color', 'rgba(0,0,0,0.1)');
@@ -3013,6 +3036,12 @@
                 background: rgba(255,255,255,0);
             }
             `);
+
+            if (sc_live_item_bg_opacity_val <= 0.5) {
+                $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
+                $(document).find('.sc_msg_head').addClass('sc_msg_head_bg_hide');
+            }
+
         } else if(the_theme_sc_switch === 5) {
             // 半透明（黑色0.5）
             sc_rectangle.css('background-color', 'rgba(0,0,0,0.5)');
@@ -3038,11 +3067,18 @@
                 background: rgba(255,255,255,0);
             }
             `);
+
+            if (sc_live_item_bg_opacity_val <= 0.5) {
+                $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
+                $(document).find('.sc_msg_head').addClass('sc_msg_head_bg_hide');
+            }
+
         } else {
             // 白色
             if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
                 sc_switch_fullscreen = 0;
             } else {
+                sc_switch_fullscreen = 0;
                 sc_switch = 0;
             }
 
@@ -3070,6 +3106,8 @@
                 background: rgba(204,204,204,0);
             }
             `);
+
+            $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
         }
     }
 
@@ -4651,7 +4689,6 @@
     }
 
     function sc_fullscreen_separate_memory_apply() {
-
         sc_fullscreen_width_high_mode_show();
         sc_switch_css();
         sc_live_other_config_data_show_apply();
@@ -4894,6 +4931,10 @@
             @keyframes sc_fadenum_reverse {
                 0%{transform: translateY(100%);opacity: 0;}
                 100%{transform: translateY(0);opacity: 1;}
+            }
+
+            .sc_msg_head_bg_hide {
+                background-image: none !important;
             }
 
             .sc_button_item {
@@ -5142,11 +5183,6 @@
         $(document).on('mouseup', '.sc_drag_div', sc_stopDragging);
 
         function sc_handleFullscreenChange() {
-            
-            let the_hfc_sc_panel_fold_mode = sc_panel_fold_mode;
-            if (sc_live_fullscreen_config_separate_memory_flag) {
-                the_hfc_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
-            }
 
             let the_normal_list_div = $(document).find('#sc_normal_list');
 
@@ -5160,6 +5196,18 @@
                 $(live_player_div).append(sc_rectangle_clone);
                 sc_isFullscreen = true;
 
+
+                let the_hfc_sc_panel_fold_mode = sc_panel_fold_mode;
+                if (sc_live_fullscreen_config_separate_memory_flag) {
+                    the_hfc_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+                }
+
+                if (the_hfc_sc_panel_fold_mode === 1) {
+                    sc_panel_side_fold_flag_fullscreen = true;
+                } else {
+                    sc_panel_side_fold_flag_fullscreen = false;
+                }
+
                 sc_fullscreen_separate_memory_apply();
 
                 if (the_hfc_sc_panel_fold_mode === 1 && sc_side_fold_fullscreen_auto_hide_list_flag) {
@@ -5167,6 +5215,7 @@
                 }
 
                 $(sc_rectangle_clone).find('.sc_long_list').attr('id', 'sc_fullscreen_list').scrollTop(the_normal_list_div.scrollTop());
+
             } else {
 
                 let the_live_list_div_scrolltop = $(document).find('#sc_fullscreen_list').scrollTop() ?? 0;
@@ -5174,6 +5223,17 @@
                 $(live_player_div).find('.sc_drag_div').remove();
                 sc_isFullscreen = false;
                 sc_side_fold_hide_list_ing_flag = false;
+
+                let the_hfc_sc_panel_fold_mode = sc_panel_fold_mode;
+                if (sc_live_fullscreen_config_separate_memory_flag) {
+                    the_hfc_sc_panel_fold_mode = sc_panel_fold_mode_fullscreen;
+                }
+
+                if (the_hfc_sc_panel_fold_mode === 1) {
+                    sc_panel_side_fold_flag_fullscreen = true;
+                } else {
+                    sc_panel_side_fold_flag_fullscreen = false;
+                }
 
                 // 判断sc_circle界限
                 let xPos = 0;
@@ -5613,6 +5673,7 @@
             const bg_p_color = $(this).parent().css('background-color');
             const sc_p_background_color = change_color_opacity(bg_p_color, bg_color_op_val);
             $(this).parent().css('background-color', sc_p_background_color);
+            $(this).removeClass('sc_msg_head_bg_hide');
         });
 
         $(document).on('mouseleave', '.sc_msg_head', function() {
@@ -5655,6 +5716,8 @@
                     $(this).parent().css('background-color', sc_p_background_color);
                 }
             }
+
+            $(this).addClass('sc_msg_head_bg_hide');
         });
 
         $(document).on('mouseenter', '.sc_long_item,.sc_msg_head', function() {
@@ -5683,7 +5746,6 @@
         });
 
         $(document).on('mouseleave', '.sc_long_item', function() {
-
             let the_sc_live_item_bg_opacity_val = sc_live_item_bg_opacity_val;
             let the_sc_switch = sc_switch;
             let the_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
@@ -5691,6 +5753,7 @@
                 the_sc_switch = sc_switch_fullscreen;
                 the_sc_panel_side_fold_flag = sc_panel_side_fold_flag_fullscreen;
             }
+
             if ((the_sc_switch === 0 || the_sc_switch === 6) && sc_live_item_bg_opacity_val < 0.3) {
                 // 主题是白色的时候，为了能够看清内容，调整透明度为0.3
                 the_sc_live_item_bg_opacity_val = 0.3;
@@ -6322,6 +6385,16 @@
                                 <label for="sc_live_panel_show_time_sc_and_second_option">过期距离SC发送30~300秒</label>
                                 <input id="sc_live_panel_show_time_sc_and_most_second_input" type="number" min="30" max="300" value="30" style="color: #999;"/>
                             </div>
+
+                            <div class="sc_live_panel_show_time_form_item">
+                                <input type="radio" id="sc_live_panel_show_time_sc_20_second" name="sc_live_panel_show_time_option" value="6" />
+                                <label for="sc_live_panel_show_time_sc_20_second">过期距离SC发送20秒（定时检查从30秒变为20秒）（设置后，刷新页面生效）</label>
+                            </div>
+
+                            <div class="sc_live_panel_show_time_form_item">
+                                <input type="radio" id="sc_live_panel_show_time_sc_10_second" name="sc_live_panel_show_time_option" value="7" />
+                                <label for="sc_live_panel_show_time_sc_10_second">过期距离SC发送10秒（定时检查从30秒变为10秒）（设置后，刷新页面生效）</label>
+                            </div>
                             <br>
                         </div>
                         <div class="sc_live_panel_show_time_checkbox_div">
@@ -6390,6 +6463,16 @@
                                 <label for="sc_live_panel_show_time_sc_and_second_option_fullscreen">过期距离SC发送30~300秒</label>
                                 <input id="sc_live_panel_show_time_sc_and_most_second_input_fullscreen" type="number" min="30" max="300" value="30" style="color: #999;"/>
                             </div>
+
+                            <div class="sc_live_panel_show_time_form_item">
+                                <input type="radio" id="sc_live_panel_show_time_sc_20_second_fullscreen" name="sc_live_panel_show_time_option" value="6" />
+                                <label for="sc_live_panel_show_time_sc_20_second_fullscreen">过期距离SC发送20秒（定时检查从30秒变为20秒）（设置后，刷新页面生效）</label>
+                            </div>
+
+                            <div class="sc_live_panel_show_time_form_item">
+                                <input type="radio" id="sc_live_panel_show_time_sc_10_second_fullscreen" name="sc_live_panel_show_time_option" value="7" />
+                                <label for="sc_live_panel_show_time_sc_10_second_fullscreen">过期距离SC发送10秒（定时检查从30秒变为10秒）（设置后，刷新页面生效）</label>
+                            </div>
                             <br>
                         </div>
                         <div class="sc_live_panel_show_time_checkbox_div">
@@ -6454,6 +6537,10 @@
                 } else {
                     sc_panel_show_time_each_same = 0.5;
                 }
+            } else if (sc_panel_show_time_mode === 6) {
+                sc_panel_show_time_each_same = 0.333;
+            } else if (sc_panel_show_time_mode === 7) {
+                sc_panel_show_time_each_same = 0.167;
             }
 
             sc_live_panel_show_time_click_stop_flag = $(document).find('#sc_live_panel_show_time_click_stop').is(':checked');
@@ -6506,6 +6593,10 @@
                 } else {
                     sc_panel_show_time_each_same = 0.5;
                 }
+            } else if (sc_panel_show_time_mode === 6) {
+                sc_panel_show_time_each_same = 0.333;
+            } else if (sc_panel_show_time_mode === 7) {
+                sc_panel_show_time_each_same = 0.167;
             }
 
             sc_live_panel_show_time_click_stop_flag = $(document).find('#sc_live_panel_show_time_click_stop_fullscreen').is(':checked');
@@ -8353,6 +8444,13 @@
                 sc_live_item_bg_opacity_val = 1;
             }
 
+            if (sc_live_item_bg_opacity_val <= 0.5) {
+                $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
+                $(document).find('.sc_msg_head').addClass('sc_msg_head_bg_hide');
+            } else {
+                $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
+            }
+
             if (sc_isFullscreen) {
                 if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag_fullscreen) {
                     // head
@@ -8533,6 +8631,13 @@
                 sc_live_item_bg_opacity_val = 0;
             } else if (sc_live_item_bg_opacity_val > 1) {
                 sc_live_item_bg_opacity_val = 1;
+            }
+
+            if (sc_live_item_bg_opacity_val <= 0.5) {
+                $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
+                $(document).find('.sc_msg_head').addClass('sc_msg_head_bg_hide');
+            } else {
+                $(document).find('.sc_msg_head').removeClass('sc_msg_head_bg_hide');
             }
 
             if (sc_isFullscreen) {
@@ -9914,7 +10019,7 @@
             $(document).find('#' + sc_panel_show_time_config_div_id).show();
             $(document).find('.'+ sc_live_panel_show_time_radio_group_class +' input[name="'+ sc_live_panel_show_time_option_name +'"]').eq(sc_panel_show_time_mode).prop('checked', true);
             let the_sc_panel_show_time_each_same = sc_panel_show_time_each_same;
-            if (the_sc_panel_show_time_each_same === 0.5) {
+            if (the_sc_panel_show_time_each_same <= 0.5) {
                 the_sc_panel_show_time_each_same = 2;
             }
 
@@ -11044,12 +11149,22 @@
 
         }, 3000);
 
+        let check_interval_time = 30000; // 默认30秒
+
+        if (sc_panel_show_time_mode === 6) {
+            // 20秒
+            check_interval_time = 20000;
+        } else if (sc_panel_show_time_mode === 7) {
+            // 10秒
+            check_interval_time = 10000;
+        }
+
         setInterval(() => {
-            update_timestamp_diff(); // 每30秒更新时间差，并且检查SC是否过期
-            check_all_memory_status(); // 每30秒检查全记状态
-            sycn_live_special_tip_config(); // 每30秒同步最新的特定用户提示设置
-            sycn_live_sc_to_danmu_show_config(); // 每30秒同步最新的SC以弹幕展现的设置
-        }, 30000);
+            update_timestamp_diff(); // 默认每30秒更新时间差，并且检查SC是否过期
+            check_all_memory_status(); // 默认每30秒检查全记状态
+            sycn_live_special_tip_config(); // 默认每30秒同步最新的特定用户提示设置
+            sycn_live_sc_to_danmu_show_config(); // 默认每30秒同步最新的SC以弹幕展现的设置
+        }, check_interval_time);
 
     }
 

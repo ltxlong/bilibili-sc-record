@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.1.4
+// @version      13.1.5
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -223,6 +223,7 @@
     let sc_live_sc_to_danmu_show_flag = false; // 是否设置醒目留言以弹幕来展现（侧折模式不再将SC自动展现）
     let sc_live_sc_to_danmu_no_remain_flag = false; // 是否SC的弹幕到达左侧后不再停留（默认停留10s，是为了看清SC内容，如果SC长度超过屏幕则自动不停留）
     let sc_live_sc_routine_price_arr = [30, 50, 100, 500, 1000, 2000]; // 常规电池价格数组，如果SC2弹幕的价格不在里面就显示
+    let sc_live_sc_low_price_arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20]; // 低价电池价格数组，如果SC2弹幕的价格在里面就显示
 
     let sc_live_special_danmu_show_index_arr = [0, 0, 0, 0, 0, 0]; // 将屏幕分为6个弹幕道：顶部,top 17%,top 34%,top 51%,top 68%,底部。0-没弹幕存在，1-有弹幕存在
     let sc_live_special_tip_danmu_cache_arr = []; // 特定用户进入直播间的缓存弹幕
@@ -286,6 +287,8 @@
 
     let sc_live_swap_two_btn_flag = false; // 是否调换 [切换] 和 [折叠] 按钮
     let sc_live_manual_clear_flag = false; // 是否切换到手动清除直播间数据
+
+    let sc_live_filter_2_sc_mode = 0; // 0-不过滤￥2的SC; 1-完全过滤￥2的SC; 2-过滤￥2的SC但可见弹幕
 
     function sc_screen_resolution_change_check() {
         let the_sc_screen_resolution_change_flag = sc_screen_resolution_change_flag;
@@ -448,6 +451,7 @@
         sc_list_search_div_bg_opacity_range = sc_all_memory_config['sc_list_search_div_bg_opacity_range'] ?? 90;
         sc_live_auto_tianxuan_flag = sc_all_memory_config['sc_live_auto_tianxuan_flag'] ?? false;
         sc_live_send_dm_combo_flag = sc_all_memory_config['sc_live_send_dm_combo_flag'] ?? false;
+        sc_live_filter_2_sc_mode = sc_all_memory_config['sc_live_filter_2_sc_mode'] ?? 0;
 
         sc_panel_drag_left_percent = sc_all_memory_config['sc_panel_drag_left_percent'] ?? 0;
         sc_panel_drag_top_percent = sc_all_memory_config['sc_panel_drag_top_percent'] ?? 0;
@@ -557,6 +561,7 @@
         sc_list_search_div_bg_opacity_range = sc_self_memory_config['sc_list_search_div_bg_opacity_range'] ?? 90;
         sc_live_auto_tianxuan_flag = sc_self_memory_config['sc_live_auto_tianxuan_flag'] ?? false;
         sc_live_send_dm_combo_flag = sc_self_memory_config['sc_live_send_dm_combo_flag'] ?? false;
+        sc_live_filter_2_sc_mode = sc_self_memory_config['sc_live_filter_2_sc_mode'] ?? 0;
 
         sc_panel_drag_left_percent = sc_self_memory_config['sc_panel_drag_left_percent'] ?? 0;
         sc_panel_drag_top_percent = sc_self_memory_config['sc_panel_drag_top_percent'] ?? 0;
@@ -2057,10 +2062,16 @@
             the_search_result_div_clone.css('width', '100%');
             the_search_result_div_clone.css('height', 'auto');
             the_search_result_div_clone.css('animation', 'unset');
+            let the_search_result_div_item_color = the_search_result_div_clone.css('background-color');
+            the_search_result_div_item_color = change_color_opacity(the_search_result_div_item_color, sc_list_search_div_bg_opacity_range / 100);
+            the_search_result_div_clone.css('background-color', the_search_result_div_item_color);
             the_search_result_div_clone.show();
             the_search_result_div_clone.find('.sc_font_color').css('color', '#000000');
             the_search_result_div_clone.find('.sc_start_time').show();
             the_search_result_div_clone.find('.sc_msg_head_left').css('text-align', 'left');
+            let the_search_result_div_item_head_color = the_search_result_div_clone.find('.sc_msg_head').css('background-color');
+            the_search_result_div_item_head_color = change_color_opacity(the_search_result_div_item_head_color, sc_list_search_div_bg_opacity_range / 100);
+            the_search_result_div_clone.find('.sc_msg_head').css('background-color', the_search_result_div_item_head_color);
             the_search_result_div_clone.find('.sc_msg_head').removeClass('sc_msg_head');
 
             let the_search_result_div_clone_msg_body = the_search_result_div_clone.find('.sc_msg_body');
@@ -2125,10 +2136,16 @@
             the_search_result_div_clone.css('width', '100%');
             the_search_result_div_clone.css('height', 'auto');
             the_search_result_div_clone.css('animation', 'unset');
+            let the_search_result_div_item_color = the_search_result_div_clone.css('background-color');
+            the_search_result_div_item_color = change_color_opacity(the_search_result_div_item_color, sc_list_search_div_bg_opacity_range / 100);
+            the_search_result_div_clone.css('background-color', the_search_result_div_item_color);
             the_search_result_div_clone.show();
             the_search_result_div_clone.find('.sc_font_color').css('color', '#000000');
             the_search_result_div_clone.find('.sc_start_time').show();
             the_search_result_div_clone.find('.sc_msg_head_left').css('text-align', 'left');
+            let the_search_result_div_item_head_color = the_search_result_div_clone.find('.sc_msg_head').css('background-color');
+            the_search_result_div_item_head_color = change_color_opacity(the_search_result_div_item_head_color, sc_list_search_div_bg_opacity_range / 100);
+            the_search_result_div_clone.find('.sc_msg_head').css('background-color', the_search_result_div_item_head_color);
             the_search_result_div_clone.find('.sc_msg_head').removeClass('sc_msg_head');
 
             let the_search_result_div_clone_msg_body = the_search_result_div_clone.find('.sc_msg_body');
@@ -2265,6 +2282,7 @@
             update_sc_memory_config('sc_live_hide_diff_time_flag', sc_live_hide_diff_time_flag, 'self');
             update_sc_memory_config('sc_live_swap_two_btn_flag', sc_live_swap_two_btn_flag, 'self');
             update_sc_memory_config('sc_live_manual_clear_flag', sc_live_manual_clear_flag, 'self');
+            update_sc_memory_config('sc_live_filter_2_sc_mode', sc_live_filter_2_sc_mode, 'self');
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_data_show_high_energy_num_flag', sc_data_show_high_energy_num_flag, 'all');
@@ -2279,6 +2297,7 @@
             update_sc_memory_config('sc_live_hide_diff_time_flag', sc_live_hide_diff_time_flag, 'all');
             update_sc_memory_config('sc_live_swap_two_btn_flag', sc_live_swap_two_btn_flag, 'all');
             update_sc_memory_config('sc_live_manual_clear_flag', sc_live_manual_clear_flag, 'all');
+            update_sc_memory_config('sc_live_filter_2_sc_mode', sc_live_filter_2_sc_mode, 'all');
         }
     }
 
@@ -3957,6 +3976,8 @@
     }
 
     function handle_special_sc(sc_data, all_sc_to_danmu_show_flag = false, first_time_flag = false) {
+        // 过滤￥2的SC
+        if (sc_live_filter_2_sc_mode === 1 && sc_data["price"] === 2) { return; }
 
         if (all_sc_to_danmu_show_flag || sc_live_special_tip_uid_arr.includes(sc_data["uid"].toString() ?? '0')) {
 
@@ -4037,7 +4058,11 @@
                     let sc_special_sc_price = parseInt(sc_data["price"]);
                     let sc_special_sc_no_routine_pric_tip = '';
                     if (!sc_live_sc_routine_price_arr.includes(sc_special_sc_price)) {
-                        sc_special_sc_no_routine_pric_tip = '[' + sc_special_sc_price * 10 + ']';
+                        if (sc_live_sc_low_price_arr.includes(sc_special_sc_price)) {
+                            sc_special_sc_no_routine_pric_tip = '[￥' + sc_special_sc_price + ']';
+                        } else {
+                            sc_special_sc_no_routine_pric_tip = '[' + sc_special_sc_price * 10 + ']';
+                        }
                     }
 
                     let sc_special_sc_div = '<div id="'+ sc_special_sc_div_the_id +'"'+ sc_special_sc_div_custom_style + 'class="'+ sc_speical_sc_div_class +'">' +
@@ -4102,6 +4127,9 @@
     }
 
     function update_sc_item(sc_data, realtime = true) {
+        // 过滤￥2的SC
+        if (sc_live_filter_2_sc_mode > 0 && sc_data["price"] === 2) { return; }
+
         let the_usi_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
         let the_usi_sc_rectangle_width = sc_rectangle_width;
         let the_usi_sc_panel_fold_mode = sc_panel_fold_mode;
@@ -4203,6 +4231,7 @@
 
         let sc_item_uname_font_size = 15;
         let sc_item_msg_body_font_size = 14;
+        let sc_item_msg_head_bg_hide_class = '';
         if (sc_live_all_font_size_add > 0) {
             if (!sc_live_font_size_only_message_flag) {
                 sc_item_uname_font_size += sc_live_all_font_size_add;
@@ -4215,6 +4244,7 @@
             if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag_fullscreen) {
                 sc_background_bottom_color = change_color_opacity(sc_background_bottom_color, 0);
                 sc_background_color = change_color_opacity(sc_background_color, 0);
+                sc_item_msg_head_bg_hide_class = ' sc_msg_head_bg_hide';
             } else {
                 // 如果调整了SC背景的透明度
                 if (sc_live_item_bg_opacity_val < 1) {
@@ -4231,6 +4261,7 @@
             if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag) {
                 sc_background_bottom_color = change_color_opacity(sc_background_bottom_color, 0);
                 sc_background_color = change_color_opacity(sc_background_color, 0);
+                sc_item_msg_head_bg_hide_class = ' sc_msg_head_bg_hide';
             } else {
                 // 如果调整了SC背景的透明度
                 if (sc_live_item_bg_opacity_val < 1) {
@@ -4256,7 +4287,7 @@
         }
 
         let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" data-start="'+ (sc_start_timestamp * 1000 + sc_last_item_sort)+'" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;'+ sc_item_show_animation + sc_msg_item_style_border_radius + box_shadow_css +'">'+
-            '<div class="sc_msg_head" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: contain;background-repeat: no-repeat;background-position: right center;'+ sc_msg_head_style_border_radius +'">'+
+            '<div class="sc_msg_head '+ sc_item_msg_head_bg_hide_class +'" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: contain;background-repeat: no-repeat;background-position: right center;'+ sc_msg_head_style_border_radius +'">'+
             '<div class="sc_avatar_div" style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
             '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px; padding-top: 2px;'+ sc_msg_head_left_style_display +'">'+
@@ -8142,6 +8173,28 @@
                 padding-left: 10px;
             }
 
+            .sc_live_other_filter_radio_group {
+                display: inline-flex;
+                color: #000;
+                padding-top: 20px;
+            }
+
+            .sc_live_other_filter_radio_group_fullscreen {
+                display: inline-flex;
+                color: #000;
+                padding-top: 20px;
+            }
+
+            .sc_live_other_filter_radio_group label {
+                padding-right: 50px;
+                padding-left: 10px;
+            }
+
+            .sc_live_other_filter_radio_group_fullscreen label {
+                padding-right: 50px;
+                padding-left: 10px;
+            }
+
             .sc_live_other_btn_div {
                 margin-top: 30px;
             }
@@ -8257,6 +8310,16 @@
                             <button style="display: none;" class="sc_live_other_clear_this_room_data">清除本直播间数据</button>
                             <button style="display: none;" class="sc_live_other_clear_all_room_data">清除所有直播间数据</button>
                         </div>
+                        <div class="sc_live_other_filter_radio_group">
+                            <input type="radio" id="sc_live_other_no_filter_2_sc" name="sc_live_other_filter_2_sc" value="0" checked />
+                            <label for="sc_live_other_no_filter_2_sc">不过滤￥2的SC</label>
+
+                            <input type="radio" id="sc_live_other_all_filter_2_sc" name="sc_live_other_filter_2_sc" value="1" />
+                            <label for="sc_live_other_all_filter_2_sc">完全过滤￥2的SC</label>
+
+                            <input type="radio" id="sc_live_other_part_filter_2_sc" name="sc_live_other_filter_2_sc" value="2" />
+                            <label for="sc_live_other_part_filter_2_sc">过滤￥2的SC但可见弹幕</label>
+                        </div>
                     </form>
                     <div class="sc_live_other_btn_div">
                         <button id="sc_live_other_cancel_btn" class="sc_live_other_modal_btn sc_live_other_modal_close_btn">取消</button>
@@ -8337,6 +8400,16 @@
                             <label for="sc_live_other_manual_clear_flag_fullscreen" class="sc_live_other_checkbox_inline">切换到手动清除数据</label>
                             <button style="display: none;" class="sc_live_other_clear_this_room_data">清除本直播间数据</button>
                             <button style="display: none;" class="sc_live_other_clear_all_room_data">清除所有直播间数据</button>
+                        </div>
+                        <div class="sc_live_other_filter_radio_group_fullscreen">
+                            <input type="radio" id="sc_live_other_no_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="0" checked />
+                            <label for="sc_live_other_no_filter_2_sc_fullscreen">不过滤￥2的SC</label>
+
+                            <input type="radio" id="sc_live_other_all_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="1" />
+                            <label for="sc_live_other_all_filter_2_sc_fullscreen">完全过滤￥2的SC</label>
+
+                            <input type="radio" id="sc_live_other_part_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="2" />
+                            <label for="sc_live_other_part_filter_2_sc_fullscreen">过滤￥2的SC但可见弹幕</label>
                         </div>
                     </form>
                     <div class="sc_live_other_btn_div_fullscreen">
@@ -8419,6 +8492,9 @@
             } else if (sc_live_other_select_val === '1') {
                 sc_live_data_show_high_energy_num_flag_change(false);
             }
+
+            let sc_live_filter_2_sc_mode_select = $(document).find('.sc_live_other_filter_radio_group input[name="sc_live_other_filter_2_sc"]:checked').val();
+            sc_live_filter_2_sc_mode = parseInt(sc_live_filter_2_sc_mode_select, 10);
 
             sc_side_fold_fullscreen_auto_hide_list_flag = $(document).find('#sc_live_other_fullscreen_auto_hide_list').is(':checked');
 
@@ -8608,6 +8684,9 @@
             } else if (sc_live_other_select_val === '1') {
                 sc_live_data_show_high_energy_num_flag_change(false);
             }
+
+            let sc_live_filter_2_sc_mode_select = $(document).find('.sc_live_other_filter_radio_group_fullscreen input[name="sc_live_other_filter_2_sc_fullscreen"]:checked').val();
+            sc_live_filter_2_sc_mode = parseInt(sc_live_filter_2_sc_mode_select, 10);
 
             sc_side_fold_fullscreen_auto_hide_list_flag = $(document).find('#sc_live_other_fullscreen_auto_hide_list_fullscreen').is(':checked');
 
@@ -9144,6 +9223,23 @@
             }
         });
 
+        function input_change_the_search_result_div_color_opacity(new_color) {
+            let the_search_result_div_oj = $(document).find('.sc_live_search_result_div').first().children().first();
+            let the_search_result_div_fullscreen_oj = $(document).find('.sc_live_search_result_div_fullscreen').first().children().first();
+            let the_search_result_div_head_oj = the_search_result_div_oj.children().first();
+            let the_search_result_div_head_fullscreen_oj = the_search_result_div_fullscreen_oj.children().first();
+
+            let the_search_result_div_oj_color = the_search_result_div_oj.css('background-color');
+            the_search_result_div_oj_color = change_color_opacity(the_search_result_div_oj_color, new_color / 100);
+            let the_search_result_div_head_oj_color = the_search_result_div_head_oj.css('background-color');
+            the_search_result_div_head_oj_color = change_color_opacity(the_search_result_div_head_oj_color, new_color / 100);
+
+            the_search_result_div_oj.css('background-color', the_search_result_div_oj_color);
+            the_search_result_div_head_oj.css('background-color', the_search_result_div_head_oj_color);
+            the_search_result_div_fullscreen_oj.css('background-color', the_search_result_div_oj_color);
+            the_search_result_div_head_fullscreen_oj.css('background-color', the_search_result_div_head_oj_color);
+        }
+
         let sc_change_bg_opacity_timeout;
         let sc_change_bg_opacity_fullscreen_timeout;
 
@@ -9166,6 +9262,8 @@
             sc_change_bg_opacity_timeout = setTimeout(() => {
                 sc_list_search_div_bg_opacity_range = $(this).val();
                 sc_search_div_bg_opacity_range_config_store();
+
+                input_change_the_search_result_div_color_opacity($(this).val());
             }, 1000);
         });
 
@@ -9180,6 +9278,8 @@
             sc_change_bg_opacity_fullscreen_timeout = setTimeout(() => {
                 sc_list_search_div_bg_opacity_range = $(this).val();
                 sc_search_div_bg_opacity_range_config_store();
+
+                input_change_the_search_result_div_color_opacity($(this).val());
             }, 1000);
         });
 
@@ -9484,7 +9584,8 @@
     "sc_live_hide_diff_time_flag": false,
     "sc_live_item_suspend_bg_opacity_one_flag": false,
     "sc_live_panel_not_show_now_time_sc_flag": false,
-    "sc_live_panel_not_show_local_sc_flag": false
+    "sc_live_panel_not_show_local_sc_flag": false,
+    "sc_live_filter_2_sc_mode": 2
   },
   "live_sc_memory_all_rooms_mode": "3",
   "live_sc_screen_resolution_str": "1390_835",
@@ -9558,7 +9659,8 @@
     "sc_live_hide_diff_time_flag": false,
     "sc_live_item_suspend_bg_opacity_one_flag": false,
     "sc_live_panel_not_show_now_time_sc_flag": false,
-    "sc_live_panel_not_show_local_sc_flag": false
+    "sc_live_panel_not_show_local_sc_flag": false,
+    "sc_live_filter_2_sc_mode": 2
   },
   "live_sc_memory_all_rooms_mode": "3",
   "live_sc_screen_resolution_str": "1390_835",
@@ -10435,6 +10537,8 @@
             let sc_live_other_hide_diff_time_flag_id = 'sc_live_other_hide_diff_time_flag';
             let sc_live_other_swap_two_btn_flag_id = 'sc_live_other_swap_two_btn_flag';
             let sc_live_other_manual_clear_flag_id = 'sc_live_other_manual_clear_flag';
+            let sc_live_other_config_filter_radio_group_class = 'sc_live_other_filter_radio_group';
+            let sc_live_other_config_filter_radio_option_name = 'sc_live_other_filter_2_sc';
 
             if (sc_isFullscreen) {
                 sc_live_other_config_div_id = 'sc_live_other_config_div_fullscreen';
@@ -10453,6 +10557,8 @@
                 sc_live_other_item_suspend_bg_opacity_one_flag_id = 'sc_live_item_suspend_bg_opacity_one_flag_fullscreen';
                 sc_live_other_hide_value_font_flag_id = 'sc_live_other_hide_value_font_flag_fullscreen';
                 sc_live_other_hide_diff_time_flag_id = 'sc_live_other_hide_diff_time_flag_fullscreen';
+                sc_live_other_config_filter_radio_group_class = 'sc_live_other_filter_radio_group_fullscreen';
+                sc_live_other_config_filter_radio_option_name = 'sc_live_other_filter_2_sc_fullscreen';
             }
             $(document).find('#' + sc_live_other_config_div_id).show();
 
@@ -10537,6 +10643,8 @@
                 $(document).find('.sc_live_other_clear_this_room_data').show();
                 $(document).find('.sc_live_other_clear_all_room_data').show();
             }
+
+            $(document).find('.'+ sc_live_other_config_filter_radio_group_class +' input[name="'+ sc_live_other_config_filter_radio_option_name +'"]').eq(sc_live_filter_2_sc_mode).prop('checked', true);
 
             $(this).parent().fadeOut();
         });

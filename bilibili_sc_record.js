@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.1.5
+// @version      13.1.6
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -959,6 +959,8 @@
     }
 
     function change_color_opacity(color, alpha) {
+        if (color === undefined) { return; }
+
         // 如果是 HEX 格式（#开头）
         if (color.startsWith('#')) {
             color = color.replace(/^#/, '');
@@ -3977,7 +3979,7 @@
 
     function handle_special_sc(sc_data, all_sc_to_danmu_show_flag = false, first_time_flag = false) {
         // 过滤￥2的SC
-        if (sc_live_filter_2_sc_mode === 1 && sc_data["price"] === 2) { return; }
+        if ((sc_live_filter_2_sc_mode === 1 || sc_live_filter_2_sc_mode === 2) && sc_data["price"] === 2) { return; }
 
         if (all_sc_to_danmu_show_flag || sc_live_special_tip_uid_arr.includes(sc_data["uid"].toString() ?? '0')) {
 
@@ -4128,7 +4130,7 @@
 
     function update_sc_item(sc_data, realtime = true) {
         // 过滤￥2的SC
-        if (sc_live_filter_2_sc_mode > 0 && sc_data["price"] === 2) { return; }
+        if (sc_live_filter_2_sc_mode > 1 && sc_data["price"] === 2) { return; }
 
         let the_usi_sc_panel_side_fold_flag = sc_panel_side_fold_flag;
         let the_usi_sc_rectangle_width = sc_rectangle_width;
@@ -8129,10 +8131,10 @@
 
             .sc_live_other_modal_content {
                 background-color: #fefefe;
-                margin: 10% auto;
+                margin: 3% auto;
                 padding: 20px;
                 border: 1px solid #888;
-                width: 42%;
+                width: 54%;
             }
 
             .sc_live_other_modal_content p {
@@ -8314,10 +8316,13 @@
                             <input type="radio" id="sc_live_other_no_filter_2_sc" name="sc_live_other_filter_2_sc" value="0" checked />
                             <label for="sc_live_other_no_filter_2_sc">不过滤￥2的SC</label>
 
-                            <input type="radio" id="sc_live_other_all_filter_2_sc" name="sc_live_other_filter_2_sc" value="1" />
+                            <input type="radio" id="sc_live_other_danmu_filter_2_sc" name="sc_live_other_filter_2_sc" value="1" />
+                            <label for="sc_live_other_danmu_filter_2_sc">只在弹幕过滤￥2的SC</label>
+
+                            <input type="radio" id="sc_live_other_all_filter_2_sc" name="sc_live_other_filter_2_sc" value="2" />
                             <label for="sc_live_other_all_filter_2_sc">完全过滤￥2的SC</label>
 
-                            <input type="radio" id="sc_live_other_part_filter_2_sc" name="sc_live_other_filter_2_sc" value="2" />
+                            <input type="radio" id="sc_live_other_part_filter_2_sc" name="sc_live_other_filter_2_sc" value="3" />
                             <label for="sc_live_other_part_filter_2_sc">过滤￥2的SC但可见弹幕</label>
                         </div>
                     </form>
@@ -8405,10 +8410,13 @@
                             <input type="radio" id="sc_live_other_no_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="0" checked />
                             <label for="sc_live_other_no_filter_2_sc_fullscreen">不过滤￥2的SC</label>
 
-                            <input type="radio" id="sc_live_other_all_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="1" />
+                            input type="radio" id="sc_live_other_danmu_filter_2_sc" name="sc_live_other_filter_2_sc" value="1" />
+                            <label for="sc_live_other_danmu_filter_2_sc">只在弹幕过滤￥2的SC</label>
+
+                            <input type="radio" id="sc_live_other_all_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="2" />
                             <label for="sc_live_other_all_filter_2_sc_fullscreen">完全过滤￥2的SC</label>
 
-                            <input type="radio" id="sc_live_other_part_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="2" />
+                            <input type="radio" id="sc_live_other_part_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="3" />
                             <label for="sc_live_other_part_filter_2_sc_fullscreen">过滤￥2的SC但可见弹幕</label>
                         </div>
                     </form>
@@ -9037,6 +9045,14 @@
             .sc_settings_icon:hover {
                 color: #000;
             }
+            .sc_trash_danmu_cache_icon {
+                vertical-align: middle;
+                color: #aaa;
+                cursor: pointer
+            }
+            .sc_trash_danmu_cache_icon:hover {
+                color: #000;
+            }
             .sc_live_setting_modal_div {
                 display: none;
                 z-index: 5555;
@@ -9074,6 +9090,9 @@
                             <path fill="currentColor" d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
                         </svg>
                     自定义搜索SC：
+                        <svg class="sc_trash_danmu_cache_icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20">
+                            <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>
+                        </svg>
                     </p>
                     <input type="range" min="0" max="100" value="90" class="change_bg_opacity_range">
                     <form id="sc_live_search_form">
@@ -9147,7 +9166,11 @@
         sc_live_search_modal_html_fullscreen.innerHTML = `
                 <div class="sc_live_search_modal_content">
                     <span class="sc_live_search_close">&times;</span>
-                    <p>自定义搜索SC：</p>
+                    <p>自定义搜索SC：
+                        <svg class="sc_trash_danmu_cache_icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20">
+                            <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>
+                        </svg>
+                    </p>
                     <input type="range" min="0" max="100" value="90" class="change_bg_opacity_range_fullscreen">
                     <form id="sc_live_search_form_fullscreen">
                         <div class="sc_live_search_div_group_fullscreen">
@@ -9333,6 +9356,11 @@
 
         $(document).on('click', '.sc_settings_icon', function() {
             $(document).find('.sc_live_setting_modal_div').show();
+        });
+
+        $(document).on('click', '.sc_trash_danmu_cache_icon', function(e) {
+            sc_live_sc_to_danmu_cache_arr = [];
+            open_and_close_sc_modal('✓ 已清空 [ SC弹幕 ] 缓冲队列', '#A7C9D3', e, 1);
         });
 
         $(document).on('click', '.sc_live_setting_close', function() {
@@ -9585,7 +9613,7 @@
     "sc_live_item_suspend_bg_opacity_one_flag": false,
     "sc_live_panel_not_show_now_time_sc_flag": false,
     "sc_live_panel_not_show_local_sc_flag": false,
-    "sc_live_filter_2_sc_mode": 2
+    "sc_live_filter_2_sc_mode": 3
   },
   "live_sc_memory_all_rooms_mode": "3",
   "live_sc_screen_resolution_str": "1390_835",
@@ -9660,7 +9688,7 @@
     "sc_live_item_suspend_bg_opacity_one_flag": false,
     "sc_live_panel_not_show_now_time_sc_flag": false,
     "sc_live_panel_not_show_local_sc_flag": false,
-    "sc_live_filter_2_sc_mode": 2
+    "sc_live_filter_2_sc_mode": 3
   },
   "live_sc_memory_all_rooms_mode": "3",
   "live_sc_screen_resolution_str": "1390_835",

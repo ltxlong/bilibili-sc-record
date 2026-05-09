@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.1.6
+// @version      13.2.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -33,7 +33,7 @@
 // @updateURL https://update.greasyfork.org/scripts/484381/B%E7%AB%99%E7%9B%B4%E6%92%AD%E9%97%B4SC%E8%AE%B0%E5%BD%95%E6%9D%BF.meta.js
 // ==/UserScript==
 
-(function() {
+(async function() {
     'use strict';
 
     function sc_catch_log(...msg) {
@@ -44,7 +44,7 @@
     // 进入直播间的时候开始记录SC
     // 开始固定在屏幕左上方一侧，为圆形小图标，可以点击展开，可以拖拽移动，活动页可用，直播全屏也在顶层显示
     // 通过Hook实时抓取数据
-    // 每个直播间隔离保留，用localstorage，并且自动清理时间长的数据
+    // 每个直播间隔离保留，用localstorage和indexedDB，并且自动清理时间长的数据
     // SC标明发送时间和距离当前的时间差
     // SC可折叠，可生成图片（折叠和展开都可以），可搜索
     // 黑名单功能
@@ -105,7 +105,6 @@
     let data_show_bottom_flag = true; // 是否在页面右侧弹幕滚动框的底部动态显示数据
 
     let sc_localstorage_key = 'live_' + room_id + '_sc';
-    let sc_sid_localstorage_key = 'live_' + room_id + '_sc_sid';
     let sc_live_room_title = '';
 
     let sc_keep_time_key = 'live_' + room_id + '_sc_keep_time';
@@ -288,7 +287,208 @@
     let sc_live_swap_two_btn_flag = false; // 是否调换 [切换] 和 [折叠] 按钮
     let sc_live_manual_clear_flag = false; // 是否切换到手动清除直播间数据
 
-    let sc_live_filter_2_sc_mode = 0; // 0-不过滤￥2的SC; 1-完全过滤￥2的SC; 2-过滤￥2的SC但可见弹幕
+    let sc_live_filter_2_sc_mode = 0; // 0-不过滤￥2的SC; 1-只在弹幕过滤￥2的SC; 2-完全过滤￥2的SC; 3-过滤￥2的SC但可见弹幕
+
+    const IDB = unsafeWindow.indexedDB;
+
+    let IDB_DB = null;
+    let IDB_OPENING = null;
+
+    const IDB_DB_NAME = sc_localstorage_key; // 一个直播房间对应一个db
+    const IDB_STORE_NAME = 'sc_msg';
+    const IDB_VERSION = 1;
+    let sc_idb_buffer = [];
+    let sc_idb_last_flush_time = 0; // timestamp
+    const sc_idb_flush_min_ms_delay = 200; // 最小间隔200ms写入indexedDB
+    let sc_idb_flush_timer = null; // 定时器
+
+    function open_IDB() {
+        if (IDB_DB) {
+            return Promise.resolve(IDB_DB);
+        }
+
+        if (IDB_OPENING) {
+            return IDB_OPENING;
+        }
+
+        IDB_OPENING = new Promise((resolve, reject) => {
+            const request = IDB.open(IDB_DB_NAME, IDB_VERSION);
+
+            request.onerror = function (event) {
+                console.error('IndexedDB 打开失败:', event.target.error);
+                IDB_OPENING = null;
+                reject(event.target.error);
+            };
+
+            request.onblocked = function () {
+                console.warn('IndexedDB 打开被阻塞，可能有其他页面占用旧版本连接');
+            };
+
+            request.onupgradeneeded = function (event) {
+                const db = event.target.result;
+
+                if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
+                    db.createObjectStore(IDB_STORE_NAME, {
+                        keyPath: 'id'
+                    });
+                }
+            };
+
+            request.onsuccess = function (event) {
+                IDB_DB = event.target.result;
+                IDB_OPENING = null;
+
+                IDB_DB.onerror = function (event) {
+                    console.error('IndexedDB 数据库错误:', event.target.error);
+                };
+
+                IDB_DB.onversionchange = function () {
+                    IDB_DB.close();
+                    IDB_DB = null;
+                    console.warn('IndexedDB 版本发生变化，数据库已关闭');
+                };
+
+                resolve(IDB_DB);
+            };
+        });
+
+        return IDB_OPENING;
+    }
+
+    async function put_room_SC(msg_arr) {
+        const db = await open_IDB();
+
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
+            const store = tx.objectStore(IDB_STORE_NAME);
+
+            msg_arr.forEach(item => {
+                store.put(item);
+            });
+
+            tx.oncomplete = () => {
+                resolve(true);
+            };
+
+            tx.onerror = () => {
+                reject(tx.error || new Error('IndexedDB transaction error'));
+            };
+
+            tx.onabort = () => {
+                reject(tx.error || new Error('IndexedDB transaction aborted'));
+            };
+        });
+    }
+
+    async function get_room_SC() {
+        try {
+            const db = await open_IDB();
+
+            if (!db || !db.objectStoreNames.contains(IDB_STORE_NAME)) {
+                return [];
+            }
+
+            const result = await new Promise((resolve, reject) => {
+                const tx = db.transaction(IDB_STORE_NAME, 'readonly');
+                const store = tx.objectStore(IDB_STORE_NAME);
+                const request = store.getAll();
+
+                request.onsuccess = event => {
+                    resolve(event.target.result || []);
+                };
+
+                request.onerror = event => {
+                    reject(event.target.error);
+                };
+            });
+
+            return result;
+
+        } catch (err) {
+            return [];
+        }
+    }
+
+    async function clear_room_SC() {
+        const db = await open_IDB();
+
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
+            const store = tx.objectStore(IDB_STORE_NAME);
+
+            const request = store.clear();
+
+            request.onsuccess = function () {
+                console.warn('IndexedDB 数据已清空:', IDB_STORE_NAME);
+            };
+
+            request.onerror = function (event) {
+                console.error('IndexedDB 清空失败:', event.target.error);
+                reject(event.target.error);
+            };
+
+            tx.oncomplete = function () {
+                resolve(true);
+            };
+
+            tx.onerror = function (event) {
+                console.error('IndexedDB 清空事务失败:', event.target.error);
+                reject(event.target.error);
+            };
+
+            tx.onabort = function (event) {
+                console.error('IndexedDB 清空事务被中止:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    }
+
+    async function delete_room_IDB(the_del_idb_name) {
+
+        return new Promise((resolve, reject) => {
+            const request = unsafeWindow.indexedDB.deleteDatabase(the_del_idb_name);
+
+            request.onsuccess = function () {
+                console.warn('IndexedDB 数据库删除成功:', the_del_idb_name);
+                resolve(true);
+            };
+
+            request.onerror = function (event) {
+                console.error('IndexedDB 数据库删除失败:', event.target.error);
+                reject(event.target.error);
+            };
+
+            request.onblocked = function () {
+                console.warn('IndexedDB 数据库删除被阻塞，可能有其他页面还在使用:', the_del_idb_name);
+                resolve(false);
+            };
+        });
+    }
+
+    async function sc_idb_flush(the_now_time) {
+        if (sc_idb_buffer.length === 0) return;
+
+        const the_flush_sc_data = sc_idb_buffer;
+        sc_idb_buffer = [];
+        await put_room_SC(the_flush_sc_data);
+        sc_idb_last_flush_time = the_now_time;
+    }
+
+    function sc_idb_schedule_flush(the_now_time) {
+        if (sc_idb_flush_timer !== null) return;
+
+        sc_idb_flush_timer = setTimeout(() => {
+            sc_idb_flush_timer = null;
+            sc_idb_flush(the_now_time);
+        }, sc_idb_flush_min_ms_delay);
+    }
+
+    function sc_idb_clear_flush_timer() {
+        if (sc_idb_flush_timer) {
+            clearTimeout(sc_idb_flush_timer);
+            sc_idb_flush_timer = null;
+        }
+    }
 
     function sc_screen_resolution_change_check() {
         let the_sc_screen_resolution_change_flag = sc_screen_resolution_change_flag;
@@ -695,8 +895,7 @@
 
     // 先检测并处理本房间的
     if (!sc_live_manual_clear_flag && sc_keep_time_flag && (sc_now_time - parseInt(sc_keep_time, 10)) > 1000 * 60 * 60 * sc_clear_time_hour) {
-        unsafeWindow.localStorage.removeItem(sc_localstorage_key);
-        unsafeWindow.localStorage.removeItem(sc_sid_localstorage_key);
+        delete_room_IDB(sc_localstorage_key);
     }
 
     function check_and_clear_all_sc_store() {
@@ -710,8 +909,8 @@
                 if (sc_keep_time_item === null || sc_keep_time_item === 'null' || sc_keep_time_item === 0 || sc_keep_time_item === '') {
                     continue;
                 } else if (sc_keep_time_item !== null && sc_keep_time_item !== 'null' && sc_keep_time_item !== 0 && sc_keep_time_item !== '' && ((sc_now_time - parseInt(sc_keep_time_item, 10)) / (1000 * 60 * 60)) > sc_clear_time_hour) {
-                    unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
-                    unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_sid'); // 清除sc的sid存储
+                    delete_room_IDB('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
+                    unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 兼容旧版本，清除旧数据
                     unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_keep_time'); //清除sc的keep time存储
                 } else {
                     live_sc_rooms_new.push(live_sc_rooms[m]);
@@ -727,8 +926,8 @@
         if (live_sc_rooms_json !== null && live_sc_rooms_json !== 'null' && live_sc_rooms_json !== '[]' && live_sc_rooms_json !== '') {
             let live_sc_rooms = JSON.parse(live_sc_rooms_json);
             for (let m = 0; m < live_sc_rooms.length; m++) {
-                unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
-                unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_sid'); // 清除sc的sid存储
+                clear_room_SC('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
+                unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 兼容旧版本，清除旧数据
                 unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_keep_time'); //清除sc的keep time存储
             }
             // 更新live_sc_rooms
@@ -3315,21 +3514,20 @@
     }
 
     // 导出
-    function sc_export() {
-        let sc_localstorage_json_export = unsafeWindow.localStorage.getItem(sc_localstorage_key);
-        if (sc_localstorage_json_export === null || sc_localstorage_json_export === 'null' || sc_localstorage_json_export === '[]' || sc_localstorage_json_export === '') {
+    async function sc_export() {
+        let sc_data_export = await get_room_SC(sc_localstorage_key);
+        if (sc_data_export.length === 0) {
             return;
         } else {
             const the_sc_export_time_str = getTimestampConversion((new Date()).getTime());
-            let sc_localstorage_export = JSON.parse(sc_localstorage_json_export);
             let sc_export_str = '';
             sc_export_str += '本次观看期间的最大同接 / 高能：' + this_view_high_energy_contribute_num_est + ' / ' + this_view_high_energy_num_est + '，对应的时间：' + getTimestampConversion(this_view_high_energy_contribute_num_est_time) + ' / ' + getTimestampConversion(this_view_high_energy_num_est_time) + '\n\n';
             sc_export_str += '导出数据时候的同接/高能：' + high_energy_contribute_num + '/' + high_energy_num + '，对应的时间：' + the_sc_export_time_str + '\n\n';
-            for (let j = 0; j < sc_localstorage_export.length; j++) {
-                let sc_export_timestamp = '[' + getTimestampConversion(sc_localstorage_export[j]["start_time"]) + ']';
-                let sc_export_uname = '[ ' + sc_localstorage_export[j]["user_info"]["uname"] + ' ]';
-                let sc_export_uid = '[ uid: ' + sc_localstorage_export[j]["uid"] + ' ]';
-                let sc_export_guard_level = sc_localstorage_export[j]["user_info"]["guard_level"];
+            for (let j = 0; j < sc_data_export.length; j++) {
+                let sc_export_timestamp = '[' + getTimestampConversion(sc_data_export[j]["start_time"]) + ']';
+                let sc_export_uname = '[ ' + sc_data_export[j]["user_info"]["uname"] + ' ]';
+                let sc_export_uid = '[ uid: ' + sc_data_export[j]["uid"] + ' ]';
+                let sc_export_guard_level = sc_data_export[j]["user_info"]["guard_level"];
                 let sc_export_guard = '';
                 if (sc_export_guard_level === 1) {
                     sc_export_guard = '[总督]'
@@ -3341,8 +3539,8 @@
                     sc_export_guard = '[普通]';
                 }
 
-                let sc_export_price = '[ ￥' + sc_localstorage_export[j]["price"] + ' ]';
-                let sc_export_message = '[ ' + sc_localstorage_export[j]["message"] + ' ]';
+                let sc_export_price = '[ ￥' + sc_data_export[j]["price"] + ' ]';
+                let sc_export_message = '[ ' + sc_data_export[j]["message"] + ' ]';
 
                 sc_export_str += sc_export_timestamp + sc_export_guard + sc_export_uid + sc_export_uname + sc_export_price + ' : ' + sc_export_message + '\n\n';
             }
@@ -4323,41 +4521,19 @@
 
     function store_sc_item(sc_data) {
         check_and_join_live_sc_room();
-        // 追加SC 存储
-        let sc_localstorage = [];
-        let sc_sid_localstorage = [];
-        let sid = String(sc_data["id"]) + '_' + String(sc_data["uid"]) + '_' + String(sc_data["price"]);
-        let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
 
-        if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
-            sc_localstorage.push(sc_data);
-            sc_sid_localstorage.push(sid);
-            // 保存/更新sc_keep_time （最后sc的时间戳）
-            unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
+        const the_now_time = (new Date()).getTime();
+        // 保存/更新sc_keep_time （最后sc的时间戳）
+        unsafeWindow.localStorage.setItem(sc_keep_time_key, the_now_time);
 
-            // 追加存储
-            unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
-            unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
-
-            return true;
+        // 追加 SC 存储
+        sc_idb_buffer.push(sc_data);
+        const the_diff_time = the_now_time - sc_idb_last_flush_time;
+        if (the_diff_time >= sc_idb_flush_min_ms_delay) {
+            sc_idb_clear_flush_timer();
+            sc_idb_flush(the_now_time);
         } else {
-            sc_localstorage = JSON.parse(sc_localstorage_json);
-            sc_sid_localstorage = JSON.parse(unsafeWindow.localStorage.getItem(sc_sid_localstorage_key));
-
-            if (sc_sid_localstorage.includes(sid)) {
-                return false;
-            } else {
-                sc_localstorage.push(sc_data);
-                sc_sid_localstorage.push(sid);
-                // 保存/更新sc_keep_time （最后sc的时间戳）
-                unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
-
-                // 追加存储
-                unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
-                unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
-
-                return true;
-            }
+            sc_idb_schedule_flush(the_now_time);
         }
     }
 
@@ -4537,7 +4713,7 @@
         // 抓取SC
         fetch(sc_url, { credentials: 'include' }).then(response => {
             return response.json();
-        }).then(ret => {
+        }).then(async ret => {
             let sc_catch = [];
             if (ret.code === 0) {
                 // 高能数
@@ -4556,121 +4732,83 @@
                 real_room_id = ret.data?.room_info?.room_id || room_id;
             }
 
-            // 如果设置了-进入直播间的时候，不显示直播间正在挂着的SC
-            if (sc_live_panel_not_show_now_time_sc_flag) {
-                sc_catch = [];
+            // 追加到indexedDB 和 SC显示板
+            let sc_idb_data_old = [];
+            let sc_idb_data_new = [];
+            let sc_show_arr = []; // 显示的
+            let sc_show_mode = 0; // 0-实时+历史，1-实时，2-历史
+            sc_idb_data_old = await get_room_SC(sc_localstorage_key); // 本地的往期SC
+
+            if (sc_catch.length > 0) {
+                await put_room_SC(sc_catch); // 写入（自动去重）
+
+                // 加入记录组
+                check_and_join_live_sc_room();
+
+                // 保存/更新sc_keep_time （最后sc的时间戳）
+                unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
+
+                sc_idb_data_new = await get_room_SC(sc_localstorage_key); // 再获取一次
             }
 
-            // 追加到localstorage 和 SC显示板
-            let sc_localstorage = [];
-            let sc_sid_localstorage = [];
-            let temp_sc_localstorage = [];
-            let temp_sc_sid_localstorage = [];
-            let diff_arr_new_sc = [];
-            let sc_add_arr = [];
-            let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
-            if (sc_localstorage_json === null || sc_localstorage_json === 'null' || sc_localstorage_json === '[]' || sc_localstorage_json === '') {
-                diff_arr_new_sc = sc_catch;
-            } else {
-                sc_localstorage = JSON.parse(sc_localstorage_json);
-                sc_sid_localstorage = JSON.parse(unsafeWindow.localStorage.getItem(sc_sid_localstorage_key));
-                temp_sc_localstorage = sc_localstorage;
-                temp_sc_sid_localstorage = sc_sid_localstorage;
-
-                // 如果设置了-进入直播间的时候，不显示保存在本地的往期SC
-                if (sc_live_panel_not_show_local_sc_flag) {
-                    temp_sc_localstorage = [];
-                    temp_sc_sid_localstorage = [];
+            // 如果设置了-进入直播间的时候，不显示直播间正在挂着的SC-sc_live_panel_not_show_now_time_sc_flag
+            // 如果设置了-进入直播间的时候，不显示保存在本地的往期SC-sc_live_panel_not_show_local_sc_flag
+            if (sc_live_panel_not_show_now_time_sc_flag && !sc_live_panel_not_show_local_sc_flag) {
+                sc_show_arr = sc_idb_data_old;
+                sc_show_mode = 2;
+            } else if (!sc_live_panel_not_show_now_time_sc_flag && sc_live_panel_not_show_local_sc_flag) {
+                sc_show_arr = sc_catch;
+                sc_show_mode = 1;
+            } else if (!sc_live_panel_not_show_now_time_sc_flag && !sc_live_panel_not_show_local_sc_flag) {
+                if (sc_catch.length > 0) {
+                    sc_show_arr = sc_idb_data_new;
+                } else {
+                    sc_show_arr = sc_idb_data_old;
                 }
 
-                diff_arr_new_sc = sc_catch.filter(v => {
-                    let sid = String(v.id) + '_' + String(v.uid) + '_' + String(v.price);
-
-                    return !sc_sid_localstorage.includes(sid);
-                });
-
+                sc_show_mode = 0;
             }
 
-            diff_arr_new_sc = diff_arr_new_sc.sort((a, b) => a.start_time - b.start_time);
+            if (sc_show_arr.length > 0) { sc_show_arr = sc_show_arr.sort((a, b) => a.start_time - b.start_time); } // 排序
 
             if (sc_isListEmpty) {
                 // 一开始进入
-                if (sc_live_panel_not_show_local_sc_flag) {
-                    sc_add_arr = sc_catch;
-
-                    if (sc_catch.length && !sc_live_panel_not_show_now_time_sc_flag) {
-                        // 有抓取到实时已经存在的
-                        sc_custom_config_start_class_by_fetch(sc_catch);
-                    }
-
-                } else {
-                    sc_add_arr = temp_sc_localstorage.concat(diff_arr_new_sc);
-
-                    if (diff_arr_new_sc.length && !sc_live_panel_not_show_now_time_sc_flag) {
-                        // 有抓取到实时已经存在的
-                        sc_custom_config_start_class_by_fetch(diff_arr_new_sc);
-                    }
+                if (sc_show_mode === 0 && sc_show_mode === 1 && sc_catch.length > 0 && sc_show_arr > 0) {
+                    sc_custom_config_start_class_by_fetch(sc_show_arr);
+                } else if ((sc_show_mode === 2 && sc_catch.length > 0 && sc_show_arr > 0) || (sc_show_mode === 0 && sc_catch.length === 0 && sc_show_arr > 0)) {
+                    // 没抓取到实时已经存在的，但有历史存储的 sc_idb_data_old
+                    sc_custom_config_start_class_by_store(sc_show_arr);
                 }
-
-                if (!diff_arr_new_sc.length && temp_sc_localstorage.length && !sc_live_panel_not_show_local_sc_flag) {
-                    // 没抓取到实时已经存在的，但有存储的
-                    sc_custom_config_start_class_by_store(temp_sc_localstorage);
-                }
-
-            } else {
-                // 实时
-                sc_add_arr = diff_arr_new_sc;
             }
 
-            if (sc_add_arr.length) {
-                for (let i = 0; i < sc_add_arr.length; i++){
+            if (sc_show_arr.length > 0) {
+                for (let i = 0; i < sc_show_arr.length; i++){
                     // 追加到SC显示板
-                    update_sc_item(sc_add_arr[i], false);
+                    update_sc_item(sc_show_arr[i], false);
                 }
 
                 if (sc_item_order_up_flag) {
                     setTimeout(() => { sc_scroll_list_to_bottom(); }, 1000);
                 }
 
-                // 追加到localstorage（存储就不用GM_setValue了，直接localstorage，控制台就可以看到）
-                if (diff_arr_new_sc.length) {
-                    // 加入记录组
-                    check_and_join_live_sc_room();
-
-                    for (let d = 0; d < diff_arr_new_sc.length; d++) {
-                        sc_localstorage.push(diff_arr_new_sc[d]);
-                        sc_sid_localstorage.push(String(diff_arr_new_sc[d]["id"]) + '_' + String(diff_arr_new_sc[d]["uid"]) + '_' + String(diff_arr_new_sc[d]["price"]));
-                    }
-
-                    // 保存/更新sc_keep_time （最后sc的时间戳）
-                    unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
-
-                    // 追加存储
-                    unsafeWindow.localStorage.setItem(sc_localstorage_key, JSON.stringify(sc_localstorage));
-                    unsafeWindow.localStorage.setItem(sc_sid_localstorage_key, JSON.stringify(sc_sid_localstorage));
-                }
-
                 sc_isListEmpty = false;
             }
-        }).catch(error => {
+        }).catch(async error => {
             sc_catch_log('请求api失败！抓取已存在的SC失败！请刷新页面来解决~');
-            let sc_localstorage_json = unsafeWindow.localStorage.getItem(sc_localstorage_key);
-            if (sc_localstorage_json !== null && sc_localstorage_json !== 'null' && sc_localstorage_json !== '[]' && sc_localstorage_json !== '') {
-                if (sc_isListEmpty) {
-                    let sc_localstorage = JSON.parse(sc_localstorage_json);
-                    if (sc_localstorage.length && !sc_live_panel_not_show_local_sc_flag) {
-                        sc_custom_config_start_class_by_store(sc_localstorage);
+            if (sc_isListEmpty) {
+                let sc_idb_data = await get_room_SC(sc_localstorage_key);
+                if (sc_idb_data.length > 0 && !sc_live_panel_not_show_local_sc_flag) {
+                    sc_custom_config_start_class_by_store(sc_idb_data);
 
-                        for (let r = 0; r < sc_localstorage.length; r++){
-                            // 追加到SC显示板
-                            update_sc_item(sc_localstorage[r], false);
-                        }
+                    for (let r = 0; r < sc_idb_data.length; r++){
+                        // 追加到SC显示板
+                        update_sc_item(sc_idb_data[r], false);
+                    }
 
-                        sc_isListEmpty = false;
+                    sc_isListEmpty = false;
 
-                        if (sc_item_order_up_flag) {
-                            setTimeout(() => { sc_scroll_list_to_bottom(); }, 1000);
-                        }
+                    if (sc_item_order_up_flag) {
+                        setTimeout(() => { sc_scroll_list_to_bottom(); }, 1000);
                     }
                 }
             }
@@ -8410,7 +8548,7 @@
                             <input type="radio" id="sc_live_other_no_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="0" checked />
                             <label for="sc_live_other_no_filter_2_sc_fullscreen">不过滤￥2的SC</label>
 
-                            input type="radio" id="sc_live_other_danmu_filter_2_sc" name="sc_live_other_filter_2_sc" value="1" />
+                            <input type="radio" id="sc_live_other_danmu_filter_2_sc" name="sc_live_other_filter_2_sc" value="1" />
                             <label for="sc_live_other_danmu_filter_2_sc">只在弹幕过滤￥2的SC</label>
 
                             <input type="radio" id="sc_live_other_all_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="2" />
@@ -8449,8 +8587,7 @@
 
         $(document).on('click', '.sc_live_other_clear_this_room_data', function(e) {
             if (confirm('清除本直播间数据，并且刷新页面')) {
-                unsafeWindow.localStorage.removeItem(sc_localstorage_key);
-                unsafeWindow.localStorage.removeItem(sc_sid_localstorage_key);
+                delete_room_IDB(sc_localstorage_key);
                 update_select_manual_clear();
 
                 unsafeWindow.location.reload();
@@ -11181,10 +11318,9 @@
                         let n_online_count = parsedArr.data.online_count ?? 0;
                         update_rank_count(n_count, n_online_count);
                     } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
-                        let store_flag = store_sc_item(parsedArr.data);
-                        if (store_flag) {
-                            update_sc_item(parsedArr.data);
-                        }
+                        store_sc_item(parsedArr.data);
+
+                        update_sc_item(parsedArr.data);
 
                         if (sc_live_special_sc_flag && sc_live_special_tip_uid_arr.length) {
                             handle_special_sc(parsedArr.data, false, true);

@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.2.0
+// @version      13.2.1
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -44,7 +44,7 @@
     // 进入直播间的时候开始记录SC
     // 开始固定在屏幕左上方一侧，为圆形小图标，可以点击展开，可以拖拽移动，活动页可用，直播全屏也在顶层显示
     // 通过Hook实时抓取数据
-    // 每个直播间隔离保留，用localstorage，并且自动清理时间长的数据
+    // 每个直播间隔离保留，用localstorage和indexedDB，并且自动清理时间长的数据
     // SC标明发送时间和距离当前的时间差
     // SC可折叠，可生成图片（折叠和展开都可以），可搜索
     // 黑名单功能
@@ -105,6 +105,7 @@
     let data_show_bottom_flag = true; // 是否在页面右侧弹幕滚动框的底部动态显示数据
 
     let sc_localstorage_key = 'live_' + room_id + '_sc';
+    let sc_sid_localstorage_key = 'live_' + room_id + '_sc_sid'; // 兼容旧版本，清除旧数据
     let sc_live_room_title = '';
 
     let sc_keep_time_key = 'live_' + room_id + '_sc_keep_time';
@@ -895,8 +896,9 @@
 
     // 先检测并处理本房间的
     if (!sc_live_manual_clear_flag && sc_keep_time_flag && (sc_now_time - parseInt(sc_keep_time, 10)) > 1000 * 60 * 60 * sc_clear_time_hour) {
+        delete_room_IDB(sc_localstorage_key); // 清除sc存储（这里有时间判断，可以直接使用delete_room_IDB）
         unsafeWindow.localStorage.removeItem(sc_localstorage_key); // 兼容旧版本，清除旧数据
-        delete_room_IDB(sc_localstorage_key);
+        unsafeWindow.localStorage.removeItem(sc_sid_localstorage_key); // 兼容旧版本，清除旧数据
     }
 
     function check_and_clear_all_sc_store() {
@@ -910,8 +912,9 @@
                 if (sc_keep_time_item === null || sc_keep_time_item === 'null' || sc_keep_time_item === 0 || sc_keep_time_item === '') {
                     continue;
                 } else if (sc_keep_time_item !== null && sc_keep_time_item !== 'null' && sc_keep_time_item !== 0 && sc_keep_time_item !== '' && ((sc_now_time - parseInt(sc_keep_time_item, 10)) / (1000 * 60 * 60)) > sc_clear_time_hour) {
-                    delete_room_IDB('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
+                    delete_room_IDB('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储（这里有时间判断，可以直接使用delete_room_IDB）
                     unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 兼容旧版本，清除旧数据
+                    unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_sid'); // 兼容旧版本，清除旧数据
                     unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_keep_time'); //清除sc的keep time存储
                 } else {
                     live_sc_rooms_new.push(live_sc_rooms[m]);
@@ -927,8 +930,9 @@
         if (live_sc_rooms_json !== null && live_sc_rooms_json !== 'null' && live_sc_rooms_json !== '[]' && live_sc_rooms_json !== '') {
             let live_sc_rooms = JSON.parse(live_sc_rooms_json);
             for (let m = 0; m < live_sc_rooms.length; m++) {
-                clear_room_SC('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储
+                clear_room_SC('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储（这里不使用delete_room_IDB是为了防止可能阻塞，导致问题复杂化）
                 unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 兼容旧版本，清除旧数据
+                unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_sid'); // 兼容旧版本，清除旧数据
                 unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_keep_time'); //清除sc的keep time存储
             }
             // 更新live_sc_rooms
@@ -10606,8 +10610,6 @@
 
             $(this).parent().fadeOut();
         });
-
-
 
         $(document).on('click', '#sc_func_fullscreen_separate_memory_btn', function(e) {
             e = e || unsafeWindow.event;

@@ -44,7 +44,7 @@
     // 进入直播间的时候开始记录SC
     // 开始固定在屏幕左上方一侧，为圆形小图标，可以点击展开，可以拖拽移动，活动页可用，直播全屏也在顶层显示
     // 通过Hook实时抓取数据
-    // 每个直播间隔离保留，用localstorage和indexedDB，并且自动清理时间长的数据
+    // 每个直播间隔离保留，用localstorage，并且自动清理时间长的数据
     // SC标明发送时间和距离当前的时间差
     // SC可折叠，可生成图片（折叠和展开都可以），可搜索
     // 黑名单功能
@@ -895,6 +895,7 @@
 
     // 先检测并处理本房间的
     if (!sc_live_manual_clear_flag && sc_keep_time_flag && (sc_now_time - parseInt(sc_keep_time, 10)) > 1000 * 60 * 60 * sc_clear_time_hour) {
+        unsafeWindow.localStorage.removeItem(sc_localstorage_key); // 兼容旧版本，清除旧数据
         delete_room_IDB(sc_localstorage_key);
     }
 

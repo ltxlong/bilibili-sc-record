@@ -11438,7 +11438,6 @@
             sycn_live_special_tip_config(); // 默认每30秒同步最新的特定用户提示设置
             sycn_live_sc_to_danmu_show_config(); // 默认每30秒同步最新的SC以弹幕展现的设置
         }, check_interval_time);
-
     }
 
 })();

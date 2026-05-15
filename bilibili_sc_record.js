@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.2.1
+// @version      13.2.2
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -1007,7 +1007,6 @@
         } else {
             return Y + M + D + h + m + s;
         }
-
     }
 
     function get_timestamp_diff(timestamp, sc_price) {
@@ -1766,7 +1765,6 @@
                         }
                     }, sc_side_fold_custom_time * 1000);
                 }
-
             }
         }
     }
@@ -3770,6 +3768,14 @@
             let the_click_btn = the_anchor_box_iframe_obj.find('#app .participation-box .particitation-btn img.btn-name');
             let the_close_btn = the_anchor_box_iframe_obj.find('#app .participation-box .close-btn');
 
+            if (the_click_btn.length === 0) {
+                the_click_btn = the_anchor_box_iframe_obj.find('#app .lucky-bag-content .action-btn');
+            }
+
+            if (the_close_btn.length === 0) {
+                the_close_btn = the_anchor_box_iframe_obj.find('#app .lucky-bag-header .close-btn');
+            }
+
             let sc_anchor_auto_joinTimeout;
             let sc_anchor_auto_closeTimeout;
 
@@ -4450,6 +4456,7 @@
                 sc_background_bottom_color = change_color_opacity(sc_background_bottom_color, 0);
                 sc_background_color = change_color_opacity(sc_background_color, 0);
                 sc_item_msg_head_bg_hide_class = ' sc_msg_head_bg_hide';
+                sc_background_image_html = '';
             } else {
                 // 如果调整了SC背景的透明度
                 if (sc_live_item_bg_opacity_val < 1) {
@@ -4467,6 +4474,7 @@
                 sc_background_bottom_color = change_color_opacity(sc_background_bottom_color, 0);
                 sc_background_color = change_color_opacity(sc_background_color, 0);
                 sc_item_msg_head_bg_hide_class = ' sc_msg_head_bg_hide';
+                sc_background_image_html = '';
             } else {
                 // 如果调整了SC背景的透明度
                 if (sc_live_item_bg_opacity_val < 1) {
@@ -5096,7 +5104,20 @@
         document.head.appendChild(sc_scrollbar_style);
 
         let sc_other_style = document.createElement('style');
+        // 包含了一些让B站UI适配的css
         sc_other_style.textContent = `
+            #chat-control-panel-vm .close-btn {
+                padding-right: 70px;
+            }
+
+            .chat-input-ctnr {
+                margin-top: unset !important;
+            }
+
+            .super-chat.has-ship {
+                padding: 2px 8px !important;
+            }
+
             @keyframes sc_fadenum {
                 0%{transform: translateY(-100%);opacity: 0;}
                 100%{transform: translateY(0);opacity: 1;}
@@ -8380,6 +8401,10 @@
             .sc_live_other_modal_btn {
                 padding: 5px 20px;
             }
+
+            .sc_live_other_checkbox_the_label {
+                margin-right: 10px;
+            }
         `;
 
         document.head.appendChild(sc_live_other_modal_style);
@@ -8439,11 +8464,11 @@
                         </div>
                         <div class="sc_live_other_checkbox_div">
                             <input type="checkbox" id="sc_live_other_hide_value_font_flag" class="sc_live_other_checkbox_inline"/>
-                            <label for="sc_live_other_hide_value_font_flag" class="sc_live_other_checkbox_inline">设置隐藏SC的价格</label>
-                        </div>
-                        <div class="sc_live_other_checkbox_div">
+                            <label for="sc_live_other_hide_value_font_flag" class="sc_live_other_checkbox_inline sc_live_other_checkbox_the_label">设置隐藏SC的价格</label>
                             <input type="checkbox" id="sc_live_other_hide_diff_time_flag" class="sc_live_other_checkbox_inline"/>
-                            <label for="sc_live_other_hide_diff_time_flag" class="sc_live_other_checkbox_inline">设置隐藏SC的时间距离</label>
+                            <label for="sc_live_other_hide_diff_time_flag" class="sc_live_other_checkbox_inline sc_live_other_checkbox_the_label">设置隐藏SC的时间距离</label>
+                            <input type="checkbox" id="sc_live_other_hide_send_time_flag" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_hide_send_time_flag" class="sc_live_other_checkbox_inline sc_live_other_checkbox_the_label">设置隐藏SC的发送时间</label>
                         </div>
                         <div class="sc_live_other_checkbox_div">
                             <input type="checkbox" id="sc_live_other_swap_two_btn_flag" class="sc_live_other_checkbox_inline"/>
@@ -8533,11 +8558,11 @@
                         </div>
                         <div class="sc_live_other_checkbox_div">
                             <input type="checkbox" id="sc_live_other_hide_value_font_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
-                            <label for="sc_live_other_hide_value_font_flag_fullscreen" class="sc_live_other_checkbox_inline">设置隐藏SC的价格</label>
-                        </div>
-                        <div class="sc_live_other_checkbox_div">
+                            <label for="sc_live_other_hide_value_font_flag_fullscreen" class="sc_live_other_checkbox_inline sc_live_other_checkbox_the_label">设置隐藏SC的价格</label>
                             <input type="checkbox" id="sc_live_other_hide_diff_time_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
-                            <label for="sc_live_other_hide_diff_time_flag_fullscreen" class="sc_live_other_checkbox_inline">设置隐藏SC的时间距离</label>
+                            <label for="sc_live_other_hide_diff_time_flag_fullscreen" class="sc_live_other_checkbox_inline sc_live_other_checkbox_the_label">设置隐藏SC的时间距离</label>
+                            <input type="checkbox" id="sc_live_other_hide_send_time_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
+                            <label for="sc_live_other_hide_send_time_flag_fullscreen" class="sc_live_other_checkbox_inline sc_live_other_checkbox_the_label">设置隐藏SC的发送时间</label>
                         </div>
                         <div class="sc_live_other_checkbox_div">
                             <input type="checkbox" id="sc_live_other_swap_two_btn_flag_fullscreen" class="sc_live_other_checkbox_inline"/>
@@ -8769,6 +8794,18 @@
                 $(document).find('.sc_diff_time').show();
             }
 
+            let sc_live_hide_send_time_flag = $(document).find('#sc_live_other_hide_send_time_flag').is(':checked');
+
+            sc_start_time_show_flag = !sc_live_hide_send_time_flag;
+
+            sc_start_time_show_store();
+
+            if (sc_start_time_show_flag) {
+                $(document).find('.sc_start_time').show();
+            } else {
+                $(document).find('.sc_start_time').hide();
+            }
+
             sc_live_swap_two_btn_flag = $(document).find('#sc_live_other_swap_two_btn_flag').is(':checked');
 
             sc_live_manual_clear_flag = $(document).find('#sc_live_other_manual_clear_flag').is(':checked');
@@ -8947,6 +8984,18 @@
                 $(document).find('.sc_diff_time').hide();
             } else {
                 $(document).find('.sc_diff_time').show();
+            }
+
+            let sc_live_hide_send_time_flag = $(document).find('#sc_live_other_hide_send_time_flag_fullscreen').is(':checked');
+
+            sc_start_time_show_flag = !sc_live_hide_send_time_flag;
+
+            sc_start_time_show_store();
+
+            if (sc_start_time_show_flag) {
+                $(document).find('.sc_start_time').show();
+            } else {
+                $(document).find('.sc_start_time').hide();
             }
 
             sc_live_swap_two_btn_flag = $(document).find('#sc_live_other_swap_two_btn_flag_fullscreen').is(':checked');
@@ -9292,10 +9341,7 @@
                         <textarea id="sc_live_setting_import_textarea_content" style="min-width: 60%; min-height: 100px; max-width: 90%; max-height: 160px; margin: 5px;" placeholder="输入json格式配置，点击导入配置按钮\n\n注意：\n\n重置配置不是清空本输入框的内容\n\n重置配置是清空记录板的所有配置"></textarea>
                     </div>
                     <div class="sc_live_setting_item_div">
-                        <button id="sc_live_top_label_setting_sample_json_btn" class="sc_live_setting_item" type="button">横向标签页-填充示例配置</button>
-                    </div>
-                    <div class="sc_live_setting_item_div">
-                        <button id="sc_live_left_label_setting_sample_json_btn" class="sc_live_setting_item" type="button">垂直标签页-填充示例配置</button>
+                        <button id="sc_live_setting_sample_json_btn" class="sc_live_setting_item" type="button">填充示例配置</button>
                     </div>
                 </div>
         `;
@@ -9700,7 +9746,7 @@
             }
         });
 
-        $(document).on('click', '#sc_live_left_label_setting_sample_json_btn', function(e) {
+        $(document).on('click', '#sc_live_setting_sample_json_btn', function(e) {
             const the_default_setting_str = `{
   "live_sc_all_memory_config": {
     "sc_switch": 1,
@@ -9711,7 +9757,7 @@
     "sc_panel_side_fold_flag_fullscreen": true,
     "sc_panel_side_fold_simple": false,
     "sc_panel_side_fold_simple_fullscreen": false,
-    "sc_func_btn_mode": 2,
+    "sc_func_btn_mode": 4,
     "sc_func_btn_mode_fullscreen": 4,
     "sc_side_fold_custom_config": 1,
     "sc_side_fold_custom_time": 11.5,
@@ -9733,84 +9779,9 @@
     "sc_panel_show_time_mode": 0,
     "sc_panel_show_time_each_same": 0.5,
     "sc_live_panel_show_time_click_stop_flag": true,
-    "sc_panel_drag_left": 1306.7321777,
-    "sc_panel_drag_top": 96.6964340,
-    "sc_panel_drag_left_percent": "0.9400951",
-    "sc_panel_drag_top_percent": "0.1158041",
-    "sc_panel_drag_top_fullscreen_percent": "0.1810428",
-    "sc_panel_drag_left_fullscreen": 12.4910717,
-    "sc_panel_drag_top_fullscreen": 173.9821472,
-    "sc_panel_drag_left_fullscreen_percent": "0.0086683",
-    "sc_start_time_simple_flag": true,
-    "sc_list_search_shortkey_flag": true,
-    "sc_list_search_div_bg_opacity_range": "30",
-    "sc_live_auto_tianxuan_flag": false,
-    "sc_live_send_dm_combo_flag": false,
-    "sc_live_all_font_size_add": 5,
-    "sc_live_font_size_only_message_flag": true,
-    "sc_live_side_fold_head_border_bg_opacity_flag": false,
-    "sc_live_item_bg_opacity_val": 0.8,
-    "sc_live_hide_value_font_flag": true,
-    "sc_live_hide_diff_time_flag": false,
-    "sc_live_item_suspend_bg_opacity_one_flag": false,
-    "sc_live_panel_not_show_now_time_sc_flag": false,
-    "sc_live_panel_not_show_local_sc_flag": false,
-    "sc_live_filter_2_sc_mode": 3
-  },
-  "live_sc_memory_all_rooms_mode": "3",
-  "live_sc_screen_resolution_str": "1390_835",
-  "live_sc_special_tip_location": "1",
-  "live_sc_special_msg_flag": "true",
-  "live_sc_special_sc_flag": "true",
-  "live_sc_special_danmu_mode": "1",
-  "live_sc_to_danmu_show_flag": "true",
-  "live_sc_to_danmu_show_location": "0",
-  "live_sc_to_danmu_show_mode": "3",
-  "live_special_sc_no_remain_flag": "false",
-  "live_sc_to_danmu_no_remain_flag": "false"
-}`;
-
-            $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
-
-            open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
-        });
-
-        $(document).on('click', '#sc_live_top_label_setting_sample_json_btn', function(e) {
-            const the_default_setting_str = `{
-  "live_sc_all_memory_config": {
-    "sc_switch": 1,
-    "sc_switch_fullscreen": 1,
-    "sc_panel_fold_mode": 1,
-    "sc_panel_fold_mode_fullscreen": 1,
-    "sc_panel_side_fold_flag": true,
-    "sc_panel_side_fold_flag_fullscreen": true,
-    "sc_panel_side_fold_simple": false,
-    "sc_panel_side_fold_simple_fullscreen": false,
-    "sc_func_btn_mode": 2,
-    "sc_func_btn_mode_fullscreen": 4,
-    "sc_side_fold_custom_config": 1,
-    "sc_side_fold_custom_time": 11.5,
-    "sc_side_fold_custom_each_same_time_flag": true,
-    "sc_rectangle_width": 388,
-    "sc_rectangle_width_fullscreen": 325,
-    "sc_panel_list_height": 170,
-    "sc_panel_list_height_fullscreen": 400,
-    "sc_item_order_up_flag": false,
-    "data_show_bottom_flag": false,
-    "sc_panel_allow_drag_flag": true,
-    "sc_welt_hide_circle_half_flag": true,
-    "sc_start_time_show_flag": true,
-    "sc_live_sidebar_left_flag": false,
-    "sc_live_fullscreen_config_separate_memory_flag": true,
-    "sc_data_show_high_energy_num_flag": true,
-    "sc_data_show_high_energy_num_flag_fullscreen": true,
-    "sc_side_fold_fullscreen_auto_hide_list_flag": true,
-    "sc_panel_show_time_mode": 0,
-    "sc_panel_show_time_each_same": 0.5,
-    "sc_live_panel_show_time_click_stop_flag": true,
-    "sc_panel_drag_left": 1329.5357666,
+    "sc_panel_drag_left": 1361.5,
     "sc_panel_drag_top": 99.7142868,
-    "sc_panel_drag_left_percent": "0.9265058",
+    "sc_panel_drag_left_percent": "0.9541",
     "sc_panel_drag_top_percent": "0.1259019",
     "sc_panel_drag_top_fullscreen_percent": "0.1810428",
     "sc_panel_drag_left_fullscreen": 12.4910717,
@@ -9823,14 +9794,14 @@
     "sc_live_send_dm_combo_flag": false,
     "sc_live_all_font_size_add": 5,
     "sc_live_font_size_only_message_flag": true,
-    "sc_live_side_fold_head_border_bg_opacity_flag": false,
+    "sc_live_side_fold_head_border_bg_opacity_flag": true,
     "sc_live_item_bg_opacity_val": 0.8,
-    "sc_live_hide_value_font_flag": true,
+    "sc_live_hide_value_font_flag": false,
     "sc_live_hide_diff_time_flag": false,
     "sc_live_item_suspend_bg_opacity_one_flag": false,
     "sc_live_panel_not_show_now_time_sc_flag": false,
     "sc_live_panel_not_show_local_sc_flag": false,
-    "sc_live_filter_2_sc_mode": 3
+    "sc_live_filter_2_sc_mode": 0
   },
   "live_sc_memory_all_rooms_mode": "3",
   "live_sc_screen_resolution_str": "1390_835",
@@ -9843,7 +9814,8 @@
   "live_sc_to_danmu_show_mode": "3",
   "live_special_sc_no_remain_flag": "false",
   "live_sc_to_danmu_no_remain_flag": "false"
-}`;
+}
+`;
 
             $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
 
@@ -9979,51 +9951,39 @@
 
         let sc_func_button22 = document.createElement('button');
         sc_func_button22.className = 'sc_func_btn';
-        sc_func_button22.id = 'sc_func_item_show_time_btn';
-        sc_func_button22.innerHTML = '显示醒目留言发送具体时间';
+        sc_func_button22.id = 'sc_func_live_sidebar_left_btn';
+        sc_func_button22.innerHTML = '设置直播间功能按钮在左侧';
         sc_func_button22.style.marginBottom = '2px';
 
         let sc_func_button23 = document.createElement('button');
         sc_func_button23.className = 'sc_func_btn';
-        sc_func_button23.id = 'sc_func_item_hide_time_btn';
-        sc_func_button23.innerHTML = '隐藏醒目留言发送具体时间';
+        sc_func_button23.id = 'sc_func_live_sidebar_right_btn';
+        sc_func_button23.innerHTML = '恢复直播间功能按钮在右侧';
         sc_func_button23.style.marginBottom = '2px';
 
         let sc_func_button24 = document.createElement('button');
         sc_func_button24.className = 'sc_func_btn';
-        sc_func_button24.id = 'sc_func_live_sidebar_left_btn';
-        sc_func_button24.innerHTML = '设置直播间功能按钮在左侧';
+        sc_func_button24.id = 'sc_func_live_sc_to_danmu_show_btn';
+        sc_func_button24.innerHTML = '设置醒目留言以弹幕来展现';
         sc_func_button24.style.marginBottom = '2px';
 
         let sc_func_button25 = document.createElement('button');
         sc_func_button25.className = 'sc_func_btn';
-        sc_func_button25.id = 'sc_func_live_sidebar_right_btn';
-        sc_func_button25.innerHTML = '恢复直播间功能按钮在右侧';
+        sc_func_button25.id = 'sc_func_fullscreen_separate_memory_btn';
+        sc_func_button25.innerHTML = '一些设置在全屏时分开记忆';
         sc_func_button25.style.marginBottom = '2px';
 
         let sc_func_button26 = document.createElement('button');
         sc_func_button26.className = 'sc_func_btn';
-        sc_func_button26.id = 'sc_func_live_sc_to_danmu_show_btn';
-        sc_func_button26.innerHTML = '设置醒目留言以弹幕来展现';
+        sc_func_button26.id = 'sc_func_live_special_tip_config_btn';
+        sc_func_button26.innerHTML = '对特定用户进入直播间提示';
         sc_func_button26.style.marginBottom = '2px';
 
         let sc_func_button27 = document.createElement('button');
         sc_func_button27.className = 'sc_func_btn';
-        sc_func_button27.id = 'sc_func_fullscreen_separate_memory_btn';
-        sc_func_button27.innerHTML = '一些设置在全屏时分开记忆';
+        sc_func_button27.id = 'sc_func_live_other_config_btn';
+        sc_func_button27.innerHTML = '其他一些功能的自定义设置';
         sc_func_button27.style.marginBottom = '2px';
-
-        let sc_func_button28 = document.createElement('button');
-        sc_func_button28.className = 'sc_func_btn';
-        sc_func_button28.id = 'sc_func_live_special_tip_config_btn';
-        sc_func_button28.innerHTML = '对特定用户进入直播间提示';
-        sc_func_button28.style.marginBottom = '2px';
-
-        let sc_func_button29 = document.createElement('button');
-        sc_func_button29.className = 'sc_func_btn';
-        sc_func_button29.id = 'sc_func_live_other_config_btn';
-        sc_func_button29.innerHTML = '其他一些功能的自定义设置';
-        sc_func_button29.style.marginBottom = '2px';
 
         let sc_func_br1 = document.createElement('br');
         let sc_func_br2 = document.createElement('br');
@@ -10051,8 +10011,6 @@
         let sc_func_br24 = document.createElement('br');
         let sc_func_br25 = document.createElement('br');
         let sc_func_br26 = document.createElement('br');
-        let sc_func_br27 = document.createElement('br');
-        let sc_func_br28 = document.createElement('br');
 
         let sc_func_context_menu = document.createElement('div');
         sc_func_context_menu.id = 'sc_context_menu_func_body';
@@ -10117,10 +10075,6 @@
         sc_func_context_menu.appendChild(sc_func_button26);
         sc_func_context_menu.appendChild(sc_func_br26);
         sc_func_context_menu.appendChild(sc_func_button27);
-        sc_func_context_menu.appendChild(sc_func_br27);
-        sc_func_context_menu.appendChild(sc_func_button28);
-        sc_func_context_menu.appendChild(sc_func_br28);
-        sc_func_context_menu.appendChild(sc_func_button29);
 
         // 将功能的右键菜单添加到body中
         document.body.appendChild(sc_func_context_menu);
@@ -10483,30 +10437,6 @@
             open_and_close_sc_modal('已设置 取消小图标在贴边后半隐藏 ✓', '#A7C9D3', e, 1);
         });
 
-        $(document).on('click', '#sc_func_item_show_time_btn', function(e) {
-            e = e || unsafeWindow.event;
-            e.preventDefault();
-
-            $(document).find('.sc_start_time').show();
-            sc_start_time_show_flag = true;
-            sc_start_time_show_store();
-
-            $(this).parent().fadeOut();
-            open_and_close_sc_modal('已设置 显示醒目留言发送具体时间 ✓', '#A7C9D3', e, 1);
-        });
-
-        $(document).on('click', '#sc_func_item_hide_time_btn', function(e) {
-            e = e || unsafeWindow.event;
-            e.preventDefault();
-
-            $(document).find('.sc_start_time').hide();
-            sc_start_time_show_flag = false;
-            sc_start_time_show_store();
-
-            $(this).parent().fadeOut();
-            open_and_close_sc_modal('已设置 隐藏醒目留言发送具体时间 ✓', '#A7C9D3', e, 1);
-        });
-
         $(document).on('click', '#sc_func_live_sidebar_left_btn', function(e) {
             e = e || unsafeWindow.event;
             e.preventDefault();
@@ -10703,6 +10633,7 @@
             let sc_live_other_item_suspend_bg_opacity_one_flag_id = 'sc_live_item_suspend_bg_opacity_one_flag';
             let sc_live_other_hide_value_font_flag_id = 'sc_live_other_hide_value_font_flag';
             let sc_live_other_hide_diff_time_flag_id = 'sc_live_other_hide_diff_time_flag';
+            let sc_live_other_hide_send_time_flag_id = 'sc_live_other_hide_send_time_flag';
             let sc_live_other_swap_two_btn_flag_id = 'sc_live_other_swap_two_btn_flag';
             let sc_live_other_manual_clear_flag_id = 'sc_live_other_manual_clear_flag';
             let sc_live_other_config_filter_radio_group_class = 'sc_live_other_filter_radio_group';
@@ -10725,6 +10656,7 @@
                 sc_live_other_item_suspend_bg_opacity_one_flag_id = 'sc_live_item_suspend_bg_opacity_one_flag_fullscreen';
                 sc_live_other_hide_value_font_flag_id = 'sc_live_other_hide_value_font_flag_fullscreen';
                 sc_live_other_hide_diff_time_flag_id = 'sc_live_other_hide_diff_time_flag_fullscreen';
+                sc_live_other_hide_send_time_flag_id = 'sc_live_other_hide_send_time_flag_fullscreen';
                 sc_live_other_config_filter_radio_group_class = 'sc_live_other_filter_radio_group_fullscreen';
                 sc_live_other_config_filter_radio_option_name = 'sc_live_other_filter_2_sc_fullscreen';
             }
@@ -10794,6 +10726,12 @@
             $(document).find('#sc_live_other_hide_diff_time_flag_fullscreen').prop('checked', false);
             if (sc_live_hide_diff_time_flag) {
                 $(document).find('#' + sc_live_other_hide_diff_time_flag_id).prop('checked', true);
+            }
+
+            $(document).find('#sc_live_other_hide_send_time_flag').prop('checked', false);
+            $(document).find('#sc_live_other_hide_send_time_flag_fullscreen').prop('checked', false);
+            if (!sc_start_time_show_flag) {
+                $(document).find('#' + sc_live_other_hide_send_time_flag_id).prop('checked', true);
             }
 
             $(document).find('#sc_live_other_swap_two_btn_flag').prop('checked', false);

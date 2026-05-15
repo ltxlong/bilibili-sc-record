@@ -930,13 +930,10 @@
         if (live_sc_rooms_json !== null && live_sc_rooms_json !== 'null' && live_sc_rooms_json !== '[]' && live_sc_rooms_json !== '') {
             let live_sc_rooms = JSON.parse(live_sc_rooms_json);
             for (let m = 0; m < live_sc_rooms.length; m++) {
-                clear_room_SC('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储（这里不使用delete_room_IDB是为了防止可能阻塞，导致问题复杂化）
+                clear_room_SC('live_' + live_sc_rooms[m] + '_sc'); // 清除sc存储（这里不使用delete_room_IDB是为了防止可能阻塞，导致问题复杂化，所以这里不清空live_sc_rooms和sc_keep_time）
                 unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc'); // 兼容旧版本，清除旧数据
                 unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_sid'); // 兼容旧版本，清除旧数据
-                unsafeWindow.localStorage.removeItem('live_' + live_sc_rooms[m] + '_sc_keep_time'); //清除sc的keep time存储
             }
-            // 更新live_sc_rooms
-            unsafeWindow.localStorage.setItem('live_sc_rooms', JSON.stringify([]));
         }
     }
 

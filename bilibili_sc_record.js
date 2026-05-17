@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.2.3
+// @version      13.2.4
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -298,6 +298,7 @@
     const IDB_DB_NAME = sc_localstorage_key; // 一个直播房间对应一个db
     const IDB_STORE_NAME = 'sc_msg';
     const IDB_VERSION = 1;
+    let sc_set_buffer = new Set(); // 用于渲染SC的去重判断
     let sc_idb_buffer = [];
     let sc_idb_last_flush_time = 0; // timestamp
     const sc_idb_flush_min_ms_delay = 200; // 最小间隔200ms写入indexedDB
@@ -899,6 +900,7 @@
         delete_room_IDB(sc_localstorage_key); // 清除sc存储（这里有时间判断，可以直接使用delete_room_IDB）
         unsafeWindow.localStorage.removeItem(sc_localstorage_key); // 兼容旧版本，清除旧数据
         unsafeWindow.localStorage.removeItem(sc_sid_localstorage_key); // 兼容旧版本，清除旧数据
+        sc_keep_time_flag = 0;
     }
 
     function check_and_clear_all_sc_store() {
@@ -4795,6 +4797,7 @@
                 for (let i = 0; i < sc_show_arr.length; i++){
                     // 追加到SC显示板
                     update_sc_item(sc_show_arr[i], false);
+                    sc_set_buffer.add(sc_show_arr[i]['id']);
                 }
 
                 if (sc_item_order_up_flag) {
@@ -4813,6 +4816,7 @@
                     for (let r = 0; r < sc_idb_data.length; r++){
                         // 追加到SC显示板
                         update_sc_item(sc_idb_data[r], false);
+                        sc_set_buffer.add(sc_idb_data[r]['id']);
                     }
 
                     sc_isListEmpty = false;
@@ -11256,16 +11260,20 @@
                         let n_online_count = parsedArr.data.online_count ?? 0;
                         update_rank_count(n_count, n_online_count);
                     } else if (parsedArr.cmd === 'SUPER_CHAT_MESSAGE') {
-                        store_sc_item(parsedArr.data);
+                        if (!sc_set_buffer.has(parsedArr.data.id)) {
+                            store_sc_item(parsedArr.data);
 
-                        update_sc_item(parsedArr.data);
+                            update_sc_item(parsedArr.data);
 
-                        if (sc_live_special_sc_flag && sc_live_special_tip_uid_arr.length) {
-                            handle_special_sc(parsedArr.data, false, true);
-                        }
+                            sc_set_buffer.add(parsedArr.data.id);
 
-                        if (sc_live_sc_to_danmu_show_flag) {
-                            handle_special_sc(parsedArr.data, true, true);
+                            if (sc_live_special_sc_flag && sc_live_special_tip_uid_arr.length) {
+                                handle_special_sc(parsedArr.data, false, true);
+                            }
+
+                            if (sc_live_sc_to_danmu_show_flag) {
+                                handle_special_sc(parsedArr.data, true, true);
+                            }
                         }
                     } else if (parsedArr.cmd === 'USER_TOAST_MSG') {
                         let sc_data_guard_count = parsedArr.data.target_guard_count ?? 0;

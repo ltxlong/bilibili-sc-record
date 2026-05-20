@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.2.4
+// @version      13.2.5
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -1444,6 +1444,26 @@
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    function sc_bg_color_opacity_back(the_target_oj) {
+        const the_bg_head_color = the_target_oj.find('.sc_msg_head').css('background-color');
+        const the_bg_head_back_color = change_color_opacity(the_bg_head_color, sc_live_item_bg_opacity_val);
+        the_target_oj.find('.sc_msg_head').css('background-color', the_bg_head_back_color);
+
+        const the_bg_color = the_target_oj.css('background-color');
+        const the_bg_back_color = change_color_opacity(the_bg_color, sc_live_item_bg_opacity_val);
+        the_target_oj.css('background-color', the_bg_back_color);
+    }
+
+    function sc_bg_color_opacity_zero(the_target_oj) {
+        const the_bg_head_color = the_target_oj.find('.sc_msg_head').css('background-color');
+        const the_bg_head_back_color = change_color_opacity(the_bg_head_color, 0);
+        the_target_oj.find('.sc_msg_head').css('background-color', the_bg_head_back_color);
+
+        const the_bg_color = the_target_oj.css('background-color');
+        const the_bg_back_color = change_color_opacity(the_bg_color, 0);
+        the_target_oj.css('background-color', the_bg_back_color);
+    }
+
     let sc_live_sidebar_try_find = 2; // 最多再尝试2次
     function sc_live_sidebar_position_left_apply() {
         let sc_live_sidebar = $(document).find('#sidebar-vm');
@@ -1509,6 +1529,10 @@
         target_oj.find('.sc_msg_head').css('border-radius', '6px');
         target_oj.find('.sc_msg_head_left').hide();
         target_oj.find('.sc_msg_head_right').hide();
+
+        if (sc_live_side_fold_head_border_bg_opacity_flag) {
+            sc_bg_color_opacity_zero(target_oj);
+        }
     }
 
     function sc_side_fold_out_one(target_oj, mouse_enter_flag = false) {
@@ -1527,6 +1551,10 @@
 
         target_oj.find('.sc_msg_head_left').show();
         target_oj.find('.sc_msg_head_right').show();
+
+        if (sc_live_side_fold_head_border_bg_opacity_flag) {
+            sc_bg_color_opacity_back(target_oj);
+        }
     }
 
     function sc_side_fold_in_all() {
@@ -1744,11 +1772,13 @@
                 if (new_sc_side_fold_custom_first_class && the_cca_sc_panel_fold_mode === 1) {
                     sc_trigger_item_side_fold_out(new_sc_side_fold_custom_first_class);
                 }
+
             } else if (sc_side_fold_custom_config === 2) {
                 // 第一个SC不保持展开
                 if (sc_side_fold_custom_first_class && the_cca_sc_panel_fold_mode === 1 && sc_side_fold_custom_first_class !== new_sc_side_fold_custom_first_class && !sc_side_fold_custom_auto_run_flag) {
                     sc_trigger_item_side_fold_in(sc_side_fold_custom_first_class);
                 }
+
                 if (sc_side_fold_custom_first_timeout_id) {
                     clearTimeout(sc_side_fold_custom_first_timeout_id);
                 }
@@ -2902,22 +2932,6 @@
 
             sc_custom_config_apply(sc_side_fold_custom_first_class);
         }
-
-        if (sc_live_side_fold_head_border_bg_opacity_flag) {
-            // head
-            $(document).find('.sc_msg_head').each(function() {
-                const bg_color = $(this).css('background-color');
-                const sc_background_color = change_color_opacity(bg_color, 0);
-                $(this).css('background-color', sc_background_color);
-            })
-
-            // item
-            $(document).find('.sc_long_item').each(function() {
-                const bg_color = $(this).css('background-color');
-                const sc_background_color = change_color_opacity(bg_color, 0);
-                $(this).css('background-color', sc_background_color);
-            })
-        }
     }
 
     // 侧折后恢复展开显示板
@@ -3100,6 +3114,10 @@
 
         // head
         $(document).find('.sc_msg_head').each(function() {
+            if ($(this).parent().hasClass(sc_side_fold_custom_first_class) && $(this).parent().css('width') !== '50px') {
+                return true;
+            }
+
             const bg_color = $(this).css('background-color');
             const sc_background_color = change_color_opacity(bg_color, the_sc_live_item_bg_opacity_val);
             $(this).css('background-color', sc_background_color);
@@ -3107,6 +3125,10 @@
 
         // item
         $(document).find('.sc_long_item').each(function() {
+            if ($(this).hasClass(sc_side_fold_custom_first_class) && $(this).css('width') !== '50px') {
+                return true;
+            }
+
             const bg_color = $(this).css('background-color');
             const sc_background_color = change_color_opacity(bg_color, the_sc_live_item_bg_opacity_val);
             $(this).css('background-color', sc_background_color);
@@ -4785,9 +4807,9 @@
 
             if (sc_isListEmpty) {
                 // 一开始进入
-                if (sc_show_mode === 0 && sc_show_mode === 1 && sc_catch.length > 0 && sc_show_arr > 0) {
+                if ((sc_show_mode === 0 || sc_show_mode === 1) && sc_catch.length > 0 && sc_show_arr.length > 0) {
                     sc_custom_config_start_class_by_fetch(sc_show_arr);
-                } else if ((sc_show_mode === 2 && sc_catch.length > 0 && sc_show_arr > 0) || (sc_show_mode === 0 && sc_catch.length === 0 && sc_show_arr > 0)) {
+                } else if ((sc_show_mode === 2 && sc_catch.length > 0 && sc_show_arr.length > 0) || (sc_show_mode === 0 && sc_catch.length === 0 && sc_show_arr.length > 0)) {
                     // 没抓取到实时已经存在的，但有历史存储的 sc_idb_data_old
                     sc_custom_config_start_class_by_store(sc_show_arr);
                 }
@@ -5481,7 +5503,6 @@
                 sc_fullscreen_separate_memory_apply();
 
                 the_normal_list_div.scrollTop(the_live_list_div_scrolltop);
-
             }
         }
 
@@ -5959,7 +5980,9 @@
 
             if (sc_live_side_fold_head_border_bg_opacity_flag && the_sc_panel_side_fold_flag) {
                 // 侧折模式，并且设置了边框透明
-                the_sc_live_item_bg_opacity_val = 0;
+                if ($(this).css('width') === '50px') {
+                    the_sc_live_item_bg_opacity_val = 0;
+                }
             }
 
             let the_sc_msg_head_obj = $(this).find('.sc_msg_head');
@@ -8707,6 +8730,10 @@
                 if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag_fullscreen) {
                     // head
                     $(document).find('.sc_msg_head').each(function() {
+                        if ($(this).parent().hasClass(sc_side_fold_custom_first_class) && $(this).parent().css('width') !== '50px') {
+                            return true;
+                        }
+
                         const bg_color = $(this).css('background-color');
                         const sc_background_color = change_color_opacity(bg_color, 0);
                         $(this).css('background-color', sc_background_color);
@@ -8714,6 +8741,10 @@
 
                     // item
                     $(document).find('.sc_long_item').each(function() {
+                        if ($(this).hasClass(sc_side_fold_custom_first_class) && $(this).css('width') !== '50px') {
+                            return true;
+                        }
+
                         const bg_color = $(this).css('background-color');
                         const sc_background_color = change_color_opacity(bg_color, 0);
                         $(this).css('background-color', sc_background_color);
@@ -8743,6 +8774,10 @@
                 if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag) {
                     // head
                     $(document).find('.sc_msg_head').each(function() {
+                        if ($(this).parent().hasClass(sc_side_fold_custom_first_class) && $(this).parent().css('width') !== '50px') {
+                            return true;
+                        }
+
                         const bg_color = $(this).css('background-color');
                         const sc_background_color = change_color_opacity(bg_color, 0);
                         $(this).css('background-color', sc_background_color);
@@ -8750,6 +8785,10 @@
 
                     // item
                     $(document).find('.sc_long_item').each(function() {
+                        if ($(this).hasClass(sc_side_fold_custom_first_class) && $(this).css('width') !== '50px') {
+                            return true;
+                        }
+
                         const bg_color = $(this).css('background-color');
                         const sc_background_color = change_color_opacity(bg_color, 0);
                         $(this).css('background-color', sc_background_color);
@@ -8911,6 +8950,10 @@
                 if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag_fullscreen) {
                     // head
                     $(document).find('.sc_msg_head').each(function() {
+                        if ($(this).parent().hasClass(sc_side_fold_custom_first_class) && $(this).parent().css('width') !== '50px') {
+                            return true;
+                        }
+
                         const bg_color = $(this).css('background-color');
                         const sc_background_color = change_color_opacity(bg_color, 0);
                         $(this).css('background-color', sc_background_color);
@@ -8918,6 +8961,10 @@
 
                     // item
                     $(document).find('.sc_long_item').each(function() {
+                        if ($(this).hasClass(sc_side_fold_custom_first_class) && $(this).css('width') !== '50px') {
+                            return true;
+                        }
+
                         const bg_color = $(this).css('background-color');
                         const sc_background_color = change_color_opacity(bg_color, 0);
                         $(this).css('background-color', sc_background_color);
@@ -8941,6 +8988,10 @@
                 if (sc_live_side_fold_head_border_bg_opacity_flag && sc_panel_side_fold_flag) {
                     // head
                     $(document).find('.sc_msg_head').each(function() {
+                        if ($(this).parent().hasClass(sc_side_fold_custom_first_class) && $(this).parent().css('width') !== '50px') {
+                            return true;
+                        }
+
                         const bg_color = $(this).css('background-color');
                         const sc_background_color = change_color_opacity(bg_color, 0);
                         $(this).css('background-color', sc_background_color);
@@ -8948,6 +8999,10 @@
 
                     // item
                     $(document).find('.sc_long_item').each(function() {
+                        if ($(this).hasClass(sc_side_fold_custom_first_class) && $(this).css('width') !== '50px') {
+                            return true;
+                        }
+
                         const bg_color = $(this).css('background-color');
                         const sc_background_color = change_color_opacity(bg_color, 0);
                         $(this).css('background-color', sc_background_color);

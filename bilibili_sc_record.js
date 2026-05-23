@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.2.7
+// @version      13.2.8
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -317,13 +317,13 @@
             const request = IDB.open(IDB_DB_NAME, IDB_VERSION);
 
             request.onerror = function (event) {
-                console.error('IndexedDB 打开失败:', event.target.error);
+                sc_catch_log('IndexedDB 打开失败:', event.target.error);
                 IDB_OPENING = null;
                 reject(event.target.error);
             };
 
             request.onblocked = function () {
-                console.warn('IndexedDB 打开被阻塞，可能有其他页面占用旧版本连接');
+                sc_catch_log('IndexedDB 打开被阻塞，可能有其他页面占用旧版本连接');
             };
 
             request.onupgradeneeded = function (event) {
@@ -341,13 +341,13 @@
                 IDB_OPENING = null;
 
                 IDB_DB.onerror = function (event) {
-                    console.error('IndexedDB 数据库错误:', event.target.error);
+                    sc_catch_log('IndexedDB 数据库错误:', event.target.error);
                 };
 
                 IDB_DB.onversionchange = function () {
                     IDB_DB.close();
                     IDB_DB = null;
-                    console.warn('IndexedDB 版本发生变化，数据库已关闭');
+                    sc_catch_log('IndexedDB 版本发生变化，数据库已关闭');
                 };
 
                 resolve(IDB_DB);
@@ -421,11 +421,11 @@
             const request = store.clear();
 
             request.onsuccess = function () {
-                console.warn('IndexedDB 数据已清空:', IDB_STORE_NAME);
+                sc_catch_log('IndexedDB 数据已清空:', IDB_STORE_NAME);
             };
 
             request.onerror = function (event) {
-                console.error('IndexedDB 清空失败:', event.target.error);
+                sc_catch_log('IndexedDB 清空失败:', event.target.error);
                 reject(event.target.error);
             };
 
@@ -434,12 +434,12 @@
             };
 
             tx.onerror = function (event) {
-                console.error('IndexedDB 清空事务失败:', event.target.error);
+                sc_catch_log('IndexedDB 清空事务失败:', event.target.error);
                 reject(event.target.error);
             };
 
             tx.onabort = function (event) {
-                console.error('IndexedDB 清空事务被中止:', event.target.error);
+                sc_catch_log('IndexedDB 清空事务被中止:', event.target.error);
                 reject(event.target.error);
             };
         });
@@ -451,17 +451,17 @@
             const request = unsafeWindow.indexedDB.deleteDatabase(the_del_idb_name);
 
             request.onsuccess = function () {
-                console.warn('IndexedDB 数据库删除成功:', the_del_idb_name);
+                sc_catch_log('IndexedDB 数据库删除成功:', the_del_idb_name);
                 resolve(true);
             };
 
             request.onerror = function (event) {
-                console.error('IndexedDB 数据库删除失败:', event.target.error);
+                sc_catch_log('IndexedDB 数据库删除失败:', event.target.error);
                 reject(event.target.error);
             };
 
             request.onblocked = function () {
-                console.warn('IndexedDB 数据库删除被阻塞，可能有其他页面还在使用:', the_del_idb_name);
+                sc_catch_log('IndexedDB 数据库删除被阻塞，可能有其他页面还在使用:', the_del_idb_name);
                 resolve(false);
             };
         });
@@ -11092,11 +11092,11 @@
                             open_and_close_sc_modal('✓', '#A7C9D3', e);
                         }).catch(err => {
                             open_and_close_sc_modal('✗', 'red', e);
-                            console.error('复制SC图片失败', err);
+                            sc_catch_log('复制SC图片失败', err);
                         });
                     });
                 }).catch(error => {
-                    console.error('处理html2canvas方法错误', error);
+                    sc_catch_log('处理html2canvas方法错误', error);
                 });
 
                 document.body.removeChild(tmp_sc_item[0]);

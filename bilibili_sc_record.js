@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.2.9
+// @version      13.2.10
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -4188,8 +4188,6 @@
                     sc_special_msg_remark_html = '（' + sc_special_msg_remark + '）';
                 }
 
-
-
                 let sc_special_msg_div = '<div id="'+ sc_special_msg_div_the_id +'"'+ sc_special_msg_div_custom_style + 'class="'+ sc_special_msg_div_class +'">' +
                     '<div style="height: '+ sc_special_msg_img_px +'px;width: '+ sc_special_msg_img_px +'px;"><img style="border-radius: '+ sc_special_msg_img_px +'px;" src="' + sc_special_msg_face + '" height="'+ sc_special_msg_img_px +'" width="'+ sc_special_msg_img_px +'"></div>' +
                     '<div style="margin-left: '+ sc_special_msg_margin_left +'px;margin-right: 50px;"><span class="sc_special_msg_body_span" data-font_size="' + the_original_sc_special_font_size + '" style="font-size: ' + sc_special_sc_msg_font_size + 'px;">' + sc_special_msg_uname + sc_special_msg_remark_html + '：' + sc_special_msg + '</span></div>' +
@@ -4789,7 +4787,9 @@
 
                 sc_idb_data_new = await get_room_SC(sc_localstorage_key); // 再获取一次
             } else {
-                delete_room_IDB(sc_localstorage_key); // 清理空的DB
+                if (sc_idb_data_old.length === 0) {
+                    delete_room_IDB(sc_localstorage_key); // 清理空的DB
+                }
             }
 
             // 如果设置了-进入直播间的时候，不显示直播间正在挂着的SC-sc_live_panel_not_show_now_time_sc_flag
@@ -4853,6 +4853,8 @@
                     if (sc_item_order_up_flag) {
                         setTimeout(() => { sc_scroll_list_to_bottom(); }, 1000);
                     }
+                } else if (sc_idb_data.length === 0) {
+                    delete_room_IDB(sc_localstorage_key); // 清理空的DB
                 }
             }
         });

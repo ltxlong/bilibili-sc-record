@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.2.8
+// @version      13.2.9
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -99,7 +99,7 @@
     let real_room_id = room_id;
 
     let sc_panel_list_height = 400; // 显示面板的最大高度（单位是px，后面会拼接）
-    let sc_rectangle_width = 302; // 默认302，右侧合适325/388/428（SC刚刚好在弹幕框内/侧折模式记录板紧贴在弹幕框右侧外/侧折模式记录板紧贴在屏幕右侧）（单位是px，后面会拼接）
+    let sc_rectangle_width = 300; // 默认300，右侧合适325/380/445（SC刚刚好在弹幕框内/侧折模式记录板紧贴在弹幕框右侧外/侧折模式记录板紧贴在屏幕右侧）（单位是px，后面会拼接）
 
     let data_show_top_flag = true; // 是否在页面右侧弹幕滚动框的顶部动态显示数据
     let data_show_bottom_flag = true; // 是否在页面右侧弹幕滚动框的底部动态显示数据
@@ -244,7 +244,7 @@
 
     // fullscreen var 全屏的变量
     let sc_panel_list_height_fullscreen = 400; // 高
-    let sc_rectangle_width_fullscreen = 302; // 宽
+    let sc_rectangle_width_fullscreen = 300; // 宽
     let sc_func_btn_mode_fullscreen = 0; // 侧折的按钮模式
     let sc_switch_fullscreen = 0; // 主题
     let sc_panel_fold_mode_fullscreen = 0; // 折叠模式
@@ -291,10 +291,7 @@
     let sc_live_filter_2_sc_mode = 0; // 0-不过滤￥2的SC; 1-只在弹幕过滤￥2的SC; 2-完全过滤￥2的SC; 3-过滤￥2的SC但可见弹幕
 
     const IDB = unsafeWindow.indexedDB;
-
-    let IDB_DB = null;
-    let IDB_OPENING = null;
-
+    let IDB_DBS = new Map();
     const IDB_DB_NAME = sc_localstorage_key; // 一个直播房间对应一个db
     const IDB_STORE_NAME = 'sc_msg';
     const IDB_VERSION = 1;
@@ -304,21 +301,16 @@
     const sc_idb_flush_min_ms_delay = 200; // 最小间隔200ms写入indexedDB
     let sc_idb_flush_timer = null; // 定时器
 
-    function open_IDB() {
-        if (IDB_DB) {
-            return Promise.resolve(IDB_DB);
+    function open_IDB(dbName = IDB_DB_NAME) {
+        if (IDB_DBS.has(dbName)) {
+            return Promise.resolve(IDB_DBS.get(dbName));
         }
 
-        if (IDB_OPENING) {
-            return IDB_OPENING;
-        }
-
-        IDB_OPENING = new Promise((resolve, reject) => {
-            const request = IDB.open(IDB_DB_NAME, IDB_VERSION);
+        return new Promise((resolve, reject) => {
+            const request = IDB.open(dbName, IDB_VERSION);
 
             request.onerror = function (event) {
                 sc_catch_log('IndexedDB 打开失败:', event.target.error);
-                IDB_OPENING = null;
                 reject(event.target.error);
             };
 
@@ -337,24 +329,23 @@
             };
 
             request.onsuccess = function (event) {
-                IDB_DB = event.target.result;
-                IDB_OPENING = null;
+                const THE_IDB_DB = event.target.result;
 
-                IDB_DB.onerror = function (event) {
+                IDB_DBS.set(dbName, THE_IDB_DB);
+
+                THE_IDB_DB.onerror = function (event) {
                     sc_catch_log('IndexedDB 数据库错误:', event.target.error);
                 };
 
-                IDB_DB.onversionchange = function () {
-                    IDB_DB.close();
-                    IDB_DB = null;
+                THE_IDB_DB.onversionchange = function () {
+                    IDB_DBS.delete(dbName);
+                    THE_IDB_DB.close();
                     sc_catch_log('IndexedDB 版本发生变化，数据库已关闭');
                 };
 
-                resolve(IDB_DB);
+                resolve(THE_IDB_DB);
             };
         });
-
-        return IDB_OPENING;
     }
 
     async function put_room_SC(msg_arr) {
@@ -411,8 +402,8 @@
         }
     }
 
-    async function clear_room_SC() {
-        const db = await open_IDB();
+    async function clear_room_SC(the_clear_idb_name) {
+        const db = await open_IDB(the_clear_idb_name);
 
         return new Promise((resolve, reject) => {
             const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
@@ -421,11 +412,11 @@
             const request = store.clear();
 
             request.onsuccess = function () {
-                sc_catch_log('IndexedDB 数据已清空:', IDB_STORE_NAME);
+                sc_catch_log('IndexedDB 数据已清空:', the_clear_idb_name, IDB_STORE_NAME);
             };
 
             request.onerror = function (event) {
-                sc_catch_log('IndexedDB 清空失败:', event.target.error);
+                sc_catch_log('IndexedDB 清空失败:', the_clear_idb_name, event.target.error);
                 reject(event.target.error);
             };
 
@@ -434,12 +425,12 @@
             };
 
             tx.onerror = function (event) {
-                sc_catch_log('IndexedDB 清空事务失败:', event.target.error);
+                sc_catch_log('IndexedDB 清空事务失败:', the_clear_idb_name, event.target.error);
                 reject(event.target.error);
             };
 
             tx.onabort = function (event) {
-                sc_catch_log('IndexedDB 清空事务被中止:', event.target.error);
+                sc_catch_log('IndexedDB 清空事务被中止:', the_clear_idb_name, event.target.error);
                 reject(event.target.error);
             };
         });
@@ -447,7 +438,15 @@
 
     async function delete_room_IDB(the_del_idb_name) {
 
+        const db = IDB_DBS.get(the_del_idb_name);
+
+        if (db) {
+            IDB_DBS.delete(the_del_idb_name);
+            db.close();
+        }
+
         return new Promise((resolve, reject) => {
+
             const request = unsafeWindow.indexedDB.deleteDatabase(the_del_idb_name);
 
             request.onsuccess = function () {
@@ -628,7 +627,7 @@
         sc_start_time_show_flag = sc_all_memory_config['sc_start_time_show_flag'] ?? true;
         sc_welt_hide_circle_half_flag = sc_all_memory_config['sc_welt_hide_circle_half_flag'] ?? false;
         sc_side_fold_custom_each_same_time_flag = sc_all_memory_config['sc_side_fold_custom_each_same_time_flag'] ?? false;
-        sc_rectangle_width = sc_all_memory_config['sc_rectangle_width'] ?? 302;
+        sc_rectangle_width = sc_all_memory_config['sc_rectangle_width'] ?? 300;
         sc_panel_list_height = sc_all_memory_config['sc_panel_list_height'] ?? 400;
         sc_live_sidebar_left_flag = sc_all_memory_config['sc_live_sidebar_left_flag'] ?? false;
         sc_item_order_up_flag = sc_all_memory_config['sc_item_order_up_flag'] ?? false;
@@ -689,7 +688,7 @@
 
         // fullscreen var
         sc_panel_list_height_fullscreen = sc_all_memory_config['sc_panel_list_height_fullscreen'] ?? 400;
-        sc_rectangle_width_fullscreen = sc_all_memory_config['sc_rectangle_width_fullscreen'] ?? 302;
+        sc_rectangle_width_fullscreen = sc_all_memory_config['sc_rectangle_width_fullscreen'] ?? 300;
         sc_func_btn_mode_fullscreen = sc_all_memory_config['sc_func_btn_mode_fullscreen'] ?? 0;
         sc_switch_fullscreen = sc_all_memory_config['sc_switch_fullscreen'] ?? 0;
         sc_panel_fold_mode_fullscreen = sc_all_memory_config['sc_panel_fold_mode_fullscreen'] ?? 0;
@@ -738,7 +737,7 @@
         sc_start_time_show_flag = sc_self_memory_config['sc_start_time_show_flag'] ?? true;
         sc_welt_hide_circle_half_flag = sc_self_memory_config['sc_welt_hide_circle_half_flag'] ?? false;
         sc_side_fold_custom_each_same_time_flag = sc_self_memory_config['sc_side_fold_custom_each_same_time_flag'] ?? false;
-        sc_rectangle_width = sc_self_memory_config['sc_rectangle_width'] ?? 302;
+        sc_rectangle_width = sc_self_memory_config['sc_rectangle_width'] ?? 300;
         sc_panel_list_height = sc_self_memory_config['sc_panel_list_height'] ?? 400;
         sc_live_sidebar_left_flag = sc_self_memory_config['sc_live_sidebar_left_flag'] ?? false;
         sc_item_order_up_flag = sc_self_memory_config['sc_item_order_up_flag'] ?? false;
@@ -801,7 +800,7 @@
 
         // fullscreen var
         sc_panel_list_height_fullscreen = sc_self_memory_config['sc_panel_list_height_fullscreen'] ?? 400;
-        sc_rectangle_width_fullscreen = sc_self_memory_config['sc_rectangle_width_fullscreen'] ?? 302;
+        sc_rectangle_width_fullscreen = sc_self_memory_config['sc_rectangle_width_fullscreen'] ?? 300;
         sc_func_btn_mode_fullscreen = sc_self_memory_config['sc_func_btn_mode_fullscreen'] ?? 0;
         sc_switch_fullscreen = sc_self_memory_config['sc_switch_fullscreen'] ?? 0;
         sc_panel_fold_mode_fullscreen = sc_self_memory_config['sc_panel_fold_mode_fullscreen'] ?? 0;
@@ -4789,6 +4788,8 @@
                 unsafeWindow.localStorage.setItem(sc_keep_time_key, (new Date()).getTime());
 
                 sc_idb_data_new = await get_room_SC(sc_localstorage_key); // 再获取一次
+            } else {
+                delete_room_IDB(sc_localstorage_key); // 清理空的DB
             }
 
             // 如果设置了-进入直播间的时候，不显示直播间正在挂着的SC-sc_live_panel_not_show_now_time_sc_flag
@@ -6959,7 +6960,7 @@
                     <form id="sc_panel_width_form">
                         <div id="sc_panel_width_input_div">
                             <label for="sc_panel_width_input">300-500(px)：</label>
-                            <input type="number" class="sc_panel_width_input_value" id="sc_panel_width_input" min="300" max="500" value="302"/>
+                            <input type="number" class="sc_panel_width_input_value" id="sc_panel_width_input" min="300" max="500" value="300"/>
                         </div>
                     </form>
 
@@ -6986,7 +6987,7 @@
                     <form id="sc_panel_width_form_fullscreen">
                         <div id="sc_panel_width_input_div_fullscreen">
                             <label for="sc_panel_width_input_fullscreen">300-500(px)：</label>
-                            <input type="number" class="sc_panel_width_input_value" id="sc_panel_width_input_fullscreen" min="300" max="500" value="302"/>
+                            <input type="number" class="sc_panel_width_input_value" id="sc_panel_width_input_fullscreen" min="300" max="500" value="300"/>
                         </div>
                     </form>
 
@@ -7012,7 +7013,7 @@
         });
 
         $(document).on('click', '.sc_panel_width_modal_default_btn', function() {
-            $(document).find('.sc_panel_width_input_value').val(302);
+            $(document).find('.sc_panel_width_input_value').val(300);
         });
 
         $(document).on('click', '.sc_panel_width_modal_width_1_btn', function() {
@@ -7020,11 +7021,11 @@
         });
 
         $(document).on('click', '.sc_panel_width_modal_width_2_btn', function() {
-            $(document).find('.sc_panel_width_input_value').val(388);
+            $(document).find('.sc_panel_width_input_value').val(380);
         });
 
         $(document).on('click', '.sc_panel_width_modal_width_3_btn', function() {
-            $(document).find('.sc_panel_width_input_value').val(428);
+            $(document).find('.sc_panel_width_input_value').val(445);
         });
 
         $(document).on('click', '#sc_panel_width_confirm_btn', function(e) {
@@ -9816,7 +9817,7 @@
     "sc_side_fold_custom_config": 1,
     "sc_side_fold_custom_time": 11.5,
     "sc_side_fold_custom_each_same_time_flag": true,
-    "sc_rectangle_width": 388,
+    "sc_rectangle_width": 380,
     "sc_rectangle_width_fullscreen": 325,
     "sc_panel_list_height": 170,
     "sc_panel_list_height_fullscreen": 400,
@@ -9871,10 +9872,10 @@
 }
 `;
 
-            $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
+        $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
 
-            open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
-        });
+        open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
+    });
 
         // 创建一个自定义右键菜单
         let sc_func_button1 = document.createElement('button');
@@ -10025,7 +10026,6 @@
         sc_func_button25.className = 'sc_func_btn';
         sc_func_button25.id = 'sc_func_live_other_config_btn';
         sc_func_button25.innerHTML = '其他一些功能的自定义设置';
-        sc_func_button25.style.marginBottom = '2px';
 
         let sc_func_br1 = document.createElement('br');
         let sc_func_br2 = document.createElement('br');

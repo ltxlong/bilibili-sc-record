@@ -9879,10 +9879,10 @@
 }
 `;
 
-    $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
+            $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
 
-    open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
-});
+            open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
+        });
 
         // 创建一个自定义右键菜单
         let sc_func_button1 = document.createElement('button');

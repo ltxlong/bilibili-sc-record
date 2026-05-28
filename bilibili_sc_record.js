@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.2.10
+// @version      13.2.11
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -2705,8 +2705,11 @@
 
         // 消除：侧折时候，全屏事件，导致记录板高度飘变动画
         if (sc_isFullscreen) {
-            height_apply_sc_long_rectangle.hide();
-            height_apply_sc_long_rectangle.fadeIn(500);
+            const the_sc_rectangle_fullscreen = $(document).find('.sc_rectangle_fullscreen');
+            if (the_sc_rectangle_fullscreen.is(':visible')) {
+                the_sc_rectangle_fullscreen.hide();
+                the_sc_rectangle_fullscreen.fadeIn(500);
+            }
         }
     }
 
@@ -5425,6 +5428,8 @@
                 document.msFullscreenElement) {
                 let sc_circle_clone = $(sc_circleContainer).clone(true);
                 let sc_rectangle_clone = $(sc_rectangleContainer).clone(true);
+                sc_circle_clone.addClass('sc_circle_fullscreen');
+                sc_rectangle_clone.addClass('sc_rectangle_fullscreen');
                 $(live_player_div).append(sc_circle_clone);
                 $(live_player_div).append(sc_rectangle_clone);
                 sc_isFullscreen = true;
@@ -9874,10 +9879,10 @@
 }
 `;
 
-        $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
+    $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
 
-        open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
-    });
+    open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
+});
 
         // 创建一个自定义右键菜单
         let sc_func_button1 = document.createElement('button');

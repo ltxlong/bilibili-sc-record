@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.2.12
+// @version      13.3.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -97,6 +97,11 @@
     let sc_url = sc_url_api + room_id; // 请求sc的url（请求是为了获取进入直播间时已经存在的SC）
 
     let real_room_id = room_id;
+
+    const is_activity_pages_flag = unsafeWindow.location.href.includes('/blanc/'); // 判断是否活动页面
+
+    const the_initial_player_width = $(document).find('#live-player').width(); // 进入页面的时候，非全屏状态下的播放器的初始宽度
+    const the_activity_pages_margin = (unsafeWindow.top.document.documentElement.clientWidth - unsafeWindow.innerWidth) / 2; // 活动页面的一边margin大小
 
     let sc_panel_list_height = 400; // 显示面板的最大高度（单位是px，后面会拼接）
     let sc_rectangle_width = 300; // 默认300，右侧合适325/380/445（SC刚刚好在弹幕框内/侧折模式记录板紧贴在弹幕框右侧外/侧折模式记录板紧贴在屏幕右侧）（单位是px，后面会拼接）
@@ -2703,14 +2708,9 @@
             height_apply_sc_long_list.css('max-height', the_sc_panel_list_height + 'px');
         }
 
-        // 消除：侧折时候，全屏事件，导致记录板高度飘变动画
-        if (sc_isFullscreen) {
-            if (sc_panel_fold_mode_fullscreen === 1) {
-                const the_sc_rectangle_fullscreen = $(document).find('.sc_rectangle_fullscreen');
-                the_sc_rectangle_fullscreen.hide();
-                the_sc_rectangle_fullscreen.fadeIn(500);
-            }
-        }
+        // 消除：全屏事件，导致记录板高度飘变动画
+        height_apply_sc_long_rectangle.hide();
+        height_apply_sc_long_rectangle.fadeIn(500);
     }
 
     function sc_panel_list_no_remember_hide() {
@@ -2923,10 +2923,15 @@
         sc_live_panel_side_fold_flag_change(true);
 
         if (flag) {
-            if (unsafeWindow.innerHeight - sc_long_rectangle.position().top < the_sf_sc_panel_list_height + 280) {
-                sc_long_rectangle.each(function() {
-                    $(this).css('top', unsafeWindow.innerHeight - the_sf_sc_panel_list_height - 280);
-                });
+            if (unsafeWindow.innerHeight - sc_long_rectangle.offset().top < the_sf_sc_panel_list_height + 280) {
+                if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                    let the_fullscreen_rect = $(document).find('.sc_rectangle_fullscreen');
+                    the_fullscreen_rect.css('top', unsafeWindow.innerHeight - the_sf_sc_panel_list_height - 280);
+                } else {
+                    sc_long_rectangle.each(function() {
+                        $(this).css('top', unsafeWindow.innerHeight - the_sf_sc_panel_list_height - 280);
+                    });
+                }
             }
 
             sc_live_panel_fold_mode_change(1);
@@ -2936,6 +2941,25 @@
 
             if (sc_item_order_up_flag) {
                 sc_scroll_list_to_bottom();
+            }
+
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                let the_fullscreen_rect = $(document).find('.sc_rectangle_fullscreen');
+                const the_fullscreen_rectangle_left = the_fullscreen_rect.offset().left;
+                if (the_fullscreen_rectangle_left - (unsafeWindow.innerWidth / 2) > 0) {
+                    the_fullscreen_rect.css('left', the_fullscreen_rectangle_left + sc_rectangle_width_fullscreen - 72);
+                    sc_panel_drag_left_fullscreen = sc_panel_drag_left_fullscreen + sc_rectangle_width_fullscreen - 72;
+                    sc_panel_drag_store(sc_panel_drag_left_fullscreen, sc_panel_drag_top_fullscreen);
+                }
+            } else {
+                const the_sc_rectangle_left = sc_long_rectangle.offset().left;
+                if (the_sc_rectangle_left - (unsafeWindow.innerWidth / 2) > 0) {
+                    sc_long_rectangle.each(function() {
+                        $(this).css('left', the_sc_rectangle_left + sc_rectangle_width - 72);
+                    });
+                    sc_panel_drag_left = sc_panel_drag_left + sc_rectangle_width - 72;
+                    sc_panel_drag_store(sc_panel_drag_left, sc_panel_drag_top);
+                }
             }
         }
 
@@ -3015,10 +3039,25 @@
         sc_data_show.remove();
         sc_long_buttons.remove();
 
-        if (unsafeWindow.innerWidth - sc_long_rectangle.position().left < the_fb_sc_rectangle_width) {
-            sc_long_rectangle.each(function() {
-                $(this).css('left', unsafeWindow.innerWidth - the_fb_sc_rectangle_width - 15);
-            });
+        if (flag) {
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                let the_fullscreen_rect = $(document).find('.sc_rectangle_fullscreen');
+                const the_fullscreen_rectangle_left = the_fullscreen_rect.offset().left;
+                if (unsafeWindow.innerWidth - the_fullscreen_rectangle_left < the_fb_sc_rectangle_width) {
+                    the_fullscreen_rect.css('left', the_fullscreen_rectangle_left - the_fb_sc_rectangle_width + 72);
+                    sc_panel_drag_left_fullscreen = the_fullscreen_rectangle_left - the_fb_sc_rectangle_width + 72;
+                    sc_panel_drag_store(sc_panel_drag_left_fullscreen, sc_panel_drag_top_fullscreen);
+                }
+            } else {
+                const the_sc_rectangle_left = sc_long_rectangle.offset().left;
+                if (unsafeWindow.innerWidth - the_sc_rectangle_left < the_fb_sc_rectangle_width) {
+                    sc_long_rectangle.each(function() {
+                        $(this).css('left', the_sc_rectangle_left - the_fb_sc_rectangle_width + 72);
+                    });
+                    sc_panel_drag_left = the_sc_rectangle_left - the_fb_sc_rectangle_width + 72;
+                    sc_panel_drag_store(sc_panel_drag_left, sc_panel_drag_top);
+                }
+            }
         }
 
         sc_side_fold_out_all();
@@ -4119,7 +4158,7 @@
                     if (sc_live_special_tip_danmu_cache_arr.length) {
                         handle_special_tip(sc_live_special_tip_danmu_cache_arr.shift());
                     }
-                }, 16000);
+                }, 11000);
             } else {
                 // 缓存
                 sc_live_special_tip_danmu_cache_arr.push(parseArr_data);
@@ -4221,7 +4260,7 @@
 
                 setTimeout(() => {
                     $(document).find('#' + sc_special_msg_div_the_id).remove();
-                }, 16000);
+                }, 11000);
             } else {
                 // 缓存
                 sc_live_special_msg_danmu_cache_arr.push(parseArr_data_info);
@@ -4339,11 +4378,15 @@
                     let the_sc_special_sc_div_width = $(document).find('#' + sc_special_sc_div_the_id).width();
                     let the_live_player_width = $(document).find('#live-player').width();
 
-                    if (the_sc_live_no_remain_flag) {
-                        $(document).find('#' + sc_special_sc_div_the_id).css('animation', 'slideInFromRightToLeftOut 25s linear forwards');
+                    let the_interval_time = 11000;
+
+                    if (!the_sc_live_no_remain_flag) {
+                        $(document).find('#' + sc_special_sc_div_the_id).css('animation', 'slideInFromRightToLeftOut 20s linear forwards');
+                        the_interval_time = 20000;
                     } else {
                         if (the_sc_special_sc_div_width > the_live_player_width) {
-                            $(document).find('#' + sc_special_sc_div_the_id).css('animation', 'slideInFromRightToLeftOut 25s linear forwards');
+                            $(document).find('#' + sc_special_sc_div_the_id).css('animation', 'slideInFromRightToLeftOut 20s linear forwards');
+                            the_interval_time = 20000;
                         }
                     }
 
@@ -4363,7 +4406,7 @@
                             handle_special_sc(the_now_sc_to_danmu_data['sc_data'], the_now_sc_to_danmu_data['all_sc_to_danmu_show_flag']);
                         }
 
-                    }, 25000);
+                    }, the_interval_time);
                 } else {
                     if (first_time_flag) {
                         // 缓存
@@ -5342,7 +5385,7 @@
                 position: absolute;
                 left: 100%;
                 height: 50px;
-                animation: slideInFromRightToLeft 15s linear forwards;
+                animation: slideInFromRightToLeft 10s linear forwards;
                 border-radius: 50px 0 0 50px;
                 padding: 10px;
                 display: flex;
@@ -5359,7 +5402,7 @@
                 position: absolute;
                 left: 100%;
                 height: 40px;
-                animation: slideInFromRightToLeft 15s linear forwards;
+                animation: slideInFromRightToLeft 10s linear forwards;
                 border-radius: 40px 0 0 40px;
                 display: flex;
                 align-items: center;
@@ -5375,7 +5418,7 @@
                 position: absolute;
                 left: 100%;
                 height: 50px;
-                animation: slideInFromRightToLeft 15s linear forwards;
+                animation: slideInFromRightToLeft 10s linear forwards;
                 border-radius: 50px 0 0 50px;
                 padding: 10px;
                 display: flex;
@@ -5392,7 +5435,7 @@
                 position: absolute;
                 left: 100%;
                 height: 40px;
-                animation: slideInFromRightToLeft 15s linear forwards;
+                animation: slideInFromRightToLeft 10s linear forwards;
                 border-radius: 40px 0 0 40px;
                 display: flex;
                 align-items: center;
@@ -5538,6 +5581,20 @@
                 }
 
                 the_normal_list_div.scrollTop(the_live_list_div_scrolltop);
+
+                // 消除活动页面的left偏移影响。只改偏移，不记忆
+                if (is_activity_pages_flag) {
+                    const the_sc_rectangle_left = sc_rectangles.offset().left;
+                    if (unsafeWindow.innerWidth < sc_panel_drag_left) {
+                        if (sc_panel_fold_mode === 1) {
+                            sc_panel_drag_left = unsafeWindow.top.document.documentElement.clientWidth - the_activity_pages_margin * 2 - 72;
+                        } else {
+                            sc_panel_drag_left = unsafeWindow.top.document.documentElement.clientWidth - the_activity_pages_margin * 2 - sc_rectangle_width;
+                        }
+
+                        sc_panel_drag_left_percent = (sc_panel_drag_left / unsafeWindow.top.document.documentElement.clientWidth).toFixed(7);
+                    }
+                }
             }
         }
 
@@ -11222,6 +11279,40 @@
             // 设置一个延迟来获取最新的 unsafeWindow.top.document.documentElement.clientWidth 或者 unsafeWindow.top.document.documentElement.clientHeight
             sc_window_resizeTimeout = setTimeout(() => {
 
+                // 活动页，网页模式全屏相关代码-开始
+                // 消除活动页面的left偏移影响。只改偏移，不记忆
+                if (is_activity_pages_flag && !sc_isFullscreen) {
+                    // 网页模式全屏判断1：the_now_player_width - the_initial_player_width > 50
+                    // 网页模式全屏判断2：(unsafeWindow.top.document.documentElement.clientWidth - the_now_player_width > 50) || the_now_player_width > unsafeWindow.top.document.documentElement.clientWidth
+                    // 边界判断：sc_panel_drag_left_percent < 0.96
+                    const the_now_player_width = $(document).find('#live-player').width();
+
+                    if ((the_now_player_width - the_initial_player_width > 50) && ((unsafeWindow.top.document.documentElement.clientWidth - the_now_player_width > 50) || the_now_player_width > unsafeWindow.top.document.documentElement.clientWidth) && sc_panel_drag_left_percent < 0.96) {
+                        // 活动页，网页模式全屏
+                        let sc_rectangles = $(document).find('.sc_long_rectangle');
+                        const the_sc_rectangle_left = sc_rectangles.offset().left;
+                        if (sc_panel_fold_mode === 1) {
+                            sc_panel_drag_left = unsafeWindow.top.document.documentElement.clientWidth - 72;
+                        } else {
+                            sc_panel_drag_left = unsafeWindow.top.document.documentElement.clientWidth - sc_rectangle_width;
+                        }
+
+                        sc_panel_drag_left_percent = (sc_panel_drag_left / unsafeWindow.top.document.documentElement.clientWidth).toFixed(7);
+                    } else if ((the_now_player_width === the_initial_player_width && sc_panel_drag_left_percent > 0.8) || (unsafeWindow.top.document.documentElement.clientWidth < sc_panel_drag_left)) {
+                        // 活动页，网页模式全屏后退出全屏的时候
+                        let sc_rectangles = $(document).find('.sc_long_rectangle');
+                        const the_sc_rectangle_left = sc_rectangles.offset().left;
+                        if (sc_panel_fold_mode === 1) {
+                            sc_panel_drag_left = unsafeWindow.top.document.documentElement.clientWidth - the_activity_pages_margin * 2 - 72;
+                        } else {
+                            sc_panel_drag_left = unsafeWindow.top.document.documentElement.clientWidth - the_activity_pages_margin * 2 - sc_rectangle_width;
+                        }
+
+                        sc_panel_drag_left_percent = (sc_panel_drag_left / unsafeWindow.top.document.documentElement.clientWidth).toFixed(7);
+                    }
+                }
+                // 活动页，网页模式全屏相关代码-结束
+
                 sc_screen_resolution_change_flag = sc_screen_resolution_change_check();
 
                 if (sc_screen_resolution_change_flag) {
@@ -11406,5 +11497,6 @@
             sycn_live_sc_to_danmu_show_config(); // 默认每30秒同步最新的SC以弹幕展现的设置
         }, check_interval_time);
     }
+
 
 })();

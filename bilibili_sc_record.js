@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.3.1
+// @version      13.3.2
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -4324,6 +4324,7 @@
 
             if (sc_live_sc_danmu_show_n <= 0) {
                 let get_free_danmu_show_arr = get_free_danmu_show_index(the_danmu_location_val_type);
+
                 if (get_free_danmu_show_arr['the_free_danmu_show_flag']) {
                     sc_live_sc_danmu_show_n = 1;
                     // 发送
@@ -4360,7 +4361,7 @@
                         sc_special_sc_use_bilibili_style_location = ' --top: 2px;';
                     } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 5) {
                         sc_special_sc_div_custom_style += 'bottom: 2px;" ';
-                        sc_special_sc_use_bilibili_style_location = ' --bottom: 2px;';
+                        sc_special_sc_use_bilibili_style_location = ' --top: 80%;'; // --bottom不生效，只有--top
                     } else {
                         sc_special_sc_div_custom_style += 'top: '+ get_free_danmu_show_arr['the_free_danmu_show_index'] * 17 +'%;" ';
                         sc_special_sc_use_bilibili_style_location = ' --top: '+ get_free_danmu_show_arr['the_free_danmu_show_index'] * 17 +'%;';
@@ -4391,11 +4392,13 @@
                     }
 
                     if (sc_live_sc_to_danmu_show_use_bilibili_style_flag) {
-                        sc_special_sc_msg_font_size += 5;
+                        sc_special_sc_msg_font_size += 5; // 调大一点弹幕字体
                         let the_danmu_bilibili_offset = $(document).find('#live-player').width();
-                        let the_danmu_bilibili_translateX = -the_danmu_bilibili_offset - sc_data["message"].length * 60;
+                        let the_danmu_msg_add_time_x = sc_data["message"].length * 60;
+                        if (the_danmu_msg_add_time_x > 1500) { the_danmu_msg_add_time_x = 1500; } // 通过限制位移宽度来限制滚动速度
+                        let the_danmu_bilibili_translateX = -the_danmu_bilibili_offset - the_danmu_msg_add_time_x;
                         let sc_special_sc_div = `<div id=`+ sc_special_sc_div_the_id +` aria-live="polite" role="comment" class="bili-danmaku-x-dm bili-danmaku-x-roll bili-danmaku-x-show" style="--opacity: 1; --fontSize: `+ sc_special_sc_msg_font_size +`px; --fontFamily: SimHei, Arial, Helvetica, sans-serif; --fontWeight: bold; --color: #ffed4f; --z-index: 333;--textShadow: 1px 0 1px #000000,0 1px 1px #000000,0 -1px 1px #000000,-1px 0 1px #000000; --display: none; --offset: `+ the_danmu_bilibili_offset +`px; --translateX: `+ the_danmu_bilibili_translateX +`px; --duration: 15s;`+ sc_special_sc_use_bilibili_style_location +`"><div style="height: `+
-                            sc_special_sc_img_px +`px;width: `+ sc_special_sc_img_px +`px;"><img style="border-radius: `+ sc_special_sc_img_px +`px;" src="` + sc_special_sc_face + `" height="`+ sc_special_sc_img_px +`" width="`+ sc_special_sc_img_px +`"></div>[SC]`+ sc_special_sc_no_routine_pric_tip + sc_data["user_info"]["uname"] + sc_special_sc_remark_html + '：' + sc_data["message"] +`</div>`;
+                            sc_special_sc_img_px +`px;width: `+ sc_special_sc_img_px +`px;"><img style="border-radius: `+ sc_special_sc_img_px +`px;" src="` + sc_special_sc_face + `" height="`+ sc_special_sc_img_px +`" width="`+ sc_special_sc_img_px +`"></div>[SC]`+ sc_special_sc_no_routine_pric_tip + sc_data["user_info"]["uname"] + sc_special_sc_remark_html + '：' + sc_data["message"].replace(/\r?\n|\r/g, " ") +`</div>`;
                         $(document).find('.danmaku-item-container').append(sc_special_sc_div);
 
                         setTimeout(() => {
@@ -9787,6 +9790,7 @@
                 unsafeWindow.localStorage.removeItem('live_sc_to_danmu_show_mode');
                 unsafeWindow.localStorage.removeItem('live_special_sc_no_remain_flag');
                 unsafeWindow.localStorage.removeItem('live_sc_to_danmu_no_remain_flag');
+                unsafeWindow.localStorage.removeItem('live_sc_to_danmu_show_use_bilibili_style_flag');
 
                 // 个记
                 for (let i = 0; i < unsafeWindow.localStorage.length; i++) {
@@ -9894,6 +9898,11 @@
             let sc_live_catch_to_danmu_no_remain_flag = unsafeWindow.localStorage.getItem('live_sc_to_danmu_no_remain_flag');
             if (sc_live_catch_to_danmu_no_remain_flag !== null && sc_live_catch_to_danmu_no_remain_flag !== 'null' && sc_live_catch_to_danmu_no_remain_flag !== '') {
                 the_sc_live_setting_obj.live_sc_to_danmu_no_remain_flag = sc_live_catch_to_danmu_no_remain_flag;
+            }
+
+            let sc_live_catch_to_danmu_show_use_bilibili_style_flag = unsafeWindow.localStorage.getItem('live_sc_to_danmu_show_use_bilibili_style_flag');
+            if (sc_live_catch_to_danmu_show_use_bilibili_style_flag !== null && sc_live_catch_to_danmu_show_use_bilibili_style_flag !== 'null' && sc_live_catch_to_danmu_show_use_bilibili_style_flag !== '') {
+                the_sc_live_setting_obj.live_sc_to_danmu_show_use_bilibili_style_flag = sc_live_catch_to_danmu_show_use_bilibili_style_flag;
             }
 
             // 个记
@@ -10024,7 +10033,8 @@
   "live_sc_to_danmu_show_location": "0",
   "live_sc_to_danmu_show_mode": "3",
   "live_special_sc_no_remain_flag": "false",
-  "live_sc_to_danmu_no_remain_flag": "false"
+  "live_sc_to_danmu_no_remain_flag": "false",
+  "live_sc_to_danmu_show_use_bilibili_style_flag": "false"
 }
 `;
 

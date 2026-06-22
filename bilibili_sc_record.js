@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.3.2
+// @version      13.3.3
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -2057,6 +2057,18 @@
         } else if (sc_memory === 3) {
             // 全记
             update_sc_memory_config('sc_panel_drag', [sc_panel_drag_left_val, sc_panel_drag_top_val], 'all');
+        } else {
+            // 没记/题记
+            // 更新 sc_panel_drag_top_percent, sc_panel_drag_top_fullscreen_percent、sc_panel_drag_left_percent, sc_panel_drag_left_fullscreen_percent
+            if (sc_isFullscreen && sc_live_fullscreen_config_separate_memory_flag) {
+                sc_panel_drag_left_fullscreen_percent = (sc_panel_drag_left_val / unsafeWindow.top.document.documentElement.clientWidth).toFixed(7);
+                sc_panel_drag_top_fullscreen_percent = (sc_panel_drag_top_val / unsafeWindow.top.document.documentElement.clientHeight).toFixed(7);
+            } else {
+                sc_panel_drag_left_percent = (sc_panel_drag_left_val / unsafeWindow.top.document.documentElement.clientWidth).toFixed(7);
+                sc_panel_drag_top_percent = (sc_panel_drag_top_val / unsafeWindow.top.document.documentElement.clientHeight).toFixed(7);
+                sc_panel_drag_left_fullscreen_percent = (sc_panel_drag_left_val / unsafeWindow.top.document.documentElement.clientWidth).toFixed(7);
+                sc_panel_drag_top_fullscreen_percent = (sc_panel_drag_top_val / unsafeWindow.top.document.documentElement.clientHeight).toFixed(7);
+            }
         }
     }
 
@@ -4332,7 +4344,7 @@
                     let sc_special_sc_img_px = '50';
                     let sc_special_sc_msg_margin_left = '10';
                     let sc_special_sc_div_custom_style = ' style="background:linear-gradient(to right, '+ sc_data["background_bottom_color"] +',transparent);';
-                    let sc_special_sc_msg_font_size = 16;
+                    let sc_special_sc_msg_font_size = 20;
                     let sc_special_sc_use_bilibili_style_location = '';
                     if (the_sc_live_danmu_mode === 1) {
                         sc_speical_sc_div_class = 'sc_special_tip_div_no_padding';
@@ -5521,6 +5533,7 @@
 
         // Set initial position
         sc_circleContainer.style.top = `${unsafeWindow.innerHeight / 4}px`;
+        sc_rectangleContainer.style.top = `${unsafeWindow.innerHeight / 4}px`;
 
         $(document).on('mousedown', '.sc_drag_div', sc_startDragging);
         $(document).on('mousemove', sc_drag);
@@ -9252,7 +9265,6 @@
             open_and_close_sc_modal('✓', '#A7C9D3', e);
         });
 
-
         let sc_live_search_modal_style = document.createElement('style');
         sc_live_search_modal_style.textContent = `
             .sc_live_search_config_modal {
@@ -11394,10 +11406,10 @@
                 if (is_activity_pages_flag && !sc_isFullscreen) {
                     // 网页模式全屏判断1：the_now_player_width - the_initial_player_width > 50
                     // 网页模式全屏判断2：(unsafeWindow.top.document.documentElement.clientWidth - the_now_player_width > 50) || the_now_player_width > unsafeWindow.top.document.documentElement.clientWidth
-                    // 边界判断：sc_panel_drag_left_percent < 0.96
+                    // 边界判断：sc_panel_drag_left_percent > 0.8 && sc_panel_drag_left_percent < 0.96
                     const the_now_player_width = $(document).find('#live-player').width();
 
-                    if ((the_now_player_width - the_initial_player_width > 50) && ((unsafeWindow.top.document.documentElement.clientWidth - the_now_player_width > 50) || the_now_player_width > unsafeWindow.top.document.documentElement.clientWidth) && sc_panel_drag_left_percent < 0.96) {
+                    if ((the_now_player_width - the_initial_player_width > 50) && ((unsafeWindow.top.document.documentElement.clientWidth - the_now_player_width > 50) || the_now_player_width > unsafeWindow.top.document.documentElement.clientWidth) && sc_panel_drag_left_percent > 0.8 && sc_panel_drag_left_percent < 0.96) {
                         // 活动页，网页模式全屏
                         let sc_rectangles = $(document).find('.sc_long_rectangle');
                         const the_sc_rectangle_left = sc_rectangles.offset().left;
@@ -11607,6 +11619,5 @@
             sycn_live_sc_to_danmu_show_config(); // 默认每30秒同步最新的SC以弹幕展现的设置
         }, check_interval_time);
     }
-
 
 })();

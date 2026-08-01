@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.3.3
+// @version      13.4.0
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -227,7 +227,20 @@
     let sc_live_sc_to_danmu_show_location = 0; // 0-显示在顶部，1-显示在中间，2-显示在底部
     let sc_live_sc_to_danmu_show_flag = false; // 是否设置醒目留言以弹幕来展现（侧折模式不再将SC自动展现）
     let sc_live_sc_to_danmu_no_remain_flag = false; // 是否SC的弹幕到达左侧后不再停留（默认停留10s，是为了看清SC内容，如果SC长度超过屏幕则自动不停留）
-    let sc_live_sc_to_danmu_show_use_bilibili_style_flag = false; // SC2弹幕，是否使用bilibili的弹幕样式
+    let sc_live_sc_to_danmu_show_use_bilibili_style_flag = false; // SC2弹幕，是否使用bilibili的弹幕样式（模拟）
+    let sc_live_sc_to_danmu_show_to_real_bilibili_flag = false; // SC2弹幕，是否作为真的bilibili弹幕
+    const sc_live_sc_the_danmu_msg_color_orange = 16753970; // 橙色-16753970
+    const sc_live_sc_the_danmu_msg_color_yellow = 16774736; // 黄色-16774736
+    const sc_live_sc_the_danmu_msg_color_red = 16737380; // 红色-16737380
+    const sc_live_sc_the_danmu_msg_color_blue = 6619135; // 蓝色-6619135
+    const sc_live_sc_the_danmu_msg_color_green = 6618980; // 绿色-6618980
+    let sc_live_sc_to_danmu_the_msg_color_index = 'orange'; // SC2弹幕，弹幕颜色下拉框选项
+    const sc_live_sc_to_danmu_the_msg_color_arr = {"orange": sc_live_sc_the_danmu_msg_color_orange, "yellow": sc_live_sc_the_danmu_msg_color_yellow, "red": sc_live_sc_the_danmu_msg_color_red, "blue": sc_live_sc_the_danmu_msg_color_blue, "green": sc_live_sc_the_danmu_msg_color_green};
+    const sc_live_sc_the_danmu_msg_bg_color_pink = '#80FFC8C8,#80FFC8C8,#80FFC8C8'; // 粉色背景-#80FFC8C8,#80FFC8C8,#80FFC8C8
+    const sc_live_sc_the_danmu_msg_bg_color_green = '#80A0FAA0,#80A0FAA0,#80A0FAA0'; // 绿色背景-#80A0FAA0,#80A0FAA0,#80A0FAA0
+    const sc_live_sc_the_danmu_msg_bg_color_yellow = '#80FFE99E,#80FFE99E,#80FFE99E'; // 黄色背景-#80FFE99E,#80FFE99E,#80FFE99E
+    let sc_live_sc_to_danmu_the_msg_bg_color_index = 'pink'; // SC2弹幕，弹幕背景颜色下拉框选项
+    const sc_live_sc_to_danmu_the_msg_bg_color_arr = {"pink": sc_live_sc_the_danmu_msg_bg_color_pink, "green": sc_live_sc_the_danmu_msg_bg_color_green, "yellow": sc_live_sc_the_danmu_msg_bg_color_yellow}
     let sc_live_sc_routine_price_arr = [30, 50, 100, 500, 1000, 2000]; // 常规电池价格数组，如果SC2弹幕的价格不在里面就显示
     let sc_live_sc_low_price_arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20]; // 低价电池价格数组，如果SC2弹幕的价格在里面就显示
 
@@ -294,7 +307,7 @@
     let sc_live_swap_two_btn_flag = false; // 是否调换 [切换] 和 [折叠] 按钮
     let sc_live_manual_clear_flag = false; // 是否切换到手动清除直播间数据
 
-    let sc_live_filter_2_sc_mode = 0; // 0-不过滤￥2的SC; 1-只在弹幕过滤￥2的SC; 2-完全过滤￥2的SC; 3-过滤￥2的SC但可见弹幕
+    let sc_live_filter_2_sc_mode = 0; // 0-不过滤￥2的SC; 1-只在非真实弹幕过滤￥2的SC; 2-过滤￥2的SC和非真实弹幕; 3-过滤￥2的SC但可见非真实弹幕
 
     const IDB = unsafeWindow.indexedDB;
     let IDB_DBS = new Map();
@@ -622,6 +635,23 @@
         }
     }
 
+    function sc_config_get_live_sc_to_danmu_show_to_real_bilibili_flag() {
+        let sc_live_sc_to_danmu_show_to_real_bilibili_flag_get = unsafeWindow.localStorage.getItem('live_sc_to_danmu_show_to_real_bilibili_flag');
+        if (sc_live_sc_to_danmu_show_to_real_bilibili_flag_get !== null && sc_live_sc_to_danmu_show_to_real_bilibili_flag_get !== 'null' && sc_live_sc_to_danmu_show_to_real_bilibili_flag_get !== '') {
+            sc_live_sc_to_danmu_show_to_real_bilibili_flag = sc_live_sc_to_danmu_show_to_real_bilibili_flag_get === 'true';
+        }
+
+        let sc_live_sc_to_danmu_show_the_msg_color_index_get = unsafeWindow.localStorage.getItem('live_sc_to_danmu_the_msg_color_index');
+        if (sc_live_sc_to_danmu_show_the_msg_color_index_get !== null && sc_live_sc_to_danmu_show_the_msg_color_index_get !== 'null' && sc_live_sc_to_danmu_show_the_msg_color_index_get !== '') {
+            sc_live_sc_to_danmu_the_msg_color_index = sc_live_sc_to_danmu_show_the_msg_color_index_get;
+        }
+
+        let sc_live_sc_to_danmu_show_the_msg_bg_color_index_get = unsafeWindow.localStorage.getItem('live_sc_to_danmu_the_msg_bg_color_index');
+        if (sc_live_sc_to_danmu_show_the_msg_bg_color_index_get !== null && sc_live_sc_to_danmu_show_the_msg_bg_color_index_get !== 'null' && sc_live_sc_to_danmu_show_the_msg_bg_color_index_get !== '') {
+            sc_live_sc_to_danmu_the_msg_bg_color_index = sc_live_sc_to_danmu_show_the_msg_bg_color_index_get;
+        }
+    }
+
     function sc_memory_get_store_mode_all(sc_all_memory_config_json) {
         let sc_all_memory_config = JSON.parse(sc_all_memory_config_json);
 
@@ -685,6 +715,7 @@
         sc_config_get_live_special_sc_no_remain_flag();
         sc_config_get_live_sc_to_danmu_no_remain_flag();
         sc_config_get_live_sc_to_danmu_show_use_bilibili_style_flag();
+        sc_config_get_live_sc_to_danmu_show_to_real_bilibili_flag();
 
         if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
             sc_panel_drag_left = unsafeWindow.innerWidth - 72;
@@ -796,6 +827,7 @@
         sc_config_get_live_special_sc_no_remain_flag();
         sc_config_get_live_sc_to_danmu_no_remain_flag();
         sc_config_get_live_sc_to_danmu_show_use_bilibili_style_flag();
+        sc_config_get_live_sc_to_danmu_show_to_real_bilibili_flag();
 
         if (sc_panel_fold_mode === 1 && (unsafeWindow.innerWidth - sc_panel_drag_left) < 72) {
             sc_panel_drag_left = unsafeWindow.innerWidth - 72;
@@ -1380,6 +1412,7 @@
         sc_config_get_live_sc_to_danmu_show_mode();
         sc_config_get_live_sc_to_danmu_no_remain_flag();
         sc_config_get_live_sc_to_danmu_show_use_bilibili_style_flag();
+        sc_config_get_live_sc_to_danmu_show_to_real_bilibili_flag();
     }
 
     function close_and_remove_sc_modal() {
@@ -2535,6 +2568,12 @@
 
     function sc_live_sc_to_danmu_show_use_bilibili_style_flag_config_store() {
         unsafeWindow.localStorage.setItem('live_sc_to_danmu_show_use_bilibili_style_flag', sc_live_sc_to_danmu_show_use_bilibili_style_flag);
+    }
+
+    function sc_live_sc_to_danmu_show_to_real_bilibili_flag_config_store() {
+        unsafeWindow.localStorage.setItem('live_sc_to_danmu_show_to_real_bilibili_flag', sc_live_sc_to_danmu_show_to_real_bilibili_flag);
+        unsafeWindow.localStorage.setItem('live_sc_to_danmu_the_msg_color_index', sc_live_sc_to_danmu_the_msg_color_index);
+        unsafeWindow.localStorage.setItem('live_sc_to_danmu_the_msg_bg_color_index', sc_live_sc_to_danmu_the_msg_bg_color_index);
     }
 
     function sc_live_other_config_store() {
@@ -4409,7 +4448,7 @@
                         let the_danmu_msg_add_time_x = sc_data["message"].length * 60;
                         if (the_danmu_msg_add_time_x > 1500) { the_danmu_msg_add_time_x = 1500; } // 通过限制位移宽度来限制滚动速度
                         let the_danmu_bilibili_translateX = -the_danmu_bilibili_offset - the_danmu_msg_add_time_x;
-                        let sc_special_sc_div = `<div id=`+ sc_special_sc_div_the_id +` aria-live="polite" role="comment" class="bili-danmaku-x-dm bili-danmaku-x-roll bili-danmaku-x-show" style="--opacity: 1; --fontSize: `+ sc_special_sc_msg_font_size +`px; --fontFamily: SimHei, Arial, Helvetica, sans-serif; --fontWeight: bold; --color: #ffed4f; --z-index: 333;--textShadow: 1px 0 1px #000000,0 1px 1px #000000,0 -1px 1px #000000,-1px 0 1px #000000; --display: none; --offset: `+ the_danmu_bilibili_offset +`px; --translateX: `+ the_danmu_bilibili_translateX +`px; --duration: 15s;`+ sc_special_sc_use_bilibili_style_location +`"><div style="height: `+
+                        let sc_special_sc_div = `<div id=`+ sc_special_sc_div_the_id +` aria-live="polite" role="comment" class="bili-danmaku-x-dm bili-danmaku-x-roll bili-danmaku-x-show" style="--opacity: 1; --fontSize: `+ sc_special_sc_msg_font_size +`px; --fontFamily: SimHei, Arial, Helvetica, sans-serif; --fontWeight: bold; --color: #FFF650; --z-index: 333;--textShadow: 1px 0 1px #000000,0 1px 1px #000000,0 -1px 1px #000000,-1px 0 1px #000000; --display: none; --offset: `+ the_danmu_bilibili_offset +`px; --translateX: `+ the_danmu_bilibili_translateX +`px; --duration: 15s;`+ sc_special_sc_use_bilibili_style_location +`"><div style="height: `+
                             sc_special_sc_img_px +`px;width: `+ sc_special_sc_img_px +`px;"><img style="border-radius: `+ sc_special_sc_img_px +`px;" src="` + sc_special_sc_face + `" height="`+ sc_special_sc_img_px +`" width="`+ sc_special_sc_img_px +`"></div>[SC]`+ sc_special_sc_no_routine_pric_tip + sc_data["user_info"]["uname"] + sc_special_sc_remark_html + '：' + sc_data["message"].replace(/\r?\n|\r/g, " ") +`</div>`;
                         $(document).find('.danmaku-item-container').append(sc_special_sc_div);
 
@@ -7858,7 +7897,25 @@
                         <br>
                         <div>
                             <input type="checkbox" id="sc_live_sc_to_danmu_use_bilibili_style_checkbox" class="sc_live_sc_to_danmu_show_checkbox_inline"/>
-                            <label for="sc_live_sc_to_danmu_use_bilibili_style_checkbox" class="sc_live_sc_to_danmu_show_checkbox_inline">使用B站弹幕样式（勾选后，以上其他样式设置将失效）</label>
+                            <label for="sc_live_sc_to_danmu_use_bilibili_style_checkbox" class="sc_live_sc_to_danmu_show_checkbox_inline">模拟B站弹幕样式（会遮盖真实弹幕，但关闭直播间弹幕后还能显示）（会覆盖高亮样式）</label>
+                        </div>
+                        <br>
+                        <br>
+                        <div>
+                            <input type="checkbox" id="sc_live_sc_to_danmu_to_real_bilibili_checkbox" class="sc_live_sc_to_danmu_show_checkbox_inline"/>
+                            <label for="sc_live_sc_to_danmu_to_real_bilibili_checkbox" class="sc_live_sc_to_danmu_show_checkbox_inline">使用B站真实弹幕（关闭直播间弹幕后不再显示，但右侧弹幕框还能显示）（优先级最高）</label>
+                            <select id="sc_live_sc_to_danmu_the_msg_color_select" title="弹幕字体颜色">
+                                <option value="orange">橙色</option>
+                                <option value="yellow">黄色</option>
+                                <option value="red">红色</option>
+                                <option value="blue">蓝色</option>
+                                <option value="green">绿色</option>
+                            </select>
+                            <select id="sc_live_sc_to_danmu_the_msg_bg_color_select" title="弹幕背景颜色">
+                                <option value="pink">粉色</option>
+                                <option value="green">绿色</option>
+                                <option value="yellow">黄色</option>
+                            </select>
                         </div>
                     </form>
                     <div class="sc_live_sc_to_danmu_show_btn_div">
@@ -7920,7 +7977,25 @@
                         <br>
                         <div>
                             <input type="checkbox" id="sc_live_sc_to_danmu_use_bilibili_style_checkbox_fullscreen" class="sc_live_sc_to_danmu_show_checkbox_inline"/>
-                            <label for="sc_live_sc_to_danmu_use_bilibili_style_checkbox_fullscreen" class="sc_live_sc_to_danmu_show_checkbox_inline">使用B站弹幕样式（勾选后，以上其他样式设置将失效）</label>
+                            <label for="sc_live_sc_to_danmu_use_bilibili_style_checkbox_fullscreen" class="sc_live_sc_to_danmu_show_checkbox_inline">模拟B站弹幕样式（会遮盖真实弹幕，但关闭直播间弹幕后还能显示）（会覆盖高亮样式）</label>
+                        </div>
+                        <br>
+                        <br>
+                        <div>
+                            <input type="checkbox" id="sc_live_sc_to_danmu_to_real_bilibili_checkbox_fullscreen" class="sc_live_sc_to_danmu_show_checkbox_inline"/>
+                            <label for="sc_live_sc_to_danmu_to_real_bilibili_checkbox_fullscreen" class="sc_live_sc_to_danmu_show_checkbox_inline">使用B站真实弹幕（关闭直播间弹幕后不再显示，但右侧弹幕框还能显示）（优先级最高）</label>
+                            <select id="sc_live_sc_to_danmu_the_msg_color_select_fullscreen" title="弹幕字体颜色">
+                                <option value="orange">橙色</option>
+                                <option value="yellow">黄色</option>
+                                <option value="red">红色</option>
+                                <option value="blue">蓝色</option>
+                                <option value="green">绿色</option>
+                            </select>
+                            <select id="sc_live_sc_to_danmu_the_msg_bg_color_select_fullscreen" title="弹幕背景颜色">
+                                <option value="pink">粉色</option>
+                                <option value="green">绿色</option>
+                                <option value="yellow">黄色</option>
+                            </select>
                         </div>
                     </form>
                     <div class="sc_live_sc_to_danmu_show_btn_div_fullscreen">
@@ -7958,6 +8033,11 @@
 
             sc_live_sc_to_danmu_show_use_bilibili_style_flag = $(document).find('#sc_live_sc_to_danmu_use_bilibili_style_checkbox').is(':checked');
             sc_live_sc_to_danmu_show_use_bilibili_style_flag_config_store();
+
+            sc_live_sc_to_danmu_show_to_real_bilibili_flag = $(document).find('#sc_live_sc_to_danmu_to_real_bilibili_checkbox').is(':checked');
+            sc_live_sc_to_danmu_the_msg_color_index = $(document).find('#sc_live_sc_to_danmu_the_msg_color_select').val();
+            sc_live_sc_to_danmu_the_msg_bg_color_index = $(document).find('#sc_live_sc_to_danmu_the_msg_bg_color_select').val();
+            sc_live_sc_to_danmu_show_to_real_bilibili_flag_config_store();
 
             if (sc_live_sc_to_danmu_show_flag) {
                 let the_sds_sc_panel_fold_mode = sc_panel_fold_mode;
@@ -7999,6 +8079,11 @@
 
             sc_live_sc_to_danmu_show_use_bilibili_style_flag = $(document).find('#sc_live_sc_to_danmu_use_bilibili_style_checkbox_fullscreen').is(':checked');
             sc_live_sc_to_danmu_show_use_bilibili_style_flag_config_store();
+
+            sc_live_sc_to_danmu_show_to_real_bilibili_flag = $(document).find('#sc_live_sc_to_danmu_to_real_bilibili_checkbox_fullscreen').is(':checked');
+            sc_live_sc_to_danmu_the_msg_color_index = $(document).find('#sc_live_sc_to_danmu_the_msg_color_select_fullscreen').val();
+            sc_live_sc_to_danmu_the_msg_bg_color_index = $(document).find('#sc_live_sc_to_danmu_the_msg_bg_color_select_fullscreen').val();
+            sc_live_sc_to_danmu_show_to_real_bilibili_flag_config_store();
 
             if (sc_live_sc_to_danmu_show_flag) {
                 let the_sds_sc_panel_fold_mode = sc_panel_fold_mode;
@@ -8512,7 +8597,7 @@
                 margin: 3% auto;
                 padding: 20px;
                 border: 1px solid #888;
-                width: 54%;
+                width: 60%;
             }
 
             .sc_live_other_modal_content p {
@@ -8566,12 +8651,12 @@
             }
 
             .sc_live_other_filter_radio_group label {
-                padding-right: 50px;
+                padding-right: 30px;
                 padding-left: 10px;
             }
 
             .sc_live_other_filter_radio_group_fullscreen label {
-                padding-right: 50px;
+                padding-right: 30px;
                 padding-left: 10px;
             }
 
@@ -8701,13 +8786,13 @@
                             <label for="sc_live_other_no_filter_2_sc">不过滤￥2的SC</label>
 
                             <input type="radio" id="sc_live_other_danmu_filter_2_sc" name="sc_live_other_filter_2_sc" value="1" />
-                            <label for="sc_live_other_danmu_filter_2_sc">只在弹幕过滤￥2的SC</label>
+                            <label for="sc_live_other_danmu_filter_2_sc">只在非真实弹幕过滤￥2的SC</label>
 
                             <input type="radio" id="sc_live_other_all_filter_2_sc" name="sc_live_other_filter_2_sc" value="2" />
-                            <label for="sc_live_other_all_filter_2_sc">完全过滤￥2的SC</label>
+                            <label for="sc_live_other_all_filter_2_sc">过滤￥2的SC和非真实弹幕</label>
 
                             <input type="radio" id="sc_live_other_part_filter_2_sc" name="sc_live_other_filter_2_sc" value="3" />
-                            <label for="sc_live_other_part_filter_2_sc">过滤￥2的SC但可见弹幕</label>
+                            <label for="sc_live_other_part_filter_2_sc">过滤￥2的SC但可见非真实弹幕</label>
                         </div>
                     </form>
                     <div class="sc_live_other_btn_div">
@@ -8797,13 +8882,13 @@
                             <label for="sc_live_other_no_filter_2_sc_fullscreen">不过滤￥2的SC</label>
 
                             <input type="radio" id="sc_live_other_danmu_filter_2_sc" name="sc_live_other_filter_2_sc" value="1" />
-                            <label for="sc_live_other_danmu_filter_2_sc">只在弹幕过滤￥2的SC</label>
+                            <label for="sc_live_other_danmu_filter_2_sc">只在非真实弹幕过滤￥2的SC</label>
 
                             <input type="radio" id="sc_live_other_all_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="2" />
-                            <label for="sc_live_other_all_filter_2_sc_fullscreen">完全过滤￥2的SC</label>
+                            <label for="sc_live_other_all_filter_2_sc_fullscreen">过滤￥2的SC和非真实弹幕</label>
 
                             <input type="radio" id="sc_live_other_part_filter_2_sc_fullscreen" name="sc_live_other_filter_2_sc_fullscreen" value="3" />
-                            <label for="sc_live_other_part_filter_2_sc_fullscreen">过滤￥2的SC但可见弹幕</label>
+                            <label for="sc_live_other_part_filter_2_sc_fullscreen">过滤￥2的SC但可见非真实弹幕</label>
                         </div>
                     </form>
                     <div class="sc_live_other_btn_div_fullscreen">
@@ -9917,6 +10002,21 @@
                 the_sc_live_setting_obj.live_sc_to_danmu_show_use_bilibili_style_flag = sc_live_catch_to_danmu_show_use_bilibili_style_flag;
             }
 
+            let sc_live_catch_to_danmu_show_to_real_bilibili_flag = unsafeWindow.localStorage.getItem('live_sc_to_danmu_show_to_real_bilibili_flag');
+            if (sc_live_catch_to_danmu_show_to_real_bilibili_flag !== null && sc_live_catch_to_danmu_show_to_real_bilibili_flag !== 'null' && sc_live_catch_to_danmu_show_to_real_bilibili_flag !== '') {
+                the_sc_live_setting_obj.live_sc_to_danmu_show_to_real_bilibili_flag = sc_live_catch_to_danmu_show_to_real_bilibili_flag;
+            }
+
+            let sc_live_catch_to_danmu_show_the_msg_color_index = unsafeWindow.localStorage.getItem('live_sc_to_danmu_the_msg_color_index');
+            if (sc_live_catch_to_danmu_show_the_msg_color_index !== null && sc_live_catch_to_danmu_show_the_msg_color_index !== 'null' && sc_live_catch_to_danmu_show_the_msg_color_index !== '') {
+                the_sc_live_setting_obj.live_sc_to_danmu_the_msg_color_index = sc_live_catch_to_danmu_show_the_msg_color_index;
+            }
+
+            let sc_live_catch_to_danmu_show_the_msg_bg_color_index = unsafeWindow.localStorage.getItem('live_sc_to_danmu_the_msg_bg_color_index');
+            if (sc_live_catch_to_danmu_show_the_msg_bg_color_index !== null && sc_live_catch_to_danmu_show_the_msg_bg_color_index !== 'null' && sc_live_catch_to_danmu_show_the_msg_bg_color_index !== '') {
+                the_sc_live_setting_obj.live_sc_to_danmu_the_msg_bg_color_index = sc_live_catch_to_danmu_show_the_msg_bg_color_index;
+            }
+
             // 个记
             for (let i = 0; i < unsafeWindow.localStorage.length; i++) {
                 const key = localStorage.key(i);
@@ -10046,7 +10146,10 @@
   "live_sc_to_danmu_show_mode": "3",
   "live_special_sc_no_remain_flag": "false",
   "live_sc_to_danmu_no_remain_flag": "false",
-  "live_sc_to_danmu_show_use_bilibili_style_flag": "false"
+  "live_sc_to_danmu_show_use_bilibili_style_flag": "false",
+  "live_sc_to_danmu_show_to_real_bilibili_flag": "true",
+  "live_sc_to_danmu_the_msg_color_index": "orange",
+  "live_sc_to_danmu_the_msg_bg_color_index": "pink"
 }
 `;
 
@@ -10698,6 +10801,7 @@
             let sc_live_sc_to_danmu_show_mode_option_name = 'sc_live_sc_to_danmu_show_mode_option';
             let sc_live_sc_to_danmu_no_remain_config_checkbox_id = 'sc_live_sc_to_danmu_no_remain_checkbox';
             let sc_live_sc_to_danmu_use_bilibili_style_config_checkbox_id = 'sc_live_sc_to_danmu_use_bilibili_style_checkbox';
+            let sc_live_sc_to_danmu_to_real_bilibili_config_checkbox_id = 'sc_live_sc_to_danmu_to_real_bilibili_checkbox';
             if (sc_isFullscreen) {
                 sc_live_sc_to_danmu_show_config_div_id = 'sc_live_sc_to_danmu_show_config_div_fullscreen';
                 sc_live_sc_to_danmu_show_config_checkbox_id = 'sc_live_sc_to_danmu_show_checkbox_fullscreen';
@@ -10706,6 +10810,7 @@
                 sc_live_sc_to_danmu_show_mode_option_name = 'sc_live_sc_to_danmu_show_mode_option_fullscreen';
                 sc_live_sc_to_danmu_no_remain_config_checkbox_id = 'sc_live_sc_to_danmu_no_remain_checkbox_fullscreen';
                 sc_live_sc_to_danmu_use_bilibili_style_config_checkbox_id = 'sc_live_sc_to_danmu_use_bilibili_style_checkbox_fullscreen';
+                sc_live_sc_to_danmu_to_real_bilibili_config_checkbox_id = 'sc_live_sc_to_danmu_to_real_bilibili_checkbox_fullscreen';
             }
             $(document).find('#' + sc_live_sc_to_danmu_show_config_div_id).show();
 
@@ -10730,6 +10835,16 @@
             if (sc_live_sc_to_danmu_show_use_bilibili_style_flag) {
                 $(document).find('#' + sc_live_sc_to_danmu_use_bilibili_style_config_checkbox_id).prop('checked', true);
             }
+
+            $(document).find('#sc_live_sc_to_danmu_to_real_bilibili_checkbox').prop('checked', false);
+            $(document).find('#sc_live_sc_to_danmu_to_real_bilibili_checkbox_fullscreen').prop('checked', false);
+            if (sc_live_sc_to_danmu_show_to_real_bilibili_flag) {
+                $(document).find('#' + sc_live_sc_to_danmu_to_real_bilibili_config_checkbox_id).prop('checked', true);
+            }
+            $(document).find('#sc_live_sc_to_danmu_the_msg_color_select').val(sc_live_sc_to_danmu_the_msg_color_index);
+            $(document).find('#sc_live_sc_to_danmu_the_msg_color_select_fullscreen').val(sc_live_sc_to_danmu_the_msg_color_index);
+            $(document).find('#sc_live_sc_to_danmu_the_msg_bg_color_select').val(sc_live_sc_to_danmu_the_msg_bg_color_index);
+            $(document).find('#sc_live_sc_to_danmu_the_msg_bg_color_select_fullscreen').val(sc_live_sc_to_danmu_the_msg_bg_color_index);
 
             $(this).parent().fadeOut();
         });
@@ -11506,7 +11621,167 @@
                             }
 
                             if (sc_live_sc_to_danmu_show_flag) {
-                                handle_special_sc(parsedArr.data, true, true);
+                                if (sc_live_sc_to_danmu_show_to_real_bilibili_flag) {
+                                    const the_timestamp_now = Date.now();
+                                    const the_timestamp_s = Math.floor(the_timestamp_now / 1000);
+                                    let the_danmu_msg_prefix = "✨";
+                                    let the_danmu_msg_color = sc_live_sc_to_danmu_the_msg_color_arr[sc_live_sc_to_danmu_the_msg_color_index]; // 橙色-16753970；黄色-16774736；红色-16737380；蓝色-6619135；绿色-6618980
+                                    let the_danmi_msg_bg_color = sc_live_sc_to_danmu_the_msg_bg_color_arr[sc_live_sc_to_danmu_the_msg_bg_color_index]; // 粉色-#80FFC8C8,#80FFC8C8,#80FFC8C8；绿色-#80A0FAA0,#80A0FAA0,#80A0FAA0；黄色-#80FFE99E,#80DCA731,#80FFE99E
+
+                                    if (parsedArr.data.price >= 100 && parsedArr.data.price < 1000) { the_danmu_msg_prefix = "🛥️"; }
+                                    if (parsedArr.data.price >= 1000) { the_danmu_msg_prefix = "🔥"; }
+                                    if (parsedArr.data.price === 131.4 || parsedArr.data.price === 1314 || parsedArr.data.price === 52 || parsedArr.data.price === 520) { the_danmu_msg_prefix = "❤️"; }
+
+                                    const the_new_danmaku = {
+                                        "cmd": "DANMU_MSG",
+                                        "info": [
+                                            // info[0]: 弹幕元数据 (数组)
+                                            [
+                                                0, // 弹幕模式
+                                                1, // 弹幕池
+                                                25, // 弹幕字体大小
+                                                the_danmu_msg_color, // 弹幕字体颜色
+                                                the_timestamp_now,
+                                                the_timestamp_s,
+                                                0, // 匿名状态
+                                                "", // 弹幕哈希
+                                                0, 0, 5, the_danmi_msg_bg_color, 0, "{}", "{}", // 这里的颜色是右侧的弹幕框里弹幕的背景颜色 #80FFE99E,#80FFE99E,#80FFE99E
+                                                {
+                                                    "extra": JSON.stringify({
+                                                        "send_from_me": false,
+                                                        "master_player_hidden": false,
+                                                        "mode": 0,
+                                                        "color": the_danmu_msg_color,
+                                                        "dm_type": 0,
+                                                        "font_size": 25,
+                                                        "player_mode": 1,
+                                                        "show_player_type": 0,
+                                                        "content": the_danmu_msg_prefix + "【" + parsedArr.data.price + "SC】" + parsedArr.data.message,
+                                                        "user_hash": "2011474600",
+                                                        "emoticon_unique": "",
+                                                        "bulge_display": 0,
+                                                        "recommend_score": 8,
+                                                        "dm_score": 0,
+                                                        "chronos_force_display": 0,
+                                                        "main_state_dm_color": "",
+                                                        "objective_state_dm_color": "",
+                                                        "direction": 0,
+                                                        "pk_direction": 0,
+                                                        "quartet_direction": 0,
+                                                        "anniversary_crowd": 0,
+                                                        "yeah_space_type": "",
+                                                        "yeah_space_url": "",
+                                                        "jump_to_url": "",
+                                                        "space_type": "",
+                                                        "space_url": "",
+                                                        "animation":{},
+                                                        "emots": null,
+                                                        "is_audited": false,
+                                                        "id_str": "00b28587ed6d8b7562a6b8390d6a678d5867",
+                                                        "icon": null,
+                                                        "show_reply": true,
+                                                        "reply_mid": 0,
+                                                        "reply_uname": "",
+                                                        "reply_uname_color": "",
+                                                        "reply_is_mystery": false,
+                                                        "reply_type_enum": 0,
+                                                        "hit_combo": 0,
+                                                        "esports_jump_url": "",
+                                                        "is_mirror": false,
+                                                        "is_collaboration_member": false,
+                                                        "card": {
+                                                            "card_type": 0,
+                                                            "oid_str": "",
+                                                            "oid_str_1": "",
+                                                            "origin_oid_str": "",
+                                                            "share_id": "",
+                                                            "share_origin": "",
+                                                            "from": "",
+                                                            "card_content": null
+                                                        },
+                                                        "voice": null,
+                                                        "background_type": 0
+                                                    }),
+                                                    "mode": 0,
+                                                    "show_player_type": 0,
+                                                    "user": {
+                                                        "anon": null,
+                                                        "base": {
+                                                            "face": parsedArr.data.user_info.face,
+                                                            "is_mystery": false,
+                                                            "name": parsedArr.data.user_info.uname,
+                                                            "name_color": 0,
+                                                            "name_color_str": "",
+                                                            "official_info": {
+                                                                "desc": "",
+                                                                "role": 0,
+                                                                "title": "",
+                                                                "type": -1
+                                                            },
+                                                            "origin_info": {
+                                                                "face": parsedArr.data.user_info.face,
+                                                                "name": parsedArr.data.user_info.uname
+                                                            },
+                                                            "risk_ctrl_info": null
+                                                        },
+                                                        "guard": null,
+                                                        "guard_leader": null,
+                                                        "medal": {
+                                                            "color": 16736523,
+                                                            "color_border": 6771156,
+                                                            "color_end": 16765060,
+                                                            "color_start": 16736523,
+                                                            "guard_icon": "",
+                                                            "guard_level": 0,
+                                                            "honor_icon": "",
+                                                            "id": 599510,
+                                                            "is_light": 1,
+                                                            "level": 1,
+                                                            "name": "SC",
+                                                            "ruid": parsedArr.data.uinfo.medal.ruid,
+                                                            "score": 999999,
+                                                            "typ": 0,
+                                                            "user_receive_count": 0,
+                                                            "v2_medal_color_border": "#F18087",
+                                                            "v2_medal_color_end": "#EC4F6E99",
+                                                            "v2_medal_color_level": "#EC4F6EE6",
+                                                            "v2_medal_color_start": "#EC4F6E99",
+                                                            "v2_medal_color_text": "#FFFFFF"
+                                                        },
+                                                        "title": {
+                                                            "old_title_css_id": "",
+                                                            "title_css_id": ""
+                                                        },
+                                                        "uhead_frame": null,
+                                                        "uid": parsedArr.data.uid,
+                                                        "wealth": null
+                                                    }
+                                                },
+                                                {
+                                                    "activity_identity": "",
+                                                    "activity_source": 0,
+                                                    "not_show": 0
+                                                },
+                                                0
+                                            ],
+                                            the_danmu_msg_prefix + "【" + parsedArr.data.price + "SC】" + parsedArr.data.message, // info[1]: 弹幕文本
+                                            [parsedArr.data.uid, parsedArr.data.user_info.uname, 0, 0, 0, 10000, 1, "#FF7C28"], // info[2]: 用户基本信息。这里的颜色是右侧弹幕框用户名字体的
+                                            // info[3]: 粉丝勋章
+                                            [1, "SC", "", 26966466, 16736523, "", 0, 16771156, 16736523, 16765060, 1, 1, 1609526545],
+                                            // info[4]: 用户身份 (留空)
+                                            [0, 0, 0, "", 0],
+                                            // info[5] 及之后: 其他扩展字段
+                                            ["", ""],
+                                            0, 0, null,
+                                            { "ct": "29D9ABC8", "ts": the_timestamp_s }, // info[9]: 追踪信息
+                                            0, 0, null, null, 0, parsedArr.data.dmscore, [1], null // 这里的[1]是荣耀等级；这里的dmscore不为0时的一个作用：在弹幕输入框点击该弹幕会显示菜单（访问个人空间、@TA等等）
+                                        ]
+                                    };
+
+                                    Object.assign(parsedArr, the_new_danmaku);
+                                } else {
+                                    handle_special_sc(parsedArr.data, true, true);
+                                }
                             }
                         }
                     } else if (parsedArr.cmd === 'USER_TOAST_MSG') {
@@ -11524,6 +11799,14 @@
                         if (parsedArr.info) {
                             if (sc_live_special_msg_flag && sc_live_special_tip_uid_arr.length) {
                                 handle_special_msg(parsedArr.info);
+
+                                // 可以这样直接修改弹幕样式：
+                                // parsedArr.info[1] = "test"; // 弹幕文本内容
+                                // parsedArr.info[0][2] = 25; // 弹幕字体大小
+                                // parsedArr.info[0][3] = 16753970; // 弹幕颜色（十进制）
+                                // parsedArr.info[0][4] = Date.now();
+                                // parsedArr.info[0][5] = Math.floor(Date.now() / 1000);
+                                // parsedArr.info[9].ts = Math.floor(Date.now() / 1000);
                             }
 
                             if (sc_live_send_dm_combo_flag && parsedArr.info[0][15]['extra'].includes('"hit_combo\":1') && !sc_combo_dm_recent_send_arr.includes(parsedArr.info[1])) {

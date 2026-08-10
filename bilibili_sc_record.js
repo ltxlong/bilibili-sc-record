@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.4.0
+// @version      13.4.1
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -244,22 +244,23 @@
     let sc_live_sc_routine_price_arr = [30, 50, 100, 500, 1000, 2000]; // 常规电池价格数组，如果SC2弹幕的价格不在里面就显示
     let sc_live_sc_low_price_arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20]; // 低价电池价格数组，如果SC2弹幕的价格在里面就显示
 
-    let sc_live_special_danmu_show_index_arr = [0, 0, 0, 0, 0, 0]; // 将屏幕分为6个弹幕道：顶部,top 17%,top 34%,top 51%,top 68%,底部。0-没弹幕存在，1-有弹幕存在
+    let sc_live_special_danmu_show_index_arr = [0, 0, 0, 0, 0, 0, 0, 0]; // 将屏幕分为8个弹幕道：顶部（三个）,top 40%,top 52.5%,top 65%,底部（两个）。0-没弹幕存在，1-有弹幕存在
     let sc_live_special_tip_danmu_cache_arr = []; // 特定用户进入直播间的缓存弹幕
     let sc_live_special_msg_danmu_cache_arr = []; // 特定用户的弹幕缓存
     let sc_live_sc_to_danmu_cache_arr = []; // 所有用户SC的缓存弹幕
     let sc_live_tip_danmu_show_n = 0; // -1-所有在等待，0-解锁，1-上锁
     let sc_live_msg_danmu_show_n = 0; // -1-所有在等待，0-解锁，1-上锁
-    let sc_live_sc_danmu_show_n = 0; // -1-所有在等待，0-解锁，1-上锁
-    let sc_live_middle_danmu_index_arr = [1, 2, 3, 4];
-    let sc_live_last_middle_danmu_index = 0; // 记录最后一个中间弹幕的index，1~4，0-还没初始化，则先随机一个
-    let sc_live_middle_danmu_index_crash_handle_arr = [[3, 1, 4, 2], [4, 3, 2], [3, 4, 1], [1, 2, 4], [2, 1, 3]];
+    let sc_live_sc_danmu_show_n = 0; // -1-所有在等待，0-解锁，1-上锁（若3个弹道则为2）
+    let sc_live_middle_danmu_index_arr = [3, 4, 5];
+    let sc_live_last_middle_danmu_index = 0; // 记录最后一个中间弹幕的index，3~5，0-还没初始化，则先随机一个
+    let sc_live_middle_danmu_index_crash_handle_arr = [[3, 4, 5], [3, 4, 5], [3, 4, 5], [4, 5], [5, 3], [3, 4]];
     // 弹道冲突后的选择优先级，这样选择观感比较好
-    // 0: 3->1->4->2
-    // 1: 4->3->2
-    // 2: 3->4->1
-    // 3: 1->2->4
-    // 4: 2->1->3
+    // 0: 3->4->5
+    // 1: 3->4->5
+    // 2: 3->4->5
+    // 3: 4->5
+    // 4: 5->3
+    // 5: 3->4
 
     // fullscreen var 全屏的变量
     let sc_panel_list_height_fullscreen = 400; // 高
@@ -4062,17 +4063,22 @@
                 the_free_danmu_show_index = 0;
                 the_free_danmu_show_flag = true;
                 sc_live_special_danmu_show_index_arr[0] = 1;
-            } else if (!sc_live_special_danmu_show_index_arr[5]) {
+            } else if (!sc_live_special_danmu_show_index_arr[1]) {
                 // 发送
-                the_free_danmu_show_index = 5;
+                the_free_danmu_show_index = 1;
                 the_free_danmu_show_flag = true;
-                sc_live_special_danmu_show_index_arr[5] = 1;
+                sc_live_special_danmu_show_index_arr[1] = 1;
+            } else if (!sc_live_special_danmu_show_index_arr[2]) {
+                // 发送
+                the_free_danmu_show_index = 2;
+                the_free_danmu_show_flag = true;
+                sc_live_special_danmu_show_index_arr[2] = 1;
             }
         } else if (the_sc_live_danmu_location === 1) {
             // 中间
             let the_rand_middle_danmu_index = sc_live_last_middle_danmu_index;
             if (sc_live_last_middle_danmu_index === 0) {
-                the_rand_middle_danmu_index = sc_live_middle_danmu_index_arr[Math.floor(Math.random() * 4)];
+                the_rand_middle_danmu_index = sc_live_middle_danmu_index_arr[Math.floor(Math.random() * 3)];
             } else {
                 the_rand_middle_danmu_index = sc_live_middle_danmu_index_crash_handle_arr[the_rand_middle_danmu_index][0];
             }
@@ -4102,16 +4108,16 @@
             }
         } else if (the_sc_live_danmu_location === 2) {
             // 底部
-            if (!sc_live_special_danmu_show_index_arr[5]) {
+            if (!sc_live_special_danmu_show_index_arr[7]) {
                 // 发送
-                the_free_danmu_show_index = 5;
+                the_free_danmu_show_index = 7;
                 the_free_danmu_show_flag = true;
-                sc_live_special_danmu_show_index_arr[5] = 1;
-            } else if (!sc_live_special_danmu_show_index_arr[0]) {
+                sc_live_special_danmu_show_index_arr[7] = 1;
+            } else if (!sc_live_special_danmu_show_index_arr[6]) {
                 // 发送
-                the_free_danmu_show_index = 0;
+                the_free_danmu_show_index = 6;
                 the_free_danmu_show_flag = true;
-                sc_live_special_danmu_show_index_arr[0] = 1;
+                sc_live_special_danmu_show_index_arr[6] = 1;
             }
         }
 
@@ -4163,14 +4169,16 @@
                 sc_live_special_tip_await_arr.push(sc_live_the_enter_uid);
                 // 发送
                 let sc_special_tip_div_class = 'sc_special_tip_div';
-                let sc_special_tip_img_px = '50';
+                let sc_special_tip_img_px = '45';
                 let sc_special_msg_margin_left = '10';
                 let sc_special_sc_msg_font_size = 16;
+                let sc_special_div_type = 'big'; // 0、2
                 if (sc_live_special_danmu_mode === 1) {
                     sc_special_tip_div_class = 'sc_special_tip_div_no_padding';
                     sc_special_tip_img_px = '40';
                     sc_special_msg_margin_left = '5';
                     sc_special_sc_msg_font_size -= 2;
+                    sc_special_div_type = 'small';
                 } else if (sc_live_special_danmu_mode === 2) {
                     sc_special_tip_div_class = 'sc_special_tip_div_no_opaque';
                 } else if (sc_live_special_danmu_mode === 3) {
@@ -4178,6 +4186,7 @@
                     sc_special_tip_img_px = '40';
                     sc_special_msg_margin_left = '5';
                     sc_special_sc_msg_font_size -= 2;
+                    sc_special_div_type = 'small';
                 }
 
                 let the_original_sc_special_font_size = sc_special_sc_msg_font_size;
@@ -4188,10 +4197,28 @@
 
                 let sc_special_tip_div_custom_style = 'style="top: 2px"';
 
-                if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 5) {
+                if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 1) {
+                    if (sc_special_div_type === 'big') {
+                        sc_special_tip_div_custom_style = 'style="top: '+ (2 + 65 + 4) +'px"';
+                    } else {
+                        sc_special_tip_div_custom_style = 'style="top: '+ (2 + 40 + 4) +'px"';
+                    }
+                } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 2) {
+                    if (sc_special_div_type === 'big') {
+                        sc_special_tip_div_custom_style = 'style="top: '+ (2 + 65 * 2 + 4 * 2) +'px"';
+                    } else {
+                        sc_special_tip_div_custom_style = 'style="top: '+ (2 + 40 * 2+ 4 * 2) +'px"';
+                    }
+                } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 6) {
+                    if (sc_special_div_type === 'big') {
+                        sc_special_tip_div_custom_style = 'style="bottom: '+ (2 + 65 + 4) +'px"';
+                    } else {
+                        sc_special_tip_div_custom_style = 'style="bottom: '+ (2 + 40 + 4) +'px"';
+                    }
+                } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 7) {
                     sc_special_tip_div_custom_style = 'style="bottom: 2px"';
                 } else {
-                    sc_special_tip_div_custom_style = 'style="top: '+ get_free_danmu_show_arr['the_free_danmu_show_index'] * 17 +'%"';
+                    sc_special_tip_div_custom_style = 'style="top: '+ get_free_danmu_show_arr['the_free_danmu_show_index'] * 12.5 +'%"';
                 }
 
                 let sc_special_tip_remark = sc_live_special_tip_remark_arr['"' + sc_live_the_enter_uid + '"'] ?? '';
@@ -4259,14 +4286,16 @@
                 sc_live_special_msg_await_arr.push(sc_live_the_enter_uid + sc_sp_msg_ts);
                 // 发送
                 let sc_special_msg_div_class = 'sc_special_tip_div';
-                let sc_special_msg_img_px = '50';
+                let sc_special_msg_img_px = '45';
                 let sc_special_msg_margin_left = '10';
                 let sc_special_sc_msg_font_size = 16;
+                let sc_special_div_type = 'big'; // 0、2
                 if (sc_live_special_danmu_mode === 1) {
                     sc_special_msg_div_class = 'sc_special_tip_div_no_padding';
                     sc_special_msg_img_px = '40';
                     sc_special_msg_margin_left = '5';
                     sc_special_sc_msg_font_size -= 2;
+                    sc_special_div_type = 'small';
                 } else if (sc_live_special_danmu_mode === 2) {
                     sc_special_msg_div_class = 'sc_special_tip_div_no_opaque';
                 } else if (sc_live_special_danmu_mode === 3) {
@@ -4274,6 +4303,7 @@
                     sc_special_msg_img_px = '40';
                     sc_special_msg_margin_left = '5';
                     sc_special_sc_msg_font_size -= 2;
+                    sc_special_div_type = 'small';
                 }
 
                 let the_original_sc_special_font_size = sc_special_sc_msg_font_size;
@@ -4282,12 +4312,34 @@
                     sc_special_sc_msg_font_size += sc_live_all_font_size_add;
                 }
 
+                // 顶部/中间/底部 要分开处理
                 let sc_special_msg_div_custom_style = 'style="top: 2px"';
 
-                if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 5) {
+                if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 1) {
+                    if (sc_special_div_type === 'big') {
+                        sc_special_msg_div_custom_style = 'style="top: '+ (2 + 65 + 4) +'px"';
+                    } else {
+                        sc_special_msg_div_custom_style = 'style="top: '+ (2 + 40 + 4) +'px"';
+                    }
+
+                } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 2) {
+                    if (sc_special_div_type === 'big') {
+                        sc_special_msg_div_custom_style = 'style="top: '+ (2 + 65 * 2 + 4 * 2) +'px"';
+                    } else {
+                        sc_special_msg_div_custom_style = 'style="top: '+ (2 + 40 * 2+ 4 * 2) +'px"';
+                    }
+
+                } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 6) {
+                    if (sc_special_div_type === 'big') {
+                        sc_special_msg_div_custom_style = 'style="bottom: '+ (2 + 65 + 4) +'px"';
+                    } else {
+                        sc_special_msg_div_custom_style = 'style="bottom: '+ (2 + 40 + 4) +'px"';
+                    }
+
+                } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 7) {
                     sc_special_msg_div_custom_style = 'style="bottom: 2px"';
                 } else {
-                    sc_special_msg_div_custom_style = 'style="top: '+ get_free_danmu_show_arr['the_free_danmu_show_index'] * 17 +'%"';
+                    sc_special_msg_div_custom_style = 'style="top: '+ get_free_danmu_show_arr['the_free_danmu_show_index'] * 12.5 +'%"';
                 }
 
                 let sc_special_msg_div_the_id = sc_live_the_enter_uid + '_' + (new Date()).getTime();
@@ -4361,6 +4413,10 @@
             let the_sc_live_no_remain_flag = true;
             let the_danmu_location_val_type = 0;
             let the_sc_live_danmu_mode = sc_live_special_danmu_mode;
+            let the_sc_danmu_top_road_show_n_limit = 0;
+            if (sc_live_sc_to_danmu_show_location === 0) {
+                the_sc_danmu_top_road_show_n_limit = 1;
+            }
             if (all_sc_to_danmu_show_flag) {
                 the_danmu_location_val_type = 1;
                 the_sc_live_danmu_mode = sc_live_sc_to_danmu_show_mode;
@@ -4373,23 +4429,25 @@
                 }
             }
 
-            if (sc_live_sc_danmu_show_n <= 0) {
+            if (sc_live_sc_danmu_show_n <= the_sc_danmu_top_road_show_n_limit) {
                 let get_free_danmu_show_arr = get_free_danmu_show_index(the_danmu_location_val_type);
 
                 if (get_free_danmu_show_arr['the_free_danmu_show_flag']) {
-                    sc_live_sc_danmu_show_n = 1;
+                    sc_live_sc_danmu_show_n++;
                     // 发送
                     let sc_speical_sc_div_class = 'sc_special_tip_div';
-                    let sc_special_sc_img_px = '50';
+                    let sc_special_sc_img_px = '45';
                     let sc_special_sc_msg_margin_left = '10';
                     let sc_special_sc_div_custom_style = ' style="background:linear-gradient(to right, '+ sc_data["background_bottom_color"] +',transparent);';
                     let sc_special_sc_msg_font_size = 20;
                     let sc_special_sc_use_bilibili_style_location = '';
+                    let sc_special_div_type = 'big'; // 0、2
                     if (the_sc_live_danmu_mode === 1) {
                         sc_speical_sc_div_class = 'sc_special_tip_div_no_padding';
                         sc_special_sc_img_px = '40';
                         sc_special_sc_msg_margin_left = '5';
                         sc_special_sc_msg_font_size -= 2;
+                        sc_special_div_type = 'small';
                     } else if (the_sc_live_danmu_mode === 2) {
                         sc_speical_sc_div_class = 'sc_special_tip_div_no_opaque';
                         sc_special_sc_div_custom_style = ' style="background:linear-gradient(to right, '+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +',transparent);';
@@ -4399,6 +4457,7 @@
                         sc_special_sc_msg_margin_left = '5';
                         sc_special_sc_div_custom_style = ' style="background:linear-gradient(to right, '+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +','+ sc_data["background_bottom_color"] +',transparent);';
                         sc_special_sc_msg_font_size -= 2;
+                        sc_special_div_type = 'small';
                     }
 
                     let the_original_sc_special_font_size = sc_special_sc_msg_font_size;
@@ -4407,15 +4466,43 @@
                         sc_special_sc_msg_font_size += sc_live_all_font_size_add;
                     }
 
+                    // 顶部/中间/底部 要分开处理
                     if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 0) {
                         sc_special_sc_div_custom_style += 'top: 2px;" ';
                         sc_special_sc_use_bilibili_style_location = ' --top: 2px;';
-                    } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 5) {
+                    } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 1) {
+                        if (sc_special_div_type === 'big') {
+                            sc_special_sc_div_custom_style += 'top: '+ (2 + 65 + 4) +'px"';
+                            sc_special_sc_use_bilibili_style_location = ' --top: '+ (2 + 65 + 4) +'px;';
+                        } else {
+                            sc_special_sc_div_custom_style += 'top: '+ (2 + 40 + 4) +'px"';
+                            sc_special_sc_use_bilibili_style_location = ' --top: '+ (2 + 40 + 4) +'px;';
+                        }
+
+                    } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 2) {
+                        if (sc_special_div_type === 'big') {
+                            sc_special_sc_div_custom_style += 'top: '+ (2 + 65 * 2 + 4 * 2) +'px"';
+                            sc_special_sc_use_bilibili_style_location = ' --top: '+ (2 + 65 * 2 + 4 * 2) +'px;';
+                        } else {
+                            sc_special_sc_div_custom_style += 'top: '+ (2 + 40 * 2+ 4 * 2) +'px"';
+                            sc_special_sc_use_bilibili_style_location = ' --top: '+ (2 + 40 * 2+ 4 * 2) +'px;';
+                        }
+
+                    } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 6) {
+                        if (sc_special_div_type === 'big') {
+                            sc_special_sc_div_custom_style += 'bottom: '+ (2 + 65 + 4) +'px"';
+                            sc_special_sc_use_bilibili_style_location = ' --top: 78%;'; // --bottom不生效，只有--top
+                        } else {
+                            sc_special_sc_div_custom_style += 'bottom: '+ (2 + 40 + 4) +'px"';
+                            sc_special_sc_use_bilibili_style_location = ' --top: 78%;'; // --bottom不生效，只有--top
+                        }
+
+                    } else if (get_free_danmu_show_arr['the_free_danmu_show_index'] === 7) {
                         sc_special_sc_div_custom_style += 'bottom: 2px;" ';
-                        sc_special_sc_use_bilibili_style_location = ' --top: 80%;'; // --bottom不生效，只有--top
+                        sc_special_sc_use_bilibili_style_location = ' --top: 88%;'; // --bottom不生效，只有--top
                     } else {
-                        sc_special_sc_div_custom_style += 'top: '+ get_free_danmu_show_arr['the_free_danmu_show_index'] * 17 +'%;" ';
-                        sc_special_sc_use_bilibili_style_location = ' --top: '+ get_free_danmu_show_arr['the_free_danmu_show_index'] * 17 +'%;';
+                        sc_special_sc_div_custom_style += 'top: '+ get_free_danmu_show_arr['the_free_danmu_show_index'] * 12.5 +'%;" ';
+                        sc_special_sc_use_bilibili_style_location = ' --top: '+ get_free_danmu_show_arr['the_free_danmu_show_index'] * 12.5 +'%;';
                     }
 
                     let sc_special_sc_remark = sc_live_special_tip_remark_arr['"' + sc_live_the_sc_uid + '"'] ?? '';
@@ -4456,7 +4543,7 @@
 
                             sc_live_special_sc_await_arr = sc_live_special_sc_await_arr.filter(item => item !== (sc_live_the_sc_uid + sc_live_the_sc_id));
 
-                            sc_live_sc_danmu_show_n = 0;
+                            sc_live_sc_danmu_show_n--;
 
                             // 先检测出其他的分类弹幕是否有-1
                             sc_check_danmu_pause_arr_and_start('sc');
@@ -4510,7 +4597,7 @@
 
                             sc_live_special_danmu_show_index_arr[get_free_danmu_show_arr['the_free_danmu_show_index']] = 0;
 
-                            sc_live_sc_danmu_show_n = 0;
+                            sc_live_sc_danmu_show_n--;
 
                             // 先检测出其他的分类弹幕是否有-1
                             sc_check_danmu_pause_arr_and_start('sc');
@@ -5500,9 +5587,9 @@
                 background: linear-gradient(to right, lightblue,transparent);
                 position: absolute;
                 left: 100%;
-                height: 50px;
+                height: 45px;
                 animation: slideInFromRightToLeft 10s linear forwards;
-                border-radius: 50px 0 0 50px;
+                border-radius: 45px 0 0 45px;
                 padding: 10px;
                 display: flex;
                 align-items: center;
@@ -5533,9 +5620,9 @@
                 background: linear-gradient(to right, lightblue, lightblue, lightblue, lightblue, lightblue, lightblue, lightblue, lightblue, lightblue, transparent);
                 position: absolute;
                 left: 100%;
-                height: 50px;
+                height: 45px;
                 animation: slideInFromRightToLeft 10s linear forwards;
-                border-radius: 50px 0 0 50px;
+                border-radius: 45px 0 0 45px;
                 padding: 10px;
                 display: flex;
                 align-items: center;
@@ -7863,13 +7950,13 @@
                         <br>
                         <div class="sc_live_sc_to_danmu_show_radio_group">
                             <input type="radio" id="sc_live_sc_to_danmu_show_top_option" name="sc_live_sc_to_danmu_show_location_option" value="0" checked />
-                            <label for="sc_live_sc_to_danmu_show_top_option">显示在顶部 / 底部（优先顶部）</label>
+                            <label for="sc_live_sc_to_danmu_show_top_option">显示在顶部</label>
 
                             <input type="radio" id="sc_live_sc_to_danmu_show_middle_option" name="sc_live_sc_to_danmu_show_location_option" value="1" />
-                            <label for="sc_live_sc_to_danmu_show_middle_option">显示在中间随机</label>
+                            <label for="sc_live_sc_to_danmu_show_middle_option">显示在中间</label>
 
                             <input type="radio" id="sc_live_sc_to_danmu_show_bottom_option" name="sc_live_sc_to_danmu_show_location_option" value="2" />
-                            <label for="sc_live_sc_to_danmu_show_bottom_option">显示在底部 / 顶部（优先底部）</label>
+                            <label for="sc_live_sc_to_danmu_show_bottom_option">显示在底部</label>
                         </div>
                         <br>
                         <br>
@@ -7943,13 +8030,13 @@
                         <br>
                         <div class="sc_live_sc_to_danmu_show_radio_group_fullscreen">
                             <input type="radio" id="sc_live_sc_to_danmu_show_top_option_fullscreen" name="sc_live_sc_to_danmu_show_location_option_fullscreen" value="0" checked />
-                            <label for="sc_live_sc_to_danmu_show_top_option_fullscreen">显示在顶部 / 底部（优先顶部）</label>
+                            <label for="sc_live_sc_to_danmu_show_top_option_fullscreen">显示在顶部</label>
 
                             <input type="radio" id="sc_live_sc_to_danmu_show_middle_option_fullscreen" name="sc_live_sc_to_danmu_show_location_option_fullscreen" value="1" />
-                            <label for="sc_live_sc_to_danmu_show_middle_option_fullscreen">显示在中间随机</label>
+                            <label for="sc_live_sc_to_danmu_show_middle_option_fullscreen">显示在中间</label>
 
                             <input type="radio" id="sc_live_sc_to_danmu_show_bottom_option_fullscreen" name="sc_live_sc_to_danmu_show_location_option_fullscreen" value="2" />
-                            <label for="sc_live_sc_to_danmu_show_bottom_option_fullscreen">显示在底部 / 顶部（优先底部）</label>
+                            <label for="sc_live_sc_to_danmu_show_bottom_option_fullscreen">显示在底部</label>
                         </div>
                         <br>
                         <br>
@@ -8396,13 +8483,13 @@
                     <form id="sc_live_special_tip_form">
                         <div class="sc_live_special_tip_radio_group">
                             <input type="radio" id="sc_live_special_tip_top_option" name="sc_live_special_tip_option" value="0" checked />
-                            <label for="sc_live_special_tip_top_option">显示在顶部 / 底部（优先顶部）</label>
+                            <label for="sc_live_special_tip_top_option">显示在顶部</label>
 
                             <input type="radio" id="sc_live_special_tip_middle_option" name="sc_live_special_tip_option" value="1" />
-                            <label for="sc_live_special_tip_middle_option">显示在中间随机</label>
+                            <label for="sc_live_special_tip_middle_option">显示在中间</label>
 
                             <input type="radio" id="sc_live_special_tip_bottom_option" name="sc_live_special_tip_option" value="2" />
-                            <label for="sc_live_special_tip_bottom_option">显示在底部 / 顶部（优先底部）</label>
+                            <label for="sc_live_special_tip_bottom_option">显示在底部</label>
                         </div>
                         <div class="sc_live_special_tip_textarea_div">
                             <div class="sc_modal_label_tip" style="padding: 10px 0px 10px 0px;">规则：用户id,用户id-备注（逗号，以及横杠，逗号后可换行，不加备注就只显示用户名）</div>
@@ -8457,13 +8544,13 @@
                     <form id="sc_live_special_tip_form_fullscreen">
                         <div class="sc_live_special_tip_radio_group_fullscreen">
                             <input type="radio" id="sc_live_special_tip_top_option_fullscreen" name="sc_live_special_tip_option_fullscreen" value="0" checked />
-                            <label for="sc_live_special_tip_top_option_fullscreen">显示在顶部 / 底部（优先顶部）</label>
+                            <label for="sc_live_special_tip_top_option_fullscreen">显示在顶部</label>
 
                             <input type="radio" id="sc_live_special_tip_middle_option_fullscreen" name="sc_live_special_tip_option_fullscreen" value="1" />
-                            <label for="sc_live_special_tip_middle_option_fullscreen">显示在中间随机</label>
+                            <label for="sc_live_special_tip_middle_option_fullscreen">显示在中间</label>
 
                             <input type="radio" id="sc_live_special_tip_bottom_option_fullscreen" name="sc_live_special_tip_option_fullscreen" value="2" />
-                            <label for="sc_live_special_tip_bottom_option_fullscreen">显示在底部 / 顶部（优先底部）</label>
+                            <label for="sc_live_special_tip_bottom_option_fullscreen">显示在底部</label>
                         </div>
                         <div class="sc_live_special_tip_textarea_div">
                             <div class="sc_modal_label_tip" style="padding: 10px 0px 10px 0px;">规则：用户id,用户id-备注（逗号，以及横杠，逗号后可换行，不加备注就只显示用户名）</div>
@@ -10153,10 +10240,10 @@
 }
 `;
 
-            $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
+    $(document).find('#sc_live_setting_import_textarea_content').val(the_default_setting_str);
 
-            open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
-        });
+    open_and_close_sc_modal('✓ 填充成功', '#A7C9D3', e, 1);
+});
 
         // 创建一个自定义右键菜单
         let sc_func_button1 = document.createElement('button');
@@ -11598,6 +11685,49 @@
 
     sc_process_start();
 
+    let dm_id_str_counter = 0;
+
+    function generate_dm_id_str() {
+        // 1. 时间戳：取后8位，避免长度溢出
+        const timestamp = Date.now().toString(16).slice(-8).padStart(8, '0');
+        // 2. 计数器：低16位，补足4位
+        const counter_part = (dm_id_str_counter++ % 0x10000).toString(16).padStart(4, '0');
+        // 3. 随机部分：原生生成16进制小数，截取并补足24位（无循环）
+        const random_part = Math.random().toString(16).slice(2, 26).padEnd(24, '0');
+
+        // 36位随机数
+        return timestamp + counter_part + random_part;
+    }
+
+    // 生成 CRC32 码表
+    function get_crc32_table() {
+        const table = new Uint32Array(256);
+        for (let i = 0; i < 256; i++) {
+            let crc = i;
+            for (let j = 0; j < 8; j++) {
+                crc = (crc & 1) ? (crc >>> 1) ^ 0xEDB88320 : crc >>> 1;
+            }
+            table[i] = crc >>> 0;
+        }
+
+        return table;
+    }
+
+    // 缓存表，避免重复生成
+    const CRC32_TABLE = get_crc32_table();
+
+    // 计算字符串的 CRC32 值，返回无符号整数（0 ~ 4294967295）
+    // 简化的CRC32，只能作用于全是整数的uid
+    function crc32(str) {
+        let crc = 0xFFFFFFFF;
+        for (let i = 0; i < str.length; i++) {
+            const byte = str.charCodeAt(i);
+            crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ byte) & 0xFF];
+        }
+
+        return (crc ^ 0xFFFFFFFF) >>> 0; // 这个返回crc32是整数, user_hash = crc32 + ''，弹幕哈希 = user_hash.toString(16)
+    }
+
     if (!sc_room_blacklist_flag) {
         const originalParse = JSON.parse;
         JSON.parse = function (str) {
@@ -11644,8 +11774,8 @@
                                                 the_timestamp_now,
                                                 the_timestamp_s,
                                                 0, // 匿名状态
-                                                "", // 弹幕哈希
-                                                0, 0, 5, the_danmi_msg_bg_color, 0, "{}", "{}", // 这里的颜色是右侧的弹幕框里弹幕的背景颜色 #80FFE99E,#80FFE99E,#80FFE99E
+                                                crc32(parsedArr.data.uid).toString(16), // 弹幕哈希
+                                                0, 0, 9, the_danmi_msg_bg_color, 0, "{}", "{}", // 这里的颜色是右侧的弹幕框里弹幕的背景颜色 #80FFE99E,#80FFE99E,#80FFE99E
                                                 {
                                                     "extra": JSON.stringify({
                                                         "send_from_me": false,
@@ -11657,11 +11787,11 @@
                                                         "player_mode": 1,
                                                         "show_player_type": 0,
                                                         "content": the_danmu_msg_prefix + "【" + parsedArr.data.price + "SC】" + parsedArr.data.message,
-                                                        "user_hash": "2011474600",
+                                                        "user_hash": crc32(parsedArr.data.uid) + "",
                                                         "emoticon_unique": "",
                                                         "bulge_display": 0,
-                                                        "recommend_score": 8,
-                                                        "dm_score": 0,
+                                                        "recommend_score": 9,
+                                                        "dm_score": 2000,
                                                         "chronos_force_display": 0,
                                                         "main_state_dm_color": "",
                                                         "objective_state_dm_color": "",
@@ -11677,7 +11807,7 @@
                                                         "animation":{},
                                                         "emots": null,
                                                         "is_audited": false,
-                                                        "id_str": "00b28587ed6d8b7562a6b8390d6a678d5867",
+                                                        "id_str": generate_dm_id_str(),
                                                         "icon": null,
                                                         "show_reply": true,
                                                         "reply_mid": 0,
@@ -11774,7 +11904,7 @@
                                             ["", ""],
                                             0, 0, null,
                                             { "ct": "29D9ABC8", "ts": the_timestamp_s }, // info[9]: 追踪信息
-                                            0, 0, null, null, 0, parsedArr.data.dmscore, [1], null // 这里的[1]是荣耀等级；这里的dmscore不为0时的一个作用：在弹幕输入框点击该弹幕会显示菜单（访问个人空间、@TA等等）
+                                            0, 0, null, null, 0, 2000, [1], null // 这里的[1]是荣耀等级；2000是dmscore，这里的dmscore不为0时的一个作用：在弹幕输入框点击该弹幕会显示菜单（访问个人空间、@TA等等）
                                         ]
                                     };
 
@@ -11796,7 +11926,9 @@
                             }
                         }
                     } else if (parsedArr.cmd === 'DANMU_MSG') {
+
                         if (parsedArr.info) {
+
                             if (sc_live_special_msg_flag && sc_live_special_tip_uid_arr.length) {
                                 handle_special_msg(parsedArr.info);
 

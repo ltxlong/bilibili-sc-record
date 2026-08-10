@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.4.1
+// @version      13.4.2
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -5673,12 +5673,11 @@
                 document.webkitFullscreenElement ||
                 document.mozFullScreenElement ||
                 document.msFullscreenElement) {
-                let sc_circle_clone = $(sc_circleContainer).clone(true);
-                let sc_rectangle_clone = $(sc_rectangleContainer).clone(true);
-                sc_circle_clone.addClass('sc_circle_fullscreen');
-                sc_rectangle_clone.addClass('sc_rectangle_fullscreen');
-                $(live_player_div).append(sc_circle_clone);
-                $(live_player_div).append(sc_rectangle_clone);
+                
+                $(sc_circleContainer).addClass('sc_circle_fullscreen');
+                $(sc_rectangleContainer).addClass('sc_rectangle_fullscreen');
+                $(live_player_div).append($(sc_circleContainer));
+                $(live_player_div).append($(sc_rectangleContainer));
                 sc_isFullscreen = true;
 
                 let the_hfc_sc_panel_fold_mode = sc_panel_fold_mode;
@@ -5713,13 +5712,18 @@
                     the_hfc_sc_circle.fadeIn(1000);
                 }
 
-                $(sc_rectangle_clone).find('.sc_long_list').attr('id', 'sc_fullscreen_list').scrollTop(the_normal_list_div.scrollTop());
+                $(sc_rectangleContainer).find('.sc_long_list').addClass('sc_fullscreen_list').scrollTop(the_normal_list_div.scrollTop());
 
             } else {
 
-                let the_live_list_div_scrolltop = $(document).find('#sc_fullscreen_list').scrollTop() ?? 0;
+                let the_live_list_div_scrolltop = $(document).find('.sc_fullscreen_list').scrollTop() ?? 0;
 
-                $(live_player_div).find('.sc_drag_div').remove();
+                $(document).find('.sc_circle_fullscreen').removeClass('sc_circle_fullscreen');
+                $(document).find('.sc_rectangle_fullscreen').removeClass('sc_rectangle_fullscreen');
+                $(document).find('.sc_fullscreen_list').removeClass('sc_fullscreen_list');
+                document.body.appendChild(sc_circleContainer);
+                document.body.appendChild(sc_rectangleContainer);
+
                 sc_isFullscreen = false;
                 sc_side_fold_hide_list_ing_flag = false;
 

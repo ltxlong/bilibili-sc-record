@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.4.3
+// @version      13.4.4
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -524,6 +524,14 @@
             $("<div>", {
                 class: "sc_edge_trigger sc_edge_trigger_right"
             }).appendTo("body");
+
+            $("<div>", {
+                class: "sc_edge_trigger sc_edge_trigger_left"
+            }).appendTo("#live-player");
+
+            $("<div>", {
+                class: "sc_edge_trigger sc_edge_trigger_right"
+            }).appendTo("#live-player");
         }
     }
 
@@ -5685,7 +5693,7 @@
                 position: fixed;
                 top: 0;
                 bottom: 0;
-                width: 1px;
+                width: 5px;
                 z-index: 99999;
                 background: transparent;
             }
@@ -9261,6 +9269,7 @@
             if (sc_welt_hide_in_edge_flag) {
                 sc_create_left_right_edge_trigger_line();
             } else {
+                $('.sc_drag_div').removeClass('sc_hide_in_edge_left sc_hide_in_edge_right');
                 $(document).find('.sc_edge_trigger').remove();
             }
 

@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.4.4
+// @version      13.4.5
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -4617,23 +4617,16 @@
                         let the_sc_special_sc_div_width = $(document).find('#' + sc_special_sc_div_the_id).width();
                         let the_live_player_width = $(document).find('#live-player').width();
 
-                        let the_interval_time = 11000;
-
                         if (!the_sc_live_no_remain_flag) {
-                            $(document).find('#' + sc_special_sc_div_the_id).css('animation', 'slideInFromRightToLeftOut 20s linear forwards');
-                            the_interval_time = 20000;
+                            $(document).find('#' + sc_special_sc_div_the_id).css('animation', 'slideInFromRightToLeftOut 15s linear forwards');
                         } else {
                             if (the_sc_special_sc_div_width > the_live_player_width) {
-                                $(document).find('#' + sc_special_sc_div_the_id).css('animation', 'slideInFromRightToLeftOut 20s linear forwards');
-                                the_interval_time = 20000;
+                                $(document).find('#' + sc_special_sc_div_the_id).css('animation', 'slideInFromRightToLeftOut 15s linear forwards');
                             }
                         }
 
                         setTimeout(() => {
-                            $(document).find('#' + sc_special_sc_div_the_id).remove();
                             sc_live_special_sc_await_arr = sc_live_special_sc_await_arr.filter(item => item !== (sc_live_the_sc_uid + sc_live_the_sc_id));
-
-                            sc_live_special_danmu_show_index_arr[get_free_danmu_show_arr['the_free_danmu_show_index']] = 0;
 
                             sc_live_sc_danmu_show_n--;
 
@@ -4645,7 +4638,15 @@
                                 handle_special_sc(the_now_sc_to_danmu_data['sc_data'], the_now_sc_to_danmu_data['all_sc_to_danmu_show_flag']);
                             }
 
-                        }, the_interval_time);
+                        }, 5000);
+
+                        setTimeout(() => {
+                            sc_live_special_danmu_show_index_arr[get_free_danmu_show_arr['the_free_danmu_show_index']] = 0;
+                        }, 10000);
+
+                        setTimeout(() => {
+                            $(document).find('#' + sc_special_sc_div_the_id).remove();
+                        }, 15000);
                     }
 
                 } else {

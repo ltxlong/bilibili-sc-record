@@ -4812,7 +4812,7 @@
         }
 
         let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" data-start="'+ (sc_start_timestamp * 1000 + sc_last_item_sort)+'" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;'+ sc_item_show_animation + sc_msg_item_style_border_radius + box_shadow_css +'">'+
-            '<div class="sc_msg_head '+ sc_item_msg_head_bg_hide_class +'" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: contain;background-repeat: no-repeat;background-position: right center;'+ sc_msg_head_style_border_radius +'">'+
+            '<div class="sc_msg_head '+ sc_item_msg_head_bg_hide_class +'" style="' + sc_background_image_html + 'box-sizing: content-box;height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: contain;background-repeat: no-repeat;background-position: right center;'+ sc_msg_head_style_border_radius +'">'+
             '<div class="sc_avatar_div" style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
             '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px; padding-top: 2px;'+ sc_msg_head_left_style_display +'">'+
@@ -5542,6 +5542,9 @@
                 border-bottom-right-radius: 1px;
                 align-items: center;
                 justify-content: center;
+                /* 固定为粉丝牌的内容高度（14 - 上下各 1px 边框），避免盖住边框 */
+                height: 12px;
+                line-height: 12px;
             }
 
             @keyframes sc_circle_hide_x_left {

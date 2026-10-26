@@ -11534,6 +11534,36 @@
                 the_copy_sc_rectangle_width = sc_rectangle_width_fullscreen;
             }
 
+            // 高等级 SC 的背景图左侧是透明的，html2canvas 用 CSS background 绘制时，
+            // 会把透明边缘的 RGB 放大成一条色带；这里改成等价的 <img> 元素绘制：
+            // max-width/max-height 还原 background-size: contain，
+            // right:0 + margin:auto 0 还原 background-position: right center
+            function sc_replace_sc_background(root) {
+                let the_head = root.querySelector('.sc_msg_head');
+                if (!the_head) { return; }
+
+                let the_bg = getComputedStyle(the_head).backgroundImage;
+                let the_match = the_bg && the_bg.match(/url\(["']?(.*?)["']?\)/);
+                if (!the_match || !the_match[1]) { return; }
+
+                let the_bg_img = document.createElement('img');
+                the_bg_img.style.cssText = 'position:absolute;right:0;top:0;bottom:0;margin:auto 0;'
+                    + 'width:auto;height:auto;max-width:100%;max-height:100%;'
+                    + 'z-index:1;pointer-events:none;border-top-right-radius:6px;';
+                the_bg_img.onerror = function () { the_head.style.backgroundImage = the_bg; };
+                the_bg_img.src = the_match[1];
+
+                the_head.style.backgroundImage = 'none';
+                the_head.style.position = 'relative';
+                the_head.insertBefore(the_bg_img, the_head.firstChild);
+
+                // 头像、时间/粉丝牌、价格放到背景图上层
+                ['.sc_avatar_div', '.sc_msg_head_left', '.sc_msg_head_right'].forEach(function (sel) {
+                    let el = the_head.querySelector(sel);
+                    if (el) { el.style.position = 'relative'; el.style.zIndex = '2'; }
+                });
+            }
+
             function capture_gen_canvas(tmp_sc_item_div, current_sc_div) {
 
                 return new Promise((resolve, reject) => {
@@ -11615,6 +11645,8 @@
                 });
 
                 document.body.appendChild(tmp_sc_item[0]);
+
+                sc_replace_sc_background(tmp_sc_item[0]);
 
                 capture_gen_canvas(tmp_sc_item[0], current_sc_div).then(canvas => {
                     canvas.toBlob(blob => {

@@ -11598,6 +11598,22 @@
                     tmp_sc_item.find('.sc_msg_head_right').css('height', '20px');
                 }
 
+                // 归一化头像容器：原布局是零宽 float + 绝对定位子元素，
+                // 部分环境下 html2canvas 会把头像锚到错误的包含块，导致头像被画到卡片外
+                tmp_sc_item.find('.sc_avatar_div').css({
+                    width: '40px',
+                    height: '40px',
+                    position: 'relative'
+                });
+                tmp_sc_item.find('.sc_msg_head_left').css('margin-left', '0px');
+
+                // html2canvas 对没有显式 top/left 的绝对定位元素可能定位异常，
+                // 这里补齐（有 top/left 的，比如带头像框的 35x35 头像，保持原值）
+                tmp_sc_item.find('.sc_avatar_div img').each(function () {
+                    if (!this.style.top) { this.style.top = '0px'; }
+                    if (!this.style.left) { this.style.left = '0px'; }
+                });
+
                 document.body.appendChild(tmp_sc_item[0]);
 
                 capture_gen_canvas(tmp_sc_item[0], current_sc_div).then(canvas => {

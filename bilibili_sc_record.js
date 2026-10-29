@@ -2,7 +2,7 @@
 // @name         B站直播间SC记录板
 // @namespace    http://tampermonkey.net/
 // @homepage     https://greasyfork.org/zh-CN/scripts/484381
-// @version      13.4.5
+// @version      13.4.6
 // @description  实时同步SC、同接、高能和舰长数据，可拖拽移动，可导出，可单个SC折叠，可侧折，可搜索，可记忆配置，可生成图片（右键菜单），活动页可用，直播全屏可用，黑名单功能，不用登录，多种主题切换，自动清除超过12小时的房间SC存储，可自定义SC过期时间，可指定用户进入直播间提示、弹幕高亮和SC转弹幕，可让所有的实时SC以弹幕方式展现，可自动点击天选，可自动跟风发送combo弹幕
 // @author       ltxlong
 // @match        *://live.bilibili.com/1*
@@ -2400,7 +2400,7 @@
             the_search_result_div_clone.css('background-color', the_search_result_div_item_color);
             the_search_result_div_clone.show();
             the_search_result_div_clone.find('.sc_font_color').css('color', '#000000');
-            the_search_result_div_clone.find('.sc_start_time').show();
+            the_search_result_div_clone.find('.sc_start_time').show().css('display', 'flex');
             the_search_result_div_clone.find('.sc_msg_head_left').css('text-align', 'left');
             let the_search_result_div_item_head_color = the_search_result_div_clone.find('.sc_msg_head').css('background-color');
             the_search_result_div_item_head_color = change_color_opacity(the_search_result_div_item_head_color, sc_list_search_div_bg_opacity_range / 100);
@@ -2477,7 +2477,7 @@
             the_search_result_div_clone.css('background-color', the_search_result_div_item_color);
             the_search_result_div_clone.show();
             the_search_result_div_clone.find('.sc_font_color').css('color', '#000000');
-            the_search_result_div_clone.find('.sc_start_time').show();
+            the_search_result_div_clone.find('.sc_start_time').show().css('display', 'flex');
             the_search_result_div_clone.find('.sc_msg_head_left').css('text-align', 'left');
             let the_search_result_div_item_head_color = the_search_result_div_clone.find('.sc_msg_head').css('background-color');
             the_search_result_div_item_head_color = change_color_opacity(the_search_result_div_item_head_color, sc_list_search_div_bg_opacity_range / 100);
@@ -4738,7 +4738,7 @@
             box_shadow_css = 'box-shadow: rgba(0, 0, 0, 0.5) 2px 2px 2px;';
         }
 
-        let sc_start_time_display = '';
+        let sc_start_time_display = 'display: flex;';
         if (!sc_start_time_show_flag) {
             sc_start_time_display = 'display: none;';
         }
@@ -4748,8 +4748,8 @@
         }
         let metal_and_start_time_html = '<div class="sc_start_time" style="height: 20px; padding-left: 5px; margin-top: -1px;'+ sc_start_time_display +'">'+ sc_start_time_str +'</div>';
         if (sc_medal_flag) {
-            metal_and_start_time_html = '<div style="display: inline-flex;"><div class="fans_medal_item" style="background-color: '+ sc_medal_color +';border: 1px solid '+ sc_medal_color +';"><div class="fans_medal_label"><span class="fans_medal_content">'+ sc_medal_name +'</span></div><div class="fans_medal_level">'+ sc_medal_level +'</div></div>' +
-                '<div class="sc_start_time" style="height: 20px; padding-left: 5px;'+ sc_start_time_display +'">'+ sc_start_time_str +'</div></div>'
+            metal_and_start_time_html = '<div style="display: flex;"><div class="fans_medal_item" style="background-color: '+ sc_medal_color +';border: 1px solid '+ sc_medal_color +';"><div class="fans_medal_label" style="display: flex; align-items: center;"><span class="fans_medal_content">'+ sc_medal_name +'</span></div><div class="fans_medal_level">'+ sc_medal_level +'</div></div>' +
+                '<div class="sc_start_time" style="height: 14px; line-height: 14px; padding-left: 5px;'+ sc_start_time_display +'">'+ sc_start_time_str +'</div></div>'
         }
 
         let sc_msg_item_style_width = '';
@@ -4812,7 +4812,7 @@
         }
 
         let sc_item_html = '<div class="sc_long_item sc_' + sc_uid + '_' + sc_start_timestamp + '" data-fold="0" data-start="'+ (sc_start_timestamp * 1000 + sc_last_item_sort)+'" style="'+ sc_msg_item_style_width +'background-color: '+ sc_background_bottom_color +';margin-bottom: 10px;'+ sc_item_show_animation + sc_msg_item_style_border_radius + box_shadow_css +'">'+
-            '<div class="sc_msg_head '+ sc_item_msg_head_bg_hide_class +'" style="' + sc_background_image_html + 'height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: contain;background-repeat: no-repeat;background-position: right center;'+ sc_msg_head_style_border_radius +'">'+
+            '<div class="sc_msg_head '+ sc_item_msg_head_bg_hide_class +'" style="' + sc_background_image_html + 'box-sizing: content-box; height: 40px;background-color: '+ sc_background_color +';padding:5px;background-size: contain;background-repeat: no-repeat;background-position: right center;'+ sc_msg_head_style_border_radius +'">'+
             '<div class="sc_avatar_div" style="float: left; box-sizing: border-box; height: 40px; position: relative;"><a href="//space.bilibili.com/'+ sc_uid +'" target="_blank">'+
             sc_user_info_face_img+ sc_user_info_face_frame_img +'</a></div>'+
             '<div class="sc_msg_head_left" style="float: left; box-sizing: border-box; height: 40px; margin-left: 40px; padding-top: 2px;'+ sc_msg_head_left_style_display +'">'+
@@ -5542,6 +5542,8 @@
                 border-bottom-right-radius: 1px;
                 align-items: center;
                 justify-content: center;
+                height: 12px;
+                line-height: 12px;
             }
 
             @keyframes sc_circle_hide_x_left {
@@ -9297,7 +9299,7 @@
             sc_start_time_show_store();
 
             if (sc_start_time_show_flag) {
-                $(document).find('.sc_start_time').show();
+                $(document).find('.sc_start_time').show().css('display', 'flex');
             } else {
                 $(document).find('.sc_start_time').hide();
             }
@@ -9491,7 +9493,7 @@
             sc_start_time_show_store();
 
             if (sc_start_time_show_flag) {
-                $(document).find('.sc_start_time').show();
+                $(document).find('.sc_start_time').show().css('display', 'flex');
             } else {
                 $(document).find('.sc_start_time').hide();
             }
@@ -11531,6 +11533,36 @@
                 the_copy_sc_rectangle_width = sc_rectangle_width_fullscreen;
             }
 
+            // 高等级 SC 的背景图左侧是透明的，html2canvas 用 CSS background 绘制时，
+            // 会把透明边缘的 RGB 放大成一条色带；这里改成等价的 <img> 元素绘制：
+            // max-width/max-height 还原 background-size: contain，
+            // right:0 + margin:auto 0 还原 background-position: right center
+            function sc_replace_item_background(sc_item) {
+                let the_head = sc_item.querySelector('.sc_msg_head');
+                if (!the_head) { return; }
+
+                let the_bg = getComputedStyle(the_head).backgroundImage;
+                let the_match = the_bg && the_bg.match(/url\(["']?(.*?)["']?\)/);
+                if (!the_match || !the_match[1]) { return; }
+
+                let the_bg_img = document.createElement('img');
+                the_bg_img.style.cssText = 'position:absolute;right:0;top:0;bottom:0;margin:auto 0;'
+                    + 'width:auto;height:auto;max-width:100%;max-height:100%;'
+                    + 'z-index:1;pointer-events:none;border-top-right-radius:6px;';
+                the_bg_img.onerror = function () { the_head.style.backgroundImage = the_bg; };
+                the_bg_img.src = the_match[1];
+
+                the_head.style.backgroundImage = 'none';
+                the_head.style.position = 'relative';
+                the_head.insertBefore(the_bg_img, the_head.firstChild);
+
+                // 头像、时间/粉丝牌、价格放到背景图上层
+                ['.sc_avatar_div', '.sc_msg_head_left', '.sc_msg_head_right'].forEach(function (sel) {
+                    let the_el = the_head.querySelector(sel);
+                    if (the_el) { the_el.style.position = 'relative'; the_el.style.zIndex = '2'; }
+                });
+            }
+
             function capture_gen_canvas(tmp_sc_item_div, current_sc_div) {
 
                 return new Promise((resolve, reject) => {
@@ -11541,7 +11573,22 @@
                         logging: false,
                         width: current_sc_div.clientWidth,
                         height: current_sc_div.clientHeight,
-                        scale: 8 // 数值越大，分辨率越大，越清晰，至少4倍才比较清晰
+                        scale: 8, // 数值越大，分辨率越大，越清晰，至少4倍才比较清晰
+                        onclone: function(clonedDoc, clonedEl) {
+
+                            sc_side_fold_out_one($(clonedEl));
+                            let the_sc_item_bg_color = $(current_sc_div).css('background-color');
+                            let the_sc_item_head_bg_color = $(current_sc_div).find('.sc_msg_head').css('background-color');
+                            the_sc_item_bg_color = change_color_opacity(the_sc_item_bg_color, 1);
+                            the_sc_item_head_bg_color = change_color_opacity(the_sc_item_head_bg_color, 1);
+
+                            $(clonedEl).css('background-color', the_sc_item_bg_color);
+                            $(clonedEl).find('.sc_msg_head').css('background-color', the_sc_item_head_bg_color);
+
+                            clonedEl.style.setProperty('width', (the_copy_sc_rectangle_width - 22) + 'px', 'important');
+                            clonedEl.style.setProperty('height', 'auto', 'important');
+
+                        }
                     }).then(canvas => {
 
                         resolve(canvas);
@@ -11566,11 +11613,12 @@
                 }
 
                 let tmp_sc_item = $(current_sc_div).clone(); // 为了去掉animation的影响
+                sc_side_fold_out_one(tmp_sc_item, true);
                 tmp_sc_item.width(current_sc_div.clientWidth);
                 tmp_sc_item.height(current_sc_div.clientHeight);
                 tmp_sc_item.css('animation', 'unset');
                 tmp_sc_item.find('.sc_font_color').css('color', '#000000');
-                tmp_sc_item.find('.sc_start_time').show();
+                tmp_sc_item.find('.sc_start_time').show().css('display', 'flex');
 
                 let tmp_sc_item_bg_color = tmp_sc_item.css('background-color');
                 let tmp_sc_item_head_bg_color = tmp_sc_item.find('.sc_msg_head').css('background-color');
@@ -11595,7 +11643,25 @@
                     tmp_sc_item.find('.sc_msg_head_right').css('height', '20px');
                 }
 
+                // 归一化头像容器：原布局是零宽 float + 绝对定位子元素，
+                // 部分环境下 html2canvas 会把头像锚到错误的包含块，导致头像被画到卡片外
+                tmp_sc_item.find('.sc_avatar_div').css({
+                    width: '40px',
+                    height: '40px',
+                    position: 'relative'
+                });
+                tmp_sc_item.find('.sc_msg_head_left').css('margin-left', '0px');
+
+                // html2canvas 对没有显式 top/left 的绝对定位元素可能定位异常，
+                // 这里补齐（有 top/left 的，比如带头像框的 35x35 头像，保持原值）
+                tmp_sc_item.find('.sc_avatar_div img').each(function () {
+                    if (!this.style.top) { this.style.top = '0px'; }
+                    if (!this.style.left) { this.style.left = '0px'; }
+                });
+
                 document.body.appendChild(tmp_sc_item[0]);
+
+                sc_replace_item_background(tmp_sc_item[0]);
 
                 capture_gen_canvas(tmp_sc_item[0], current_sc_div).then(canvas => {
                     canvas.toBlob(blob => {
